@@ -36,7 +36,7 @@ export default class SettingsScene extends Phaser.Scene {
 
     // ── CONTROLS ───────────────────────────────────────────────────────────
     this.add.text(90, 290, 'CONTROLS', { fontFamily: 'monospace', fontSize: '16px', color: '#8fe6ff', fontStyle: 'bold' });
-    this.add.text(90, 314, 'Move: hold mouse or WASD / Arrows  ·  Aim: mouse (fixed)', { fontFamily: 'monospace', fontSize: '11px', color: '#7d7896' });
+    this.add.text(90, 314, 'Move: WASD / Arrows (fixed)  ·  attacks fire where you move', { fontFamily: 'monospace', fontSize: '11px', color: '#7d7896' });
     BINDABLE.forEach((b, i) => this._addBindRow(96, 340 + i * 30, b));
 
     // ── buttons ──────────────────────────────────────────────────────────────
