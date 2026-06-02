@@ -4,7 +4,13 @@ const TAU = Math.PI * 2;
 // Global boss-damage multiplier — bosses were barely scratching a defensive
 // build, so projectile + contact damage is scaled up once at construction (a
 // single tunable chokepoint instead of editing every attack in bosses.js).
-const BOSS_DMG = 1.8;
+// Tuning pass: bumped ~1.3× for harder hits across all bosses.
+const BOSS_DMG = 2.34; // was 1.8 — scaled by BOSS_ATK_SPEED (1.3×)
+
+// Global boss attack-speed multiplier. Dividing all cooldown/interval timers
+// by this constant makes every boss attack ~30 % more often without touching
+// individual attack definitions.  Raise it to speed bosses up further.
+const BOSS_ATK_SPEED = 1.3;
 
 // A boss. Joins the scene's `enemies` group (so the player's weapon damages it
 // and contact hurts the player) but is flagged `isBoss` so GameScene runs
@@ -44,7 +50,7 @@ export default class Boss extends Phaser.Physics.Arcade.Sprite {
     // phase escalation
     this.phaseThresholds = def.phaseThresholds || [];
     this.phase = 0;
-    this.atkCdMult = 1;
+    this.atkCdMult = 1 / BOSS_ATK_SPEED; // baseline: attacks ~30 % faster (enterNextPhase multiplies this further)
 
     this.setDepth(6);
     this.body.setSize(this.width * 0.6, this.height * 0.7);
@@ -414,7 +420,7 @@ export default class Boss extends Phaser.Physics.Arcade.Sprite {
     if (a.kind === 'aimed_repeat') {
       const spread = a.spread || 0.16;
       for (let i = -1; i <= 1; i++) this.shoot(ang + i * spread, a.speed, a.damage);
-      this.emitTimer = a.interval || 280;
+      this.emitTimer = (a.interval || 280) / BOSS_ATK_SPEED; // ~30 % faster bursts
       return;
     }
     if (a.kind === 'nova_rings') {
@@ -426,7 +432,7 @@ export default class Boss extends Phaser.Physics.Arcade.Sprite {
         this.shoot(i * step, a.speed, a.damage);
       }
       this.ringCount += 1;
-      this.emitTimer = a.interval || 260;
+      this.emitTimer = (a.interval || 260) / BOSS_ATK_SPEED; // ~30 % faster rings
       return;
     }
     // default: spiral (optionally with a counter-rotating second set = interlocking arms)
@@ -440,7 +446,7 @@ export default class Boss extends Phaser.Physics.Arcade.Sprite {
       }
     }
     this.spiralAngle += a.rotSpeed * (a.interval / 1000);
-    this.emitTimer = a.interval;
+    this.emitTimer = a.interval / BOSS_ATK_SPEED; // ~30 % faster spiral cadence
   }
 
   endAttack() {

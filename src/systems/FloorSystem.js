@@ -58,9 +58,17 @@ export default class FloorSystem {
     this.data = generateFloor(seed, DUNGEON);
     const d = this.data;
 
-    // Wall tint: a dark rocky version of the theme's grid colour. The wall TEXTURE
-    // (dungeon_wall) carries the rock detail; this just colours it per-civ.
-    const wallColor = Phaser.Display.Color.IntegerToColor(theme.grid).darken(8).color;
+    // Wall tint: use per-civ themed texture when available (no heavy tint needed —
+    // the texture's own colour provides the palette). Fall back to the generic
+    // dungeon_wall with a dark grid-colour tint when no themed texture exists.
+    const themedWallKey = `dungeon_wall_${theme.id}`;
+    const wallKey = this.scene.textures.exists(themedWallKey) ? themedWallKey : 'dungeon_wall';
+    // For themed walls, only apply a slight darken so the texture colour shows through
+    // (walls should read a bit darker/dimmer than the lit floor, but NOT black).
+    // For the generic fallback, use the old heavy-darken tint for backward-compat.
+    const wallColor = wallKey === themedWallKey
+      ? 0xcfcfcf  // slight darken — lets the texture's own colour show
+      : Phaser.Display.Color.IntegerToColor(theme.grid).darken(8).color;
 
     // world + camera bounds = this floor
     this.scene.physics.world.setBounds(0, 0, this.pixelW(), this.pixelH());
@@ -84,7 +92,7 @@ export default class FloorSystem {
         const isWall = col < d.cols && d.grid[row * d.cols + col] === WALL;
         if (isWall && runStart === -1) runStart = col;
         if (!isWall && runStart !== -1) {
-          this._wallStrip(runStart, row, col - runStart, wallColor);
+          this._wallStrip(runStart, row, col - runStart, wallColor, wallKey);
           runStart = -1;
         }
       }
@@ -125,16 +133,17 @@ export default class FloorSystem {
   // invisible greedy-meshed body; the visible rock is a tileSprite so the wall TEXTURE
   // repeats once per tile across the strip (stretching a detailed tile smears it).
   // wallColor is a pre-computed integer (0xRRGGBB) so the caller can vary it per civ.
-  _wallStrip(col, row, len, wallColor) {
+  // wallKey is the texture key to use for the visible rock (defaults to 'dungeon_wall').
+  _wallStrip(col, row, len, wallColor, wallKey = 'dungeon_wall') {
     const t = this.tile;
-    // collider (invisible)
+    // collider (invisible) — always uses the generic dungeon_wall key (physics only)
     const body = this.scene.obstacles.create(col * t + (len * t) / 2, row * t + t / 2, 'dungeon_wall');
     body.setDisplaySize(len * t, t).setVisible(false);
     body.body.setSize(len * t, t);
     body.refreshBody();
     this._visuals.push(body);
     // visible textured rock (repeats per-tile, no smear)
-    const rock = this.scene.add.tileSprite(col * t, row * t, len * t, t, 'dungeon_wall')
+    const rock = this.scene.add.tileSprite(col * t, row * t, len * t, t, wallKey)
       .setOrigin(0, 0).setTint(wallColor).setDepth(4);
     this._visuals.push(rock);
   }

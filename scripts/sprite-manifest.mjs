@@ -75,6 +75,12 @@ const CATEGORIES = {
     // t.desc carries the full per-civ description (ground texture OR faint scenery overlay)
     prompt: (t) => `${t.desc}. Pixel art, fills the entire frame edge to edge, top-down view, no text, no UI.`,
   },
+  // Opaque tileable WALL SURFACE texture — a frontal flat stone/masonry face, NOT a
+  // top-down scene. No sky, no floor, no door, no room. Just rows of blocks/bricks.
+  wall_tile: {
+    transparent: false,
+    prompt: (t) => `${t.desc}. 16-bit pixel art tileable texture, flat wall surface, stone or brick rows filling the entire frame, no background scene, no sky, no floor, no door, no window, no furniture, evenly lit, no text, no UI.`,
+  },
   ui: {
     transparent: true,
     prompt: (t) => `${t.desc} styled with authentic ${t.culture} art and ornament, intricate corners and edges, `
@@ -479,6 +485,25 @@ export function buildManifest() {
     push(`ui_frame_${t.id}`, 'ui', { desc: 'a rectangular UI panel border frame', culture }, 256, 256);
   }
   push('ui_banner', 'ui', { desc: 'a wide ornate horizontal title banner ribbon with gold trim', culture: 'ancient imperial' }, 320, 96);
+
+  // ── Dungeon CAVE WALL textures — one per civ, opaque 96×96 tileable tiles.
+  // Uses the background category (transparent:false → Recraft pixel_art path) with
+  // overhead-view stone surface descriptions that produce flat tileable textures —
+  // same approach that works for the bg_ground_* floor tiles.
+  const WALL_NO_GRID = 'mottled organic stone, NO regular grid, low contrast, seamless, dark';
+  const DUNGEON_WALLS = [
+    ['dungeon_wall_china',    `a seamless top-down overhead view of a dark grey cut-stone dungeon floor surface made of rectangular stone blocks with faint jade-green moss in the cracks, ${WALL_NO_GRID}, dark grey tones`],
+    ['dungeon_wall_japan',    `a seamless top-down overhead view of a dark aged wooden plank dungeon floor surface with horizontal brown timber boards and pale plaster patches, ${WALL_NO_GRID}, dark brown tones`],
+    ['dungeon_wall_byzantium',`a seamless top-down overhead view of a pale marble stone dungeon floor surface with fine mortar joints between cream-white ashlar blocks, ${WALL_NO_GRID}, pale cream and grey tones`],
+    ['dungeon_wall_sumer',    `a seamless top-down overhead view of a tan mudbrick dungeon floor surface with rows of warm sandy clay bricks and faint cuneiform scratches, ${WALL_NO_GRID}, warm sandy tan tones`],
+    ['dungeon_wall_rome',     `a seamless top-down overhead view of a pale travertine stone surface with irregular warm-beige stone blocks and pale mortar, ${WALL_NO_GRID}, warm pale beige-cream stone tones`],
+    ['dungeon_wall_macedon',  `a seamless top-down overhead view of a pale limestone dungeon floor surface with finely cut ashlar stone blocks and visible chisel marks, ${WALL_NO_GRID}, pale grey-white tones`],
+    ['dungeon_wall_mongolia', `a seamless top-down overhead view of a dark rough stone dungeon floor surface made of irregular rough steppe rocks and packed earth, ${WALL_NO_GRID}, dark brown-grey tones`],
+    ['dungeon_wall_norse',    `a seamless top-down overhead view of a dark frost-rimed stone dungeon floor surface with dark grey blocks and ice crystals and grey lichen patches, ${WALL_NO_GRID}, dark grey-blue tones`],
+  ];
+  for (const [key, desc] of DUNGEON_WALLS) {
+    push(key, 'background', { desc }, 96, 96);
+  }
 
   return items;
 }

@@ -337,6 +337,7 @@ export default class MapSystem {
         }
         for (const e of this.scene.enemies.getChildren()) {
           if (!e.active) continue;
+          if (e.isBoss) continue; // arenas shouldn't damage the boss — skip bosses
           const edx = e.x - h.x;
           const edy = e.y - h.y;
           if (edx * edx + edy * edy <= h.r * h.r) this.scene.damageEnemy(e, h.enemyDmg);
