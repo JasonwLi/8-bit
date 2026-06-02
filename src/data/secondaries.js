@@ -13,7 +13,7 @@ export const SECONDARIES = {
     name: 'Sky Piercer Thrust',
     kind: 'projectile_aimed',
     color: 0xffe08a,
-    base: { damage: 60, cooldown: 3000, count: 1, pierce: 6, speed: 820, spread: 0 }, // a HEAVY piercing lance thrust — hits hard, skewers a whole line
+    base: { damage: 60, cooldown: 2200, count: 1, pierce: 6, speed: 820, spread: 0 }, // a HEAVY piercing lance thrust — hits hard, skewers a whole line
     perPoint: { damage: 0.16, reach: 0.12, speed: 0.07 },
     effect: { countPerPoint: 0.34, piercePerPoint: 0.6 },
     effectLabel: '+pierce / reach',
@@ -31,7 +31,7 @@ export const SECONDARIES = {
     name: 'Rapid Burst',
     kind: 'burst_aimed',
     color: 0xffe08a,
-    base: { damage: 18, cooldown: 3200, count: 3, pierce: 2, speed: 700, spread: 6, burstDelay: 100 },
+    base: { damage: 18, cooldown: 2400, count: 3, pierce: 2, speed: 700, spread: 6, burstDelay: 100 },
     perPoint: { damage: 0.16, reach: 0.12, speed: 0.07 },
     effect: { countPerPoint: 0.34, piercePerPoint: 0.5 },
     effectLabel: '+shots / pierce',
@@ -45,7 +45,7 @@ export const SECONDARIES = {
     name: 'Greek Fire Nova',
     kind: 'projectile_radial',
     color: 0xff7b1c,
-    base: { damage: 16, cooldown: 3000, count: 12, pierce: 1, speed: 380 }, // ring of fire bolts
+    base: { damage: 16, cooldown: 2200, count: 12, pierce: 1, speed: 380 }, // ring of fire bolts
     perPoint: { damage: 0.16, reach: 0.12, speed: 0.07 },
     effect: { countPerPoint: 1, piercePerPoint: 0.34 },
     effectLabel: '+flames / pierce',
@@ -58,7 +58,7 @@ export const SECONDARIES = {
     name: 'Gate of Babylon',
     kind: 'projectile_aimed',
     color: 0xffd700,
-    base: { damage: 22, cooldown: 3400, count: 7, pierce: 8, speed: 720, spread: 58 }, // a fan of golden spears
+    base: { damage: 22, cooldown: 2500, count: 7, pierce: 8, speed: 720, spread: 58 }, // a fan of golden spears
     perPoint: { damage: 0.16, reach: 0.12, speed: 0.07 },
     effect: { countPerPoint: 0.5, piercePerPoint: 0.5 },
     effectLabel: '+spears / pierce',
@@ -71,7 +71,7 @@ export const SECONDARIES = {
     name: 'Pilum Volley',
     kind: 'projectile_aimed',
     color: 0xc0a060,
-    base: { damage: 48, cooldown: 3200, count: 3, pierce: 3, speed: 680, spread: 14 },
+    base: { damage: 48, cooldown: 2400, count: 3, pierce: 3, speed: 680, spread: 14 },
     perPoint: { damage: 0.16, reach: 0.12, speed: 0.07 },
     effect: { countPerPoint: 1, piercePerPoint: 0.75 }, // +pila / pierce
     effectLabel: '+pila / pierce',
@@ -85,7 +85,7 @@ export const SECONDARIES = {
     name: 'Companion Javelins',
     kind: 'burst_aimed',
     color: 0x4a90d9,
-    base: { damage: 30, cooldown: 3000, count: 4, pierce: 2, speed: 720, spread: 10, burstDelay: 80 },
+    base: { damage: 30, cooldown: 2200, count: 4, pierce: 2, speed: 720, spread: 10, burstDelay: 80 },
     perPoint: { damage: 0.16, reach: 0.12, speed: 0.07 },
     effect: { countPerPoint: 1, piercePerPoint: 0.75 }, // +javelins / pierce
     effectLabel: '+javelins / pierce',
@@ -101,7 +101,8 @@ export const SECONDARIES = {
     name: "Khan's Cleave",
     kind: 'melee_arc',
     color: 0xd2a04a,
-    base: { damage: 28, cooldown: 3600, radius: 96, arc: 160 },
+    base: { damage: 28, cooldown: 2200, radius: 96, arc: 160 },
+    sweepTex: 'fx_cleave', // distinct saber-slash visual (not the generic gold crescent)
     perPoint: { damage: 0.16, reach: 0.12, speed: 0.07 },
     effect: { arcPerPoint: 22, damagePerPoint: 0.05 }, // wider arc
     effectLabel: 'wider arc',
@@ -115,7 +116,7 @@ export const SECONDARIES = {
     name: 'Shield Bash',
     kind: 'melee_arc',
     color: 0xb0b0c0,
-    base: { damage: 55, cooldown: 3000, radius: 90, arc: 180 },
+    base: { damage: 55, cooldown: 2200, radius: 90, arc: 180 },
     perPoint: { damage: 0.16, reach: 0.12, speed: 0.07 },
     effect: { arcPerPoint: 20, damagePerPoint: 0.08 }, // wider bash / damage
     effectLabel: 'wider bash / damage',

@@ -487,9 +487,11 @@ export default class WeaponSystem {
       // Ragnar's shield bash — a forward shield slam + shockwave (NOT the generic sweep)
       this.scene.fx.shieldBash(this.player.x, this.player.y, facing, s.radius);
     } else {
-      // standard melee sweep: the crescent arc, tinted to the weapon's colour
+      // standard melee sweep: the crescent arc, tinted to the weapon's colour. A weapon
+      // may override the texture via `def.sweepTex` (e.g. Genghis's distinct cleave slash).
+      const sweepKey = (s.def.sweepTex && this.scene.textures.exists(s.def.sweepTex)) ? s.def.sweepTex : 'sweep';
       const fx = this.scene.add
-        .image(this.player.x, this.player.y, 'sweep')
+        .image(this.player.x, this.player.y, sweepKey)
         .setRotation(facing)
         .setDepth(9)
         .setScale((s.radius / 60) * 0.5)
