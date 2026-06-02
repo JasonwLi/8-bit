@@ -92,19 +92,20 @@ export const SECONDARIES = {
     slow: { factor: 0.5, dur: 1600 }, // pinning javelins SLOW struck foes (unique)
   },
 
-  // Genghis — PARTHIAN STORM: a full 360° hail of arrows from horseback PLUS a burst
-  // of speed (selfBuffs below) — the feigned-retreat kite. The speed surge also feeds
-  // his Mounted Volley primary (which fires faster the faster he rides). Anti-swarm.
+  // Genghis — KHAN'S CLEAVE: a heavy saber slash in a frontal arc that STUNS every foe
+  // it hits for 1s (frozen — no move, no attack). His control tool: peel a melee swarm
+  // off you / lock a pack in place, then stream arrows into them. Distinct from his
+  // rapid-arrow primary (damage) and the Encirclement ult.
   arrow_storm: {
     id: 'arrow_storm',
-    name: 'Parthian Storm',
-    kind: 'projectile_radial',
+    name: "Khan's Cleave",
+    kind: 'melee_arc',
     color: 0xd2a04a,
-    base: { damage: 24, cooldown: 3200, count: 10, pierce: 1, speed: 560 },
+    base: { damage: 28, cooldown: 3600, radius: 96, arc: 160 },
     perPoint: { damage: 0.16, reach: 0.12, speed: 0.07 },
-    effect: { countPerPoint: 1, piercePerPoint: 0.5 }, // +arrows
-    effectLabel: '+arrows',
-    selfBuffs: [{ kind: 'speed', mult: 1.35, dur: 2500 }], // Parthian kiting burst (unique)
+    effect: { arcPerPoint: 22, damagePerPoint: 0.05 }, // wider arc
+    effectLabel: 'wider arc',
+    stun: 1000, // freezes hit enemies for 1s
   },
 
   // Ragnar — SHIELD BASH: a wide arc slam with the round shield, knocking foes back.

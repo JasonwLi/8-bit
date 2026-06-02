@@ -490,6 +490,15 @@ export default class GameScene extends Phaser.Scene {
         }
       }
 
+      // Stun (Genghis's Khan's Cleave): frozen — no movement, no attack — for the window.
+      if (e.stunUntil && now < e.stunUntil) {
+        e.setVelocity(0, 0);
+        continue;
+      } else if (e.stunUntil) {
+        e.stunUntil = 0;
+        if (e.isElite) e.setTint(e.eliteTint || 0xffd54a); else e.clearTint(); // restore look
+      }
+
       EnemyAI.updateMob(this, e, delta, dist, ang); // movement + attack (owned by EnemyAI.js)
       // Alexander's javelin slow: damp the velocity EnemyAI just set, while it lasts
       if (e.slowUntil && now < e.slowUntil) e.body.velocity.scale(e.slowFactor || 0.5);
@@ -858,6 +867,7 @@ export default class GameScene extends Phaser.Scene {
   // --- overlap callbacks ---
   onPlayerHit(player, enemy) {
     if (!enemy.active) return;
+    if (enemy.stunUntil && this.time.now < enemy.stunUntil) return; // stunned foes can't hit
     this.reactToHit(player.takeDamage(enemy.contactDamage, this.time.now));
   }
 

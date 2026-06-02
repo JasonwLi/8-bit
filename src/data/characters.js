@@ -118,7 +118,7 @@ export const CHARACTERS = [
     name: 'Genghis Khan',
     civ: 'Mongolia',
     civId: 'mongolia',
-    blurb: 'The Great Khan. Lure the horde — ride hard and leave a trail of caltrop fields that shred whatever chases you.',
+    blurb: 'The Great Khan. A horse archer: rain a rapid stream of arrows, cleave a stunning saber arc to lock the swarm, then encircle them.',
     startingWeapon: 'composite_bow',
     secondary: 'arrow_storm',
     ultimate: 'sky_arrows',

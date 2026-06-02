@@ -94,22 +94,19 @@ export const WEAPONS = {
     effectLabel: 'longer line / damage',
   },
 
-  // Genghis — SIGNATURE: the LURE-AND-TRAP hunter ("Scorched Steppe"). He does NOT
-  // shoot at enemies — as he rides, he rakes the ground in his WAKE with caltrop fields
-  // (persistent ground hazards) that shred whatever chases him. You herd the horde
-  // across your own killing fields instead of aiming. Faster riding = a denser trail.
-  // Unique mechanic: the only weapon that lays self-trailing damage zones; a totally
-  // different loop from Nobunaga's aimed sniping (and from Belisarius, who LOBS pools
-  // AT enemies — Genghis drops them behind himself).
+  // Genghis — SIGNATURE: the HORSE ARCHER. A rapid stream of weak arrows (hold to fire
+  // a fast cadence; low per-hit but pierces and never lets up). DPS comes from VOLUME,
+  // not big hits — distinct from Nobunaga's slow, heavy aimed shots. Pairs with his
+  // stun-slash secondary (control) and the Encirclement ult.
   composite_bow: {
     id: 'composite_bow',
-    name: 'Scorched Steppe',
-    kind: 'trail',
+    name: 'Steppe Volley',
+    kind: 'projectile_aimed',
     color: 0xb8860b,
-    base: { damage: 8, cooldown: 620, radius: 46, duration: 2200, tick: 300, count: 1 },
-    perPoint: { damage: 0.16, reach: 0.12, speed: 0.07 }, // reach = field size
-    effect: { countPerPoint: 0.5, radiusPerPoint: 7 }, // bigger fields; every 2 pts +1 field
-    effectLabel: '+field size / count',
+    base: { damage: 8, cooldown: 200, count: 1, pierce: 1, speed: 780, spread: 0.05 },
+    perPoint: { damage: 0.16, reach: 0.14, speed: 0.07 },
+    effect: { countPerPoint: 0.34, piercePerPoint: 0.75 }, // +pierce, eventually +arrow
+    effectLabel: '+pierce / arrows',
   },
 
   // Ragnar — SIGNATURE: the boomerang axe. Thrown axes fly out to full range then

@@ -520,6 +520,11 @@ export default class WeaponSystem {
           e.x += Math.cos(ang) * s.def.knockback;
           e.y += Math.sin(ang) * s.def.knockback;
         }
+        if (s.def.stun && e.active && !e.isBoss) { // Khan's Cleave: lock the foe in place
+          e.stunUntil = this.scene.time.now + s.def.stun;
+          e.setTint(0x9fd0ff);
+          this.scene.fx.impact(e.x, e.y, 0x9fd0ff);
+        }
         hitAny = true;
       }
     }
