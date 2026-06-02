@@ -1,0 +1,8 @@
+node_modules
+dist
+.env.local
+.env
+
+# AI sprite regeneration sources (not needed at runtime)
+public/sprites/.raw/
+public/sprites/.approved/
