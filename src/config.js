@@ -38,9 +38,9 @@ export const DUNGEON = {
   // Dungeon-crawler combat feel (vs the old swarm): the player's attacks hit softer so
   // fights are deliberate, and early-floor enemies get bonus HP so nothing is one-shot
   // on arrival. earlyHpMult = 1 + max(0, earlyHpFloors - floor) * earlyHpBonus.
-  playerDmgScale: 0.55, // multiplies all player damage to non-boss enemies
+  playerDmgScale: 0.72, // multiplies all player damage to non-boss enemies (snappier than 0.55)
   earlyHpFloors: 4,     // enemies get bonus HP on floors below this
-  earlyHpBonus: 0.5,    // +50% HP per floor under earlyHpFloors (floor 1 → ×2.5)
+  earlyHpBonus: 0.35,   // +35% HP per floor under earlyHpFloors (floor 1 → ×2.0)
 };
 
 // XP needed to reach the *next* level, indexed by current level (1-based).
