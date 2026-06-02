@@ -78,6 +78,7 @@ export default class GameScene extends Phaser.Scene {
     this.bossActiveThisFloor = false;
     this._navAcc = 0;
     this._lastRevealX = -1e9; this._lastRevealY = -1e9; // force a fog reveal on the first frame
+    this._fogVisAcc = 0; // accumulator for the ~100ms fog-concealment visibility pass
   }
 
   create() {
@@ -360,6 +361,42 @@ export default class GameScene extends Phaser.Scene {
         if (dx * dx + dy * dy > 18 * 18) {
           this._lastRevealX = this.player.x; this._lastRevealY = this.player.y;
           this.floorSys.revealAt(this.player.x, this.player.y);
+        }
+      }
+
+      // ── Fog-of-war concealment: hide entities that sit in unexplored (dark) tiles so
+      // enemies, loot, and props don't bleed through the fog overlay. Throttled to ~100ms
+      // to keep per-frame cost negligible — visibility can lag by at most one tick.
+      // Bosses are always shown (they announce themselves; hiding a boss is jarring).
+      // Allies follow the player and so are always in explored space — skip them.
+      this._fogVisAcc += delta;
+      if (this._fogVisAcc >= 100 && this.floorSys) {
+        this._fogVisAcc = 0;
+        const fs = this.floorSys;
+        const _vis = (obj) => {
+          if (!obj.active) return;
+          const { col, row } = fs.worldToTile(obj.x, obj.y);
+          obj.setVisible(fs.isExplored(col, row));
+        };
+        for (const e of this.enemies.getChildren()) {
+          if (!e.active) continue;
+          if (e.isBoss) { e.setVisible(true); continue; } // bosses always shown
+          const { col, row } = fs.worldToTile(e.x, e.y);
+          e.setVisible(fs.isExplored(col, row));
+        }
+        for (const p of this.enemyProjectiles.getChildren()) _vis(p);
+        for (const g of this.gems.getChildren()) _vis(g);
+        for (const c of this.chests.getChildren()) _vis(c);
+        for (const p of this.pickups.getChildren()) _vis(p);
+        for (const pu of this.powerups.getChildren()) _vis(pu);
+        for (const b of this.breakables.getChildren()) _vis(b);
+        for (const sh of this.shrines.getChildren()) _vis(sh);
+        if (this.map && this.map._floorProps) {
+          for (const prop of this.map._floorProps) {
+            if (!prop || !prop.active) continue;
+            const { col, row } = fs.worldToTile(prop.x, prop.y);
+            prop.setVisible(fs.isExplored(col, row));
+          }
         }
       }
 
