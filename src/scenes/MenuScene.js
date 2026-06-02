@@ -106,7 +106,7 @@ export default class MenuScene extends Phaser.Scene {
     const kP = keyLabel(Settings.binds.primary), kS = keyLabel(Settings.binds.secondary), kU = keyLabel(Settings.binds.ultimate);
     this.add
       .text(width / 2, height - 22,
-        `Move: WASD / Arrows  •  ${kP}: attack (hold)  ·  ${kS}: secondary  ·  ${kU}: ultimate  •  Chests drop gear`,
+        `Move: hold MOUSE / WASD  ·  Aim: mouse  •  ${kP} attack · ${kS} secondary · ${kU} ultimate  •  Chests drop gear`,
         { fontFamily: 'monospace', fontSize: '13px', color: '#7d7896' })
       .setOrigin(0.5);
 

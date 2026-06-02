@@ -293,7 +293,8 @@ export default class WeaponSystem {
     if (this.timer > 0) return;
     const s = this.computeStats();
     this.lastCooldown = s.cooldown;
-    this._aimOverride = null;
+    // mouse aim: fire toward the cursor when one is set, else auto-target the nearest foe
+    this._aimOverride = (this.scene.cursorAim != null) ? this.scene.cursorAim : null;
     this.fire(s);
     this.timer = s.cooldown;
   }

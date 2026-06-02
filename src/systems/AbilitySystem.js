@@ -126,6 +126,7 @@ export default class AbilitySystem {
   }
 
   aimAngle() {
+    if (this.scene.cursorAim != null) return this.scene.cursorAim; // mouse aim wins
     let best = null;
     let bestD = Infinity;
     const px = this.player.x;

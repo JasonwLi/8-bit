@@ -79,6 +79,7 @@ export default class GameScene extends Phaser.Scene {
     this._navAcc = 0;
     this._lastRevealX = -1e9; this._lastRevealY = -1e9; // force a fog reveal on the first frame
     this._fogVisAcc = 0; // accumulator for the ~100ms fog-concealment visibility pass
+    this.cursorAim = null; // radians toward the mouse (Diablo-style aim), set each frame in update
   }
 
   create() {
@@ -299,7 +300,23 @@ export default class GameScene extends Phaser.Scene {
     if (k.D.isDown || k.RIGHT.isDown) dx += 1;
     if (k.W.isDown || k.UP.isDown) dy -= 1;
     if (k.S.isDown || k.DOWN.isDown) dy += 1;
+
+    // Diablo-style mouse control (dungeon, non-duel): the CURSOR sets your aim, and
+    // HOLDING the left button walks you toward it. Keyboard movement, if any, wins.
+    // `this.cursorAim` (radians, or null) is read by the weapon/ability aiming.
+    this.cursorAim = null;
+    if (this.dungeonMode && !this.dueling && this.canAct()) {
+      const ptr = this.input.activePointer;
+      const wp = this.cameras.main.getWorldPoint(ptr.x, ptr.y);
+      this.cursorAim = Math.atan2(wp.y - this.player.y, wp.x - this.player.x);
+      if (dx === 0 && dy === 0 && ptr.leftButtonDown()) {
+        const mdx = wp.x - this.player.x, mdy = wp.y - this.player.y;
+        if (mdx * mdx + mdy * mdy > 14 * 14) { dx = mdx; dy = mdy; } // walk toward cursor
+      }
+    }
     this.player.move(dx, dy);
+    // face the cursor while mouse-aiming (sprite looks where you attack)
+    if (this.cursorAim != null) this.player.setFlipX(Math.cos(this.cursorAim) < 0);
     if (!this.dungeonMode) this.wrapEntity(this.player, true); // open world is a torus; floors have hard walls
 
     this.updateEnemies(delta);
@@ -1112,8 +1129,8 @@ export default class GameScene extends Phaser.Scene {
     }
 
     if (!this.canAct()) return;
-    if (bk.primary.isDown) this.weapons.fireHeld();            // held manual primary
-    if (JustDown(bk.secondary) && this.secondary.ready()) this.secondary.castManual(null);
+    if (bk.primary.isDown) this.weapons.fireHeld();            // held manual primary (mouse-aimed)
+    if (JustDown(bk.secondary) && this.secondary.ready()) this.secondary.castManual(this.cursorAim); // toward cursor
     if (JustDown(bk.ultimate)) this.ability.tryCast(this.time.now);
   }
 
