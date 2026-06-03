@@ -18,7 +18,10 @@ export default class WeaponSystem {
     this.scene = scene;
     this.player = player;
     this.weaponId = weaponId;
-    this.points = { damage: 0, reach: 0, speed: 0, effect: 0 };
+    // Per-skill upgrade points. New skills declare their own 4 `axes` (data-driven,
+    // flavored); legacy skills fall back to the fixed damage/reach/speed/effect.
+    const ax = this.def().axes;
+    this.points = ax ? Object.fromEntries(ax.map((a) => [a.id, 0])) : { damage: 0, reach: 0, speed: 0, effect: 0 };
     this.timer = 0;
     this.lastCooldown = (this.def().base.cooldown) || 1000; // for readyFraction()
     this._aimOverride = null; // when set, fire toward this angle instead of auto-targeting
@@ -42,13 +45,29 @@ export default class WeaponSystem {
 
   // Total upgrades invested across this weapon's four axes (for the per-ability cap).
   totalLevel() {
-    const p = this.points;
-    return p.damage + p.reach + p.speed + p.effect;
+    let t = 0; for (const k in this.points) t += this.points[k];
+    return t;
+  }
+
+  // Invested points in the axis of a given KIND (data-driven skills) — 0 if absent.
+  ptsOf(kind) {
+    const ax = this.def().axes;
+    if (!ax) return 0;
+    let t = 0;
+    for (const a of ax) if (a.kind === kind) t += (this.points[a.id] || 0);
+    return t;
+  }
+  // Per-point magnitude for an axis kind (axis.per overrides the default).
+  perOf(kind, dflt) {
+    const ax = this.def().axes;
+    if (ax) for (const a of ax) if (a.kind === kind && a.per != null) return a.per;
+    return dflt;
   }
 
   // Resolve base + points + player mods into the numbers used when firing.
   computeStats() {
     const def = this.def();
+    if (def.axes) return this.computeStatsGeneric(); // data-driven per-skill axes
     const pt = this.points;
     const pp = def.perPoint;
     const b = def.base;
@@ -162,6 +181,87 @@ export default class WeaponSystem {
         break;
       default:
         break;
+    }
+    return s;
+  }
+
+  // Generic, DATA-DRIVEN resolver for skills that declare their own `axes` (id/kind/
+  // label/desc). Each kind scales a stat; `base` carries the baselines, including any
+  // DEFAULT-ON effects (knockback/bleed/stun/slow/lifesteal/pierceAll) the upgrade scales.
+  computeStatsGeneric() {
+    const def = this.def();
+    const b = def.base;
+    const p = this.player;
+    const emp = p.empowered;
+    const empDmg = emp ? 1.5 : 1;
+    const empCd = emp ? 0.7 : 1;
+    const P = (k) => this.ptsOf(k);
+    const M = (k, d) => this.perOf(k, d);
+
+    const sizePts = P('size');
+    const reachMult = (1 + sizePts * M('size', 0.12)) * p.reachMult;
+    const damage = b.damage * (1 + P('dmg') * M('dmg', 0.16)) * p.damageMult * p.buffDamageMult * empDmg;
+    const cooldown = b.cooldown * p.cooldownMult * Math.pow(1 - M('cadence', 0.07), P('cadence')) * empCd;
+    const bonusProj = p.bonusProjectiles || 0;
+    const s = { def, damage, cooldown, reachMult };
+
+    s.count = (b.count || 1) + Math.floor(P('count') * M('count', 1)) + bonusProj;
+    s.pierce = b.pierceAll ? 99999 : (b.pierce || 0) + Math.floor(P('pierce') * M('pierce', 1));
+    s.spread = b.spread;
+    if (b.speed != null) s.speed = b.speed * reachMult;
+
+    // kind-specific geometry
+    switch (def.kind) {
+      case 'melee_arc':
+        s.radius = b.radius * reachMult;
+        s.arc = Math.min(360, b.arc + P('arc') * M('arc', 24));
+        break;
+      case 'lob_aoe':
+        s.radius = b.radius * reachMult;
+        s.duration = b.duration * (1 + P('burn') * 0.18);
+        s.tick = b.tick; s.speed = b.speed;
+        break;
+      case 'orbital':
+        s.count = Math.max(1, s.count);
+        s.orbitRadius = (b.orbitRadius + sizePts * 6) * reachMult;
+        s.orbitSpeed = b.orbitSpeed * (1 + P('cadence') * 0.10 + P('spin') * 0.14);
+        s.cooldown = 99999;
+        break;
+      case 'summon':
+        s.allyHp = (b.allyHp || 40) + P('allyhp') * M('allyhp', 14);
+        s.allyLife = (b.allyLife || 7000) * reachMult;
+        s.allySpeed = b.allySpeed; s.allyRange = b.allyRange;
+        s.allyDmgMult = 1 + P('allydmg') * M('allydmg', 0.16);
+        break;
+      case 'line_thrust':
+        s.length = (b.length + sizePts * 14) * reachMult;
+        s.width = (b.width || 46) + P('arc') * M('arc', 10);
+        break;
+      case 'boomerang':
+        s.range = b.range * reachMult; s.spin = b.spin; s.speed = b.speed;
+        break;
+      default: break;
+    }
+    if (s.duration == null && b.duration) s.duration = b.duration;
+    if (s.tick == null && b.tick) s.tick = b.tick;
+
+    // universal, scalable on-hit effects (default-on via base, upgraded by their axis)
+    s.knockback = (b.knockback || 0) + P('knockback') * M('knockback', 16);
+    s.stunMs = (b.stun || 0) + P('stun') * M('stun', 250);
+    s.fearMs = (b.fear || 0) + P('fear') * M('fear', 300);
+    s.weaponLifesteal = (b.lifesteal || 0) + P('lifesteal') * M('lifesteal', 0.03);
+    s.armorPierce = !!b.armorPierce || P('armorpierce') > 0;
+    if (b.bleed) {
+      const k = P('bleed');
+      s.bleed = { dps: b.bleed.dps + k * M('bleed', 0.6), duration: b.bleed.duration, stackMax: (b.bleed.stackMax || 4) + k };
+    }
+    if (b.slow) {
+      const k = P('slow');
+      s.slow = { factor: Math.max(0.12, b.slow.factor - k * 0.06), dur: b.slow.dur + k * 250 };
+    }
+    if (b.leaveBurn || P('burnpatch')) {
+      const k = P('burnpatch');
+      s.leaveBurn = { radius: (b.leaveBurn?.radius || 42) + k * 6, dmg: (b.leaveBurn?.dmg || 6) + k * 2, dur: b.leaveBurn?.dur || 1300 };
     }
     return s;
   }
@@ -460,9 +560,15 @@ export default class WeaponSystem {
     p.hitSet = new Set();
     p.lifespan = 1400 * s.reachMult;
     p.trailColor = s.def.color; // weapon-coloured glow trail (Fx.trail in the update loop)
-    p.bleed = s.def.bleed || null; // wound-on-hit DoT (Lü Bu's thrust); applied in onProjectileHit
-    p.knockback = s.def.knockback || 0; // shove-on-hit (Caesar's pila)
-    p.slow = s.def.slow || null; // slow-on-hit (Alexander's javelins)
+    // on-hit effects: prefer the COMPUTED (axis-scaled) values, fall back to the def.
+    p.bleed = s.bleed || s.def.bleed || null; // wound-on-hit DoT (scaled by Hemorrhage etc.)
+    p.knockback = (s.knockback != null) ? s.knockback : (s.def.knockback || 0); // shove-on-hit
+    p.slow = s.slow || s.def.slow || null; // slow-on-hit (scaled by Pinning etc.)
+    p.stunMs = s.stunMs || 0; // stun-on-hit
+    p.weaponLifesteal = s.weaponLifesteal || 0; // heal the player per hit (Bloodlust etc.)
+    p.leaveBurn = s.leaveBurn || null; // leave a fire patch on hit (Incendiary etc.)
+    p.fearMs = s.fearMs || 0; // make the foe flee briefly
+    p.armorPierce = !!s.armorPierce; // ignore enemy armor
     // reset signature flags so a recycled sprite doesn't keep a prior weapon's behaviour
     p.ricochet = false; p.boomerang = false; p.spin = 0;
     return p;
@@ -518,16 +624,18 @@ export default class WeaponSystem {
       const ang = Math.atan2(dy, dx);
       const diff = Math.abs(Phaser.Math.Angle.Wrap(ang - facing));
       if (s.arc >= 360 || diff <= halfArc) {
-        this.scene.damageEnemy(e, damage);
-        if (s.def.knockback && e.active && !e.isBoss) { // shield-bash shove
-          e.x += Math.cos(ang) * s.def.knockback;
-          e.y += Math.sin(ang) * s.def.knockback;
-        }
-        if (s.def.stun && e.active && !e.isBoss) { // Khan's Cleave: lock the foe in place
-          e.stunUntil = this.scene.time.now + s.def.stun;
+        this.scene.damageEnemy(e, damage, { armorPierce: s.armorPierce });
+        const kb = (s.knockback != null) ? s.knockback : (s.def.knockback || 0);
+        if (kb && e.active && !e.isBoss) { e.x += Math.cos(ang) * kb; e.y += Math.sin(ang) * kb; }
+        const stun = (s.stunMs != null) ? s.stunMs : (s.def.stun || 0);
+        if (stun && e.active && !e.isBoss) { // lock the foe in place (Khan's Cleave / Stagger)
+          e.stunUntil = this.scene.time.now + stun;
           e.setTint(0x9fd0ff);
           this.scene.fx.impact(e.x, e.y, 0x9fd0ff);
         }
+        if (s.fearMs && e.active && !e.isBoss) e.fearUntil = this.scene.time.now + s.fearMs;
+        if (s.bleed && e.active) this.scene.applyBleed(e, s.bleed);
+        if (s.weaponLifesteal) this.scene.player.heal(damage * s.weaponLifesteal); // Bloodlust
         hitAny = true;
       }
     }
@@ -728,7 +836,7 @@ export default class WeaponSystem {
       const ox = this.player.x + Math.cos(a) * 24;
       const oy = this.player.y + Math.sin(a) * 24;
       this.scene.spawnLegionary(ox, oy, {
-        damage: Math.round(s.damage),
+        damage: Math.round(s.damage * (s.allyDmgMult || 1)),
         hp: s.allyHp,
         life: s.allyLife,
         speed: s.allySpeed,

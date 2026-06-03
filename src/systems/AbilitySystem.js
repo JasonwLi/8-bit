@@ -34,6 +34,15 @@ export default class AbilitySystem {
     return p.power + p.haste + p.area + p.amount;
   }
 
+  // Points invested in the slot that a flavored axis assigns to a KIND (data-driven
+  // ults declare `axes: [{slot, kind, label, desc}]`; points stay keyed by slot).
+  ptsOf(kind) {
+    const ax = getAbility(this.abilityId).axes;
+    if (!ax) return 0;
+    for (const a of ax) if (a.kind === kind) return this.points[a.slot] || 0;
+    return 0;
+  }
+
   ready() {
     return this.cdRemaining <= 0;
   }
@@ -51,8 +60,31 @@ export default class AbilitySystem {
     this.cdRemaining = s.cooldown;
     this.cast(s);
     // per-ability self-buffs: Caesar's testudo fortifies (defense), Ragnar's berserker
-    // enrages (damage+speed) — gives same-`kind` ultimates distinct mechanical identities.
-    if (s.def.selfBuffs) for (const bf of s.def.selfBuffs) this.player.addBuff(bf.kind, bf.mult, bf.dur, now);
+    // enrages (damage+speed). The 'buff' axis (Shield Wall / Bloodrage) scales them.
+    if (s.def.selfBuffs) for (const bf of s.def.selfBuffs) {
+      let mult = bf.mult;
+      if (s.buffScale && s.buffScale !== 1) mult = (bf.kind === 'defense') ? bf.mult / s.buffScale : bf.mult * s.buffScale;
+      this.player.addBuff(bf.kind, mult, bf.dur + (s.buffDurBonus || 0), now);
+    }
+    // Rally (Caesar Testudo): heal + extend nearby legionaries — reward the legion build.
+    if (s.rally && this.scene.allies) {
+      for (const a of this.scene.allies.getChildren()) {
+        if (!a.active) continue;
+        if (Phaser.Math.Distance.Between(a.x, a.y, this.player.x, this.player.y) < 280) {
+          a.allyHp = a.allyMaxHp || a.allyHp;
+          a.allyUntil = Math.max(a.allyUntil, now + 4000);
+        }
+      }
+    }
+    // Leave burning craters (Cataclysm / Scorch) along the aim — a lingering hazard.
+    if (s.leaveCrater) {
+      const aim = this.aimAngle();
+      for (let i = 0; i < 3; i++) {
+        const d = 80 + i * 95;
+        this.scene.spawnHazardZone(this.player.x + Math.cos(aim) * d, this.player.y + Math.sin(aim) * d,
+          s.leaveCrater.radius, s.leaveCrater.dmg, 220, 350, s.leaveCrater.dur);
+      }
+    }
     // brief invulnerability on cast (the "ultimate" escape/burst window)
     this.player.addBuff('invuln', 1, ULT_INVULN_MS, now);
     // open the empowered window that surges the regular attack
@@ -66,6 +98,26 @@ export default class AbilitySystem {
   computeStats() {
     const def = getAbility(this.abilityId);
     const b = def.base;
+    if (def.axes) {
+      const P = (k) => this.ptsOf(k);
+      const areaMult = (1 + P('area') * 0.15) * this.player.reachMult;
+      const burnPts = P('burn');
+      return {
+        def,
+        damage: Math.round(b.damage * (1 + P('power') * 0.2) * this.player.damageMult * this.player.buffDamageMult),
+        cooldown: b.cooldown * this.player.cooldownMult * Math.pow(1 - 0.08, P('haste')),
+        radius: (b.radius || 0) * areaMult,
+        width: (b.width || 0) * areaMult,
+        knockback: (b.knockback || 0) * areaMult,
+        count: (b.count || 1) + P('amount') + (this.player.bonusAbilityCount || 0),
+        speed: b.speed, length: b.length, delay: b.delay,
+        // flavored kinds:
+        buffScale: 1 + P('buff') * 0.2,            // stronger self-buff (Shield Wall / Bloodrage)
+        buffDurBonus: P('buff') * 700,             // + buff duration (ms)
+        leaveCrater: (b.leaveBurn || burnPts) ? { radius: (b.leaveBurn?.radius || 90) + burnPts * 10, dmg: (b.leaveBurn?.dmg || 10) + burnPts * 3, dur: b.leaveBurn?.dur || 1600 } : null,
+        rally: def.rally || false,                 // Caesar Testudo: heal/refresh nearby legionaries
+      };
+    }
     const pt = this.points;
     const areaMult = (1 + pt.area * 0.15) * this.player.reachMult;
     return {

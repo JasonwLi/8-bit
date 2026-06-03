@@ -6,6 +6,17 @@ import { Audio } from '../systems/AudioManager.js';
 import { drawPanel } from '../art/ui.js';
 import { GAME } from '../config.js';
 
+// Map an axis kind (or legacy axis name) to one of the 8 procedural `axis_*` emblem
+// icons. Flavored kinds reuse a thematically-close emblem.
+const AXIS_ICON = {
+  damage: 'damage', dmg: 'damage', allydmg: 'damage', power: 'power', lifesteal: 'power', bleed: 'power',
+  speed: 'speed', cadence: 'speed', haste: 'haste', spin: 'haste',
+  reach: 'reach', size: 'reach', slow: 'reach', evasion: 'reach',
+  area: 'area', arc: 'area', knockback: 'area',
+  amount: 'amount', count: 'amount', allyhp: 'amount',
+  effect: 'effect', pierce: 'effect', stun: 'effect', fear: 'effect', armorpierce: 'effect', burnpatch: 'effect', burn: 'effect', buff: 'effect', multishot: 'amount',
+};
+
 // HERO STAT upgrades — offered once an ability hits the upgrade cap (and to fill the
 // pool). Each adds a permanent mod to the player (Brotato / Halls-of-Torment style).
 // [modKey, amount] feeds Player.recompute via the levelMods bag.
@@ -97,6 +108,15 @@ export default class UpgradeScene extends Phaser.Scene {
     if (this.ultimateLevel) {
       if (gs.ability.totalLevel() >= CAP) return this.fillWithStats([]);
       const aDef = getAbility(gs.ability.abilityId);
+      const aIcon = this.textures.exists(`abil_icon_${aDef.id}`) ? `abil_icon_${aDef.id}` : `abil_${aDef.id}`;
+      // data-driven flavored axes if the ability declares them, else the legacy 4
+      if (aDef.axes) {
+        return aDef.axes.map((a) => ({
+          kind: 'ability', axis: a.slot, group: aDef.name, tag: 'ULTIMATE',
+          label: a.label, desc: a.desc, level: gs.ability.points[a.slot],
+          color: aDef.color, icon: `axis_${a.slot}`, weaponIcon: aIcon,
+        }));
+      }
       return ['power', 'haste', 'area', 'amount'].map((axis) => ({
         kind: 'ability', axis, group: aDef.name, tag: 'ULTIMATE',
         label: ABILITY_AXIS_INFO[axis].label,
@@ -104,7 +124,7 @@ export default class UpgradeScene extends Phaser.Scene {
         level: gs.ability.points[axis],
         color: aDef.color,
         icon: `axis_${axis}`,
-        weaponIcon: this.textures.exists(`abil_icon_${aDef.id}`) ? `abil_icon_${aDef.id}` : `abil_${aDef.id}`,
+        weaponIcon: aIcon,
       }));
     }
 
@@ -113,15 +133,17 @@ export default class UpgradeScene extends Phaser.Scene {
     const pool = [];
     const addAttack = (sys, def, tag) => {
       if (sys.totalLevel() >= CAP) return; // this ability is maxed → no more upgrade cards
-      for (const axis of ['damage', 'reach', 'speed', 'effect']) {
+      const wIcon = this.textures.exists(`abil_icon_${def.id}`) ? `abil_icon_${def.id}` : `proj_${def.id}`;
+      const color = tag === 'PRIMARY' ? gs.theme.accent : def.color;
+      const kind = tag === 'PRIMARY' ? 'weapon' : 'secondary';
+      // data-driven flavored axes if the skill declares them, else the legacy 4
+      const axes = def.axes
+        ? def.axes.map((a) => ({ axis: a.id, label: a.label, desc: a.desc, iconAxis: a.kind }))
+        : ['damage', 'reach', 'speed', 'effect'].map((axis) => ({ axis, label: AXIS_INFO[axis].label, desc: axis === 'effect' ? def.effectLabel : AXIS_INFO[axis].desc, iconAxis: axis }));
+      for (const a of axes) {
         pool.push({
-          kind: tag === 'PRIMARY' ? 'weapon' : 'secondary', axis, group: def.name, tag,
-          label: AXIS_INFO[axis].label,
-          desc: axis === 'effect' ? def.effectLabel : AXIS_INFO[axis].desc,
-          level: sys.points[axis],
-          color: tag === 'PRIMARY' ? gs.theme.accent : def.color,
-          icon: `axis_${axis}`,
-          weaponIcon: this.textures.exists(`abil_icon_${def.id}`) ? `abil_icon_${def.id}` : `proj_${def.id}`,
+          kind, axis: a.axis, group: def.name, tag, label: a.label, desc: a.desc,
+          level: sys.points[a.axis], color, icon: `axis_${AXIS_ICON[a.iconAxis] || 'effect'}`, weaponIcon: wIcon,
         });
       }
     };

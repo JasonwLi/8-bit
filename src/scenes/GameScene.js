@@ -553,6 +553,13 @@ export default class GameScene extends Phaser.Scene {
         if (e.isElite) e.setTint(e.eliteTint || 0xffd54a); else e.clearTint(); // restore look
       }
 
+      // Fear (Lü Bu's War Cry "Dread", etc.): the foe flees AWAY from the player.
+      if (e.fearUntil && now < e.fearUntil) {
+        e.setVelocity(-Math.cos(ang) * e.speed, -Math.sin(ang) * e.speed);
+        e.setFlipX(ang < 0 ? false : true);
+        continue;
+      } else if (e.fearUntil) e.fearUntil = 0;
+
       // Caesar's legionaries draw AGGRO: a melee enemy with a legionary nearer than the
       // player engages IT instead (the enemy↔ally overlap deals the damage). Lets allies
       // actually die / tank, instead of being free invincible DPS.
@@ -874,7 +881,7 @@ export default class GameScene extends Phaser.Scene {
   }
 
   // --- damage / death ---
-  damageEnemy(enemy, amount) {
+  damageEnemy(enemy, amount, opts = {}) {
     if (!enemy.active) return;
     if (enemy.rageInvuln) { this.fx.impact(enemy.x, enemy.y); return; } // boss RAGE musou: untouchable
     let dmg = amount;
@@ -885,7 +892,7 @@ export default class GameScene extends Phaser.Scene {
     if (enemy.blocking) dmg *= 0.2;
     // Ironclad elite: an armored shell (top 40% HP) resists, then turns brittle
     if (enemy.ironclad) dmg *= enemy.hp > enemy.maxHp * 0.6 ? 0.35 : 1.3;
-    if (enemy.armor) dmg *= 1 - enemy.armor; // heavy/armored types (Stone Golem) shrug off a flat %
+    if (enemy.armor && !opts.armorPierce) dmg *= 1 - enemy.armor; // armored types; Armor-Piercing ignores it
     dmg = Math.round(dmg);
     enemy.hp -= dmg;
     this.fx.damageNumber(enemy.x, enemy.y - enemy.displayHeight * 0.4, dmg,
@@ -961,16 +968,23 @@ export default class GameScene extends Phaser.Scene {
   onProjectileHit(projectile, enemy) {
     if (!projectile.active || !enemy.active) return;
     if (projectile.hitSet && projectile.hitSet.has(enemy)) return;
-    this.damageEnemy(enemy, projectile.damage);
+    this.damageEnemy(enemy, projectile.damage, { armorPierce: projectile.armorPierce });
     if (projectile.bleed) this.applyBleed(enemy, projectile.bleed);
-    if (projectile.knockback && enemy.active && !enemy.isBoss) { // Caesar's pila shove
+    if (projectile.knockback && enemy.active && !enemy.isBoss) { // shove-on-hit
       const ka = Math.atan2(enemy.y - projectile.y, enemy.x - projectile.x);
       enemy.x += Math.cos(ka) * projectile.knockback;
       enemy.y += Math.sin(ka) * projectile.knockback;
     }
-    if (projectile.slow) { // Alexander's javelins pin
+    if (projectile.slow) { // slow-on-hit (Pinning javelins, etc.)
       enemy.slowUntil = this.time.now + projectile.slow.dur;
       enemy.slowFactor = projectile.slow.factor;
+    }
+    if (projectile.stunMs && enemy.active && !enemy.isBoss) enemy.stunUntil = this.time.now + projectile.stunMs;
+    if (projectile.fearMs && enemy.active && !enemy.isBoss) enemy.fearUntil = this.time.now + projectile.fearMs;
+    if (projectile.weaponLifesteal) this.player.heal(projectile.damage * projectile.weaponLifesteal);
+    if (projectile.leaveBurn && this.fx && Math.random() < 0.5) { // incendiary / scorch
+      const lb = projectile.leaveBurn;
+      this.spawnHazardZone(projectile.x, projectile.y, lb.radius, lb.dmg, 120, 300, lb.dur);
     }
     if (projectile.hitSet) projectile.hitSet.add(enemy);
     // Genghis ricochet: chain to the next-nearest un-hit enemy instead of dying

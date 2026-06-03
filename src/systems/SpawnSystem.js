@@ -215,6 +215,7 @@ export default class SpawnSystem {
     e.bleedUntil = 0; e.bleedStacks = 0; e.bleedAcc = 0; e.bleedDps = 0; // clear any stale bleed DoT
     e.slowUntil = 0; // clear any stale slow (Alexander's javelins)
     e.stunUntil = 0; // clear any stale stun (Genghis's Khan's Cleave)
+    e.fearUntil = 0; // clear any stale fear
 
     // Damage scales with FLOOR depth + dwell AND the campaign stage AND (mildly) the
     // player's offense — so deeper floors / later stages / stronger builds hit back hard.
