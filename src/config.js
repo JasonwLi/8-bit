@@ -11,6 +11,11 @@ export const GAME = {
   // past the cap, level-ups offer permanent HERO STAT boosts instead.
   upgradeCap: 20,
   bgColor: '#15131f',
+  // Retro motion: quantise the DISPLAYED position of moving things to this pixel grid
+  // (render-only, physics untouched) so motion steps pixel-by-pixel instead of gliding
+  // on the fine sub-pixel grid — kills the "floaty / too-smooth" slide. 1 = off (smooth),
+  // 2 = subtle, 3 = chunky, 4 = very chunky. See GameScene.snapRender.
+  pixelStep: 3,
 };
 
 export const SPRITE = {

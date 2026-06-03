@@ -153,7 +153,15 @@ export default class GameScene extends Phaser.Scene {
     this.player.contractXpMult = 1 + this.contract.xpBonus;
     this.player.hp = this.player.maxHp; // full heal at each stage start
 
-    this.cameras.main.startFollow(this.player, true, 0.12, 0.12);
+    // Lock-step follow (lerp 1): a smoothly-lerped camera glides the world under the
+    // player, which reads as "floaty". Hard-following the pixel-snapped player keeps the
+    // whole frame stepping together. roundPixels (2nd arg) snaps the scroll to the grid.
+    this.cameras.main.startFollow(this.player, true, 1, 1);
+    // Render-only pixel snap (see snapRender): quantise displayed motion to GAME.pixelStep.
+    // Runs on POST_UPDATE, AFTER arcade physics has synced bodies → sprites, so it only
+    // moves the sprite's render position, never the body — physics/collisions stay exact.
+    // Idempotent, so a duplicate listener across scene restarts is harmless.
+    this.events.on('postupdate', this.snapRender, this);
 
     this.keys = this.input.keyboard.addKeys('W,A,S,D,UP,DOWN,LEFT,RIGHT');
 
@@ -661,6 +669,22 @@ export default class GameScene extends Phaser.Scene {
         this._hazardZoneCount = Math.max(0, (this._hazardZoneCount || 1) - 1);
       });
     });
+  }
+
+  // Render-only retro pixel snap. Quantises the DISPLAYED position of every moving thing
+  // to the GAME.pixelStep grid so motion steps pixel-by-pixel instead of gliding on the
+  // fine sub-pixel grid (the "floaty / too-smooth" complaint). Touches only the sprite's
+  // x/y (its render position) — NOT the physics body — so collisions and speed stay exact;
+  // the next frame's physics sync overwrites it before we re-snap. Runs on POST_UPDATE.
+  snapRender() {
+    const s = GAME.pixelStep | 0;
+    if (s <= 1) return;
+    const snap = (o) => { if (o && o.active) { o.x = Math.round(o.x / s) * s; o.y = Math.round(o.y / s) * s; } };
+    snap(this.player);
+    for (const e of this.enemies.getChildren()) snap(e);
+    for (const a of this.allies.getChildren()) snap(a);
+    for (const p of this.projectiles.getChildren()) snap(p);
+    for (const p of this.enemyProjectiles.getChildren()) snap(p);
   }
 
   // A quick slash-arc flash telegraphing a melee enemy's swing (see EnemyAI handleSwing).
