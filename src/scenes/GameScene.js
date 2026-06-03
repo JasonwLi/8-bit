@@ -1281,8 +1281,10 @@ export default class GameScene extends Phaser.Scene {
         let ang = Math.atan2(e.y - a.y, e.x - a.x);
 
         // In dungeon mode, make legionaries wall-aware: sample a step ahead and
-        // try ±50° slide rotations if the direct path is blocked.
-        if (this.dungeonMode && this.floorSys) {
+        // try ±50° slide rotations if the direct path is blocked. NOT during a duel —
+        // the arena lives outside the floor grid, where isWalkable reads false everywhere
+        // and would freeze the legion instead of letting it close on the boss.
+        if (this.dungeonMode && this.floorSys && !this.dueling) {
           const STEP = 26;
           const aheadX = a.x + Math.cos(ang) * STEP;
           const aheadY = a.y + Math.sin(ang) * STEP;

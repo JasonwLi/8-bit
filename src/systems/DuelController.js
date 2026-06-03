@@ -282,7 +282,20 @@ export default class DuelController {
     for (const e of s.enemies.getChildren()) if (e.active && !e.isBoss) s.deactivate(e);
     for (const p of s.enemyProjectiles.getChildren()) if (p.active) s.deactivate(p);
     for (const p of s.projectiles.getChildren()) if (p.active) s.deactivate(p);
-    if (s.allies) for (const a of s.allies.getChildren()) if (a.active) s.deactivate(a); // dismiss legionaries on teleport
+    // Caesar's standing legion comes WITH him into the duel — the legion IS his kit, so
+    // fighting a boss without it felt wrong. Teleport up to 4 active legionaries into the
+    // arena near the player (the rest are dismissed); they seek + chip the boss like normal.
+    if (s.allies) {
+      let brought = 0;
+      for (const a of s.allies.getChildren()) {
+        if (!a.active) continue;
+        if (brought < 4) {
+          const aa = Math.random() * Math.PI * 2, rr = this.radius * (0.25 + Math.random() * 0.2);
+          a.body.reset(this.center.x + Math.cos(aa) * rr, this.center.y + Math.sin(aa) * rr);
+          brought++;
+        } else { s.deactivate(a); }
+      }
+    }
     s.player.body.reset(this.center.x, this.center.y + this.radius * 0.55); // stand at the near edge
 
     // build the themed arena (floor, walls, dressing, cover, hazards)
@@ -328,7 +341,14 @@ export default class DuelController {
     s.player.clearTint();
     // tear down the arena and drop the player back where they were in the field
     this.arena.teardown();
-    if (this.fieldReturn) { s.player.body.reset(this.fieldReturn.x, this.fieldReturn.y); this.fieldReturn = null; }
+    if (this.fieldReturn) {
+      s.player.body.reset(this.fieldReturn.x, this.fieldReturn.y);
+      // surviving legionaries followed the player into the arena — bring them back too
+      if (s.allies) for (const a of s.allies.getChildren()) {
+        if (a.active) a.body.reset(s.player.x + (Math.random() * 80 - 40), s.player.y + (Math.random() * 80 - 40));
+      }
+      this.fieldReturn = null;
+    }
     const cam = s.cameras.main;
     cam.stopFollow();
     // dungeon mode: re-clamp the camera to the floor rect (removed for the arena teleport)
