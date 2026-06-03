@@ -236,13 +236,9 @@ export default class GameScene extends Phaser.Scene {
       this.bg.setVisible(false);
       this.bgMotif.setVisible(false);
       this.floorSys = new FloorSystem(this);
-      // RESUME the saved spawn budget so a floor you already cleared stays cleared on
-      // Continue — otherwise you could kill a floor's swarm, quit, and re-enter to farm a
-      // fresh budget. Capture it BEFORE enterFloor() — that calls captureRunState() which
-      // overwrites run.spawnedThisFloor with the freshly-reset 0.
-      const resumeSpawned = this.run.spawnedThisFloor || 0;
-      this.enterFloor(this.floor);
-      this.spawner.spawnedThisFloor = resumeSpawned;
+      // Resume on the saved floor with its saved spawn budget: a floor you already cleared
+      // stays cleared on Continue — no fresh swarm AND no re-scattered loot (see enterFloor).
+      this.enterFloor(this.floor, this.run.spawnedThisFloor || 0);
     }
 
     if (this.duelTest) this.duel.begin(); // jump straight into the test duel
@@ -251,7 +247,11 @@ export default class GameScene extends Phaser.Scene {
   // Generate + realize a floor (deterministic per (floorSeed+floor) for save-resume):
   // build walls/stairs, place the player at the start room, make the nav field, anchor
   // loot in rooms, reset the swarm, and gate the stairs if it's a boss floor.
-  enterFloor(floor) {
+  // `resumeSpawned` = the spawn budget already spent on this floor (from a save). 0 on a
+  // fresh floor (descent / new run). If it's at/above the floor's budget the floor was
+  // already CLEARED in a prior session — keep it cleared (no swarm) AND skip re-scattering
+  // loot, so Continue can't be used to re-farm a floor's enemies OR its chests.
+  enterFloor(floor, resumeSpawned = 0) {
     this.floor = floor;
     this.stageCleared = false;
     this.bossActiveThisFloor = false;
@@ -267,9 +267,17 @@ export default class GameScene extends Phaser.Scene {
     const d = this.floorSys.data;
     this.nav = new FlowField(d.cols, d.rows, d.grid);
     this._navAcc = 0;
-    this.map.scatterInRooms(d.lootCells); // crates/shrines/hazards anchored in rooms
 
-    this.spawner.onFloorStart(floor);
+    this.spawner.onFloorStart(floor);                 // sets floorBudget, resets spawnedThisFloor=0
+    this.spawner.spawnedThisFloor = resumeSpawned;    // restore the saved budget (runs before captureRunState below)
+    const clearedOnResume = resumeSpawned >= this.spawner.floorBudget;
+    if (!clearedOnResume) {
+      this.map.scatterInRooms(d.lootCells); // loot only on a fresh / uncleared floor
+    } else if (d.encounters) {
+      // cleared-floor resume: consume the treasure encounters too, so you can't re-enter
+      // to re-pop their chests (the swarm + room loot are already suppressed above).
+      for (const enc of d.encounters) if (enc.kind === 'treasure') enc.triggered = true;
+    }
     if (isBossFloor) this.bossPhase = this.bossFloors[floor]; // this floor's champion/lieutenant
 
     this.showBanner(`Floor ${floor} / ${this.floorsTotal}${isBossFloor ? '   ⚔ boss' : ''}`, '#ffd700');
