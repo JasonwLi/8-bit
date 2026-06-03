@@ -641,7 +641,7 @@ export default class WeaponSystem {
       if (s.arc >= 360 || diff <= halfArc) {
         this.scene.damageEnemy(e, damage, { armorPierce: s.armorPierce });
         const kb = (s.knockback != null) ? s.knockback : (s.def.knockback || 0);
-        if (kb && e.active && !e.isBoss) { e.x += Math.cos(ang) * kb; e.y += Math.sin(ang) * kb; }
+        if (kb && e.active && !e.isBoss) this.scene.knockbackEnemy(e, ang, kb);
         const stun = (s.stunMs != null) ? s.stunMs : (s.def.stun || 0);
         if (stun && e.active && !e.isBoss) { // lock the foe in place (Khan's Cleave / Stagger)
           e.stunUntil = this.scene.time.now + stun;

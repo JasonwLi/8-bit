@@ -644,6 +644,20 @@ export default class GameScene extends Phaser.Scene {
     }
   }
 
+  // Shove an enemy `dist` px along `ang` — but NEVER into a wall. Knockback teleports the
+  // body directly (it bypasses the collider), so on dungeon floors we push only as far as
+  // the destination stays walkable (stepping back to the furthest clear fraction).
+  knockbackEnemy(e, ang, dist) {
+    const cos = Math.cos(ang), sin = Math.sin(ang);
+    const fs = this.floorSys;
+    if (!this.dungeonMode || !fs) { e.x += cos * dist; e.y += sin * dist; return; }
+    if (fs.isWalkable(e.x + cos * dist, e.y + sin * dist)) { e.x += cos * dist; e.y += sin * dist; return; }
+    for (let f = 0.66; f >= 0.2; f -= 0.23) {
+      if (fs.isWalkable(e.x + cos * dist * f, e.y + sin * dist * f)) { e.x += cos * dist * f; e.y += sin * dist * f; return; }
+    }
+    // immediate path is blocked — leave the enemy where it is rather than clip the rock
+  }
+
   // Shared by ranged enemies and bosses. Pooled, so scale/tint are reset here.
   spawnHostileProjectile(x, y, angle, speed, damage, opts = {}) {
     const p = this.enemyProjectiles.get(x, y, 'enemy_proj');
@@ -1117,8 +1131,7 @@ export default class GameScene extends Phaser.Scene {
     if (projectile.bleed) this.applyBleed(enemy, projectile.bleed);
     if (projectile.knockback && enemy.active && !enemy.isBoss) { // shove-on-hit
       const ka = Math.atan2(enemy.y - projectile.y, enemy.x - projectile.x);
-      enemy.x += Math.cos(ka) * projectile.knockback;
-      enemy.y += Math.sin(ka) * projectile.knockback;
+      this.knockbackEnemy(enemy, ka, projectile.knockback);
     }
     if (projectile.slow) { // slow-on-hit (Pinning javelins, etc.)
       enemy.slowUntil = this.time.now + projectile.slow.dur;
@@ -1425,9 +1438,7 @@ export default class GameScene extends Phaser.Scene {
       if (dx * dx + dy * dy > radius * radius) continue;
       this.damageEnemy(e, damage);
       if (knockback && e.active && !e.isBoss) {
-        const ang = Math.atan2(dy, dx);
-        e.x += Math.cos(ang) * knockback;
-        e.y += Math.sin(ang) * knockback;
+        this.knockbackEnemy(e, Math.atan2(dy, dx), knockback);
       }
     }
   }
