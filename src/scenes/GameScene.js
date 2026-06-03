@@ -334,6 +334,19 @@ export default class GameScene extends Phaser.Scene {
       if (!p.active) continue;
       this.fx.trail(p.x, p.y, p.trailColor);
       if (p.spin) p.rotation += p.spin * (delta / 1000); // Ragnar's spinning axes
+      // Gilgamesh Gate of Babylon: each spear curves toward the nearest un-hit foe (capped
+      // turn rate → it banks and hunts rather than snapping). Flies straight if none in range.
+      if (p.homing) {
+        const t = this.nearestEnemyExcept(p.x, p.y, p.hitSet, p.homingRange);
+        if (t) {
+          const cur = Math.atan2(p.body.velocity.y, p.body.velocity.x);
+          const diff = Phaser.Math.Angle.Wrap(Math.atan2(t.y - p.y, t.x - p.x) - cur);
+          const na = cur + Math.max(-p.homingTurn, Math.min(p.homingTurn, diff));
+          const sp = Math.hypot(p.body.velocity.x, p.body.velocity.y) || 1;
+          this.physics.velocityFromRotation(na, sp, p.body.velocity);
+          p.rotation = na;
+        }
+      }
       // Ragnar boomerang: fly out to range, then home back to the (moving) thrower
       if (p.boomerang) {
         const dx = p.x - this.player.x;

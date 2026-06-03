@@ -251,6 +251,7 @@ export default class WeaponSystem {
     s.fearMs = (b.fear || 0) + P('fear') * M('fear', 300);
     s.weaponLifesteal = (b.lifesteal || 0) + P('lifesteal') * M('lifesteal', 0.03);
     s.armorPierce = !!b.armorPierce || P('armorpierce') > 0;
+    if (b.homing) s.homing = b.homing; // seeking projectiles (Gilgamesh's Gate of Babylon)
     if (b.bleed) {
       const k = P('bleed');
       s.bleed = { dps: b.bleed.dps + k * M('bleed', 0.6), duration: b.bleed.duration, stackMax: (b.bleed.stackMax || 4) + k };
@@ -571,6 +572,8 @@ export default class WeaponSystem {
     p.armorPierce = !!s.armorPierce; // ignore enemy armor
     // reset signature flags so a recycled sprite doesn't keep a prior weapon's behaviour
     p.ricochet = false; p.boomerang = false; p.spin = 0;
+    if (s.homing) { p.homing = true; p.homingRange = s.homing.range || 360; p.homingTurn = s.homing.turn || 0.13; }
+    else p.homing = false;
     return p;
   }
 

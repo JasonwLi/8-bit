@@ -65,23 +65,26 @@ export const SECONDARIES = {
     ],
   },
 
-  // Gilgamesh — GATE OF BABYLON: unleashes a wide forward FAN of golden piercing
-  // spears (the king's treasures), distinct from his 360° radial primary.
+  // Gilgamesh — GATE OF BABYLON: the king's treasury yawns open and looses a volley of
+  // golden spears that HOME — each curves through the air to hunt down the nearest foe
+  // (fire-and-forget while he tanks in his orbital blades). The roster's only seeking
+  // weapon: not a forward fan (Caesar) and not a radial nova (Belisarius).
   gate_spear: {
     id: 'gate_spear',
     name: 'Gate of Babylon',
     kind: 'projectile_aimed',
     color: 0xffd700,
     base: {
-      damage: 22, cooldown: 2500, count: 7, pierce: 8, speed: 720, spread: 58,
-      pierceAll: true,
-      knockback: 16,
+      damage: 26, cooldown: 2600, count: 8, pierce: 2, speed: 540, spread: 110,
+      knockback: 14,
+      homing: { range: 420, turn: 0.13 }, // seek + curve toward the nearest un-hit enemy
     },
+    projScale: 1.2,
     axes: [
-      { id: 'dmg',      kind: 'dmg',       label: 'Damage',       desc: '+16% spear damage per point' },
-      { id: 'count',    kind: 'count',      label: 'More Spears',  desc: '+1 spear every ~2 points', per: 0.5 },
-      { id: 'treasury', kind: 'knockback',  label: 'Treasury',     desc: '+16px knockback per point' },
-      { id: 'fan',      kind: 'size',       label: 'Golden Fan',   desc: '+12% spread range per point' },
+      { id: 'dmg',      kind: 'dmg',       label: 'Gilded Edge',    desc: '+16% spear damage per point' },
+      { id: 'count',    kind: 'count',      label: 'Open the Gate',  desc: '+1 seeking spear per point', per: 1 },
+      { id: 'treasury', kind: 'knockback',  label: 'Treasury Force', desc: '+16px knockback per point' },
+      { id: 'hunt',     kind: 'pierce',     label: 'Relentless',     desc: '+1 foe each spear hunts down per point' },
     ],
   },
 
