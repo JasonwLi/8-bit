@@ -402,6 +402,9 @@ export function buildManifest() {
   // weapon colour); a thicker, more aggressive double-edged crescent vs the thin 'sweep'.
   push('fx_cleave', 'effect', { desc: 'ONLY a single bold thick curved SABER SLASH arc — a heavy aggressive crescent blade swoosh with a sharp jagged leading edge and trailing motion-streak lines, bright white energy, oriented as a horizontal crescent, no sword, no hand, no character, just the slash arc shape' }, 128, 128);
   push('flame_pool', 'effect', { desc: 'a top-down pool of burning orange fire on the ground' }, 64, 64);
+  // Lingering scorched-earth burn patch — used by the heroes' fire-leaving upgrades
+  // (Belisarius embers, Incendiary/Cataclysm/Scorch craters). Distinct from the green acid pool.
+  push('scorch_fire', 'effect', { desc: 'a top-down circular patch of burning scorched earth — blackened charred ground with bright orange and yellow flames, glowing red embers and smoke, seen from directly above, a fiery hazard zone' }, 64, 64);
   // Genghis's trail hazard — a top-down caltrop/arrow trap field he leaves in his wake.
   push('caltrops', 'effect', { desc: 'a top-down patch of scuffed dark earth bristling with scattered sharp iron caltrops and barbed arrows stuck point-up into the ground — a deadly trap field seen from directly above, brown dirt with glinting steel spikes' }, 48, 48);
   const ABIL_ICON = {

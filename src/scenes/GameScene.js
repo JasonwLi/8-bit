@@ -605,22 +605,27 @@ export default class GameScene extends Phaser.Scene {
     return p;
   }
 
-  // A telegraphed ground hazard (catapult/siege acid zones): warning ring, then
-  // a lingering pool that ticks damage to the player if they're standing in it.
-  // Uses the acid_pool texture (sickly green) to be visually distinct from the
-  // player's orange flame_pool Greek Fire.
-  // Hard cap: at most 12 simultaneous hazard zones so the screen can't flood.
-  spawnHazardZone(x, y, radius, damage, delay, tick, linger) {
+  // A telegraphed ground hazard: warning ring, then a lingering pool that ticks
+  // damage to the player standing in it. `style` picks the look: 'acid' (sickly green,
+  // boss/siege/trap zones) or 'fire' (orange scorched-earth, for the heroes' lingering
+  // burn/crater/ember effects). Hard cap: 12 simultaneous zones so the screen can't flood.
+  spawnHazardZone(x, y, radius, damage, delay, tick, linger, style = 'acid') {
     if (!this._hazardZoneCount) this._hazardZoneCount = 0;
     if (this._hazardZoneCount >= 12) return; // cap — drop this fire-and-forget request
     this._hazardZoneCount++;
 
-    const scale = (radius * 2) / 64;
-    const warn = this.add.image(x, y, 'acid_pool').setDepth(2).setScale(scale).setAlpha(0.25).setTint(0x44ff44);
+    const fire = style === 'fire';
+    const tex = (fire && this.textures.exists('scorch_fire')) ? 'scorch_fire' : (fire ? 'flame_pool' : 'acid_pool');
+    const baseTex = (fire && tex === 'scorch_fire') ? 64 : 64; // both ~64px source
+    const warnTint = fire ? 0xff7a2a : 0x44ff44;
+    const poolTint = (fire && tex === 'scorch_fire') ? undefined : (fire ? 0xff7a2a : undefined);
+    const scale = (radius * 2) / baseTex;
+    const warn = this.add.image(x, y, tex).setDepth(2).setScale(scale).setAlpha(0.25).setTint(warnTint);
     this.tweens.add({ targets: warn, alpha: 0.55, duration: delay / 2, yoyo: true, repeat: 1 });
     this.time.delayedCall(delay, () => {
       warn.destroy();
-      const pool = this.add.image(x, y, 'acid_pool').setDepth(2).setScale(scale).setAlpha(0.9);
+      const pool = this.add.image(x, y, tex).setDepth(2).setScale(scale).setAlpha(0.9);
+      if (poolTint !== undefined) pool.setTint(poolTint);
       const ticks = Math.max(1, Math.floor(linger / tick));
       let done = 0;
       const ev = this.time.addEvent({
@@ -922,7 +927,7 @@ export default class GameScene extends Phaser.Scene {
     // Volatile elite: detonate a telegraphed AoE where it died (back off when it's low!)
     if (enemy.volatile) {
       this.fx.shockwave(enemy.x, enemy.y, enemy.eliteTint || 0xff7a2a, enemy.blastRadius || 120);
-      this.spawnHazardZone(enemy.x, enemy.y, enemy.blastRadius || 120, enemy.blastDmgElite || 30, 320, 320, 320);
+      this.spawnHazardZone(enemy.x, enemy.y, enemy.blastRadius || 120, enemy.blastDmgElite || 30, 320, 320, 320, 'fire');
     }
     this.drops.spawnGem(enemy.x, enemy.y, enemy.xpValue);
     if (enemy.isElite) {
@@ -984,7 +989,7 @@ export default class GameScene extends Phaser.Scene {
     if (projectile.weaponLifesteal) this.player.heal(projectile.damage * projectile.weaponLifesteal);
     if (projectile.leaveBurn && this.fx && Math.random() < 0.5) { // incendiary / scorch
       const lb = projectile.leaveBurn;
-      this.spawnHazardZone(projectile.x, projectile.y, lb.radius, lb.dmg, 120, 300, lb.dur);
+      this.spawnHazardZone(projectile.x, projectile.y, lb.radius, lb.dmg, 120, 300, lb.dur, 'fire');
     }
     if (projectile.hitSet) projectile.hitSet.add(enemy);
     // Genghis ricochet: chain to the next-nearest un-hit enemy instead of dying

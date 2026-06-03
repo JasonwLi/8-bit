@@ -82,7 +82,7 @@ export default class AbilitySystem {
       for (let i = 0; i < 3; i++) {
         const d = 80 + i * 95;
         this.scene.spawnHazardZone(this.player.x + Math.cos(aim) * d, this.player.y + Math.sin(aim) * d,
-          s.leaveCrater.radius, s.leaveCrater.dmg, 220, 350, s.leaveCrater.dur);
+          s.leaveCrater.radius, s.leaveCrater.dmg, 220, 350, s.leaveCrater.dur, 'fire');
       }
     }
     // brief invulnerability on cast (the "ultimate" escape/burst window)
