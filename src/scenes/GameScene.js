@@ -687,21 +687,21 @@ export default class GameScene extends Phaser.Scene {
     const bob = (o) => {
       if (amp <= 0 || !o.body) return 0;
       const cx = o.body.center.x, cy = o.body.center.y;
+      // Gate on VELOCITY (framerate-independent), not per-frame distance: at high refresh
+      // rates the per-frame distance is tiny and a distance threshold would wrongly read a
+      // moving mob as stopped and never bob it. Phase still accumulates by distance so the
+      // step cadence is the same at any framerate.
+      const v = o.body.velocity;
+      if ((v.x * v.x + v.y * v.y) < 25) { o._bobPhase = 0; o._lbx = cx; o._lby = cy; return 0; }
       const d = Math.hypot(cx - (o._lbx ?? cx), cy - (o._lby ?? cy));
       o._lbx = cx; o._lby = cy;
-      if (d < 0.25) { o._bobPhase = 0; return 0; }
       o._bobPhase = (o._bobPhase || 0) + (d / stride) * Math.PI;
       return -Math.round(Math.abs(Math.sin(o._bobPhase)) * amp);
     };
-    const cam = this.cameras.main;
-    // Player: snap, then hop the sprite — but cancel the hop from the camera (followOffset)
-    // so the SCREEN stays grounded instead of bobbing with the player. No bob during duels.
-    if (this.player && this.player.active) {
-      snap(this.player);
-      const pb = this.dueling ? 0 : bob(this.player);
-      this.player.y += pb;
-      if (cam.setFollowOffset) cam.setFollowOffset(0, -pb);
-    }
+    // Player: snap only, NO walk bob. A vertical hop fights precise WASD steering (it
+    // wobbles the very axis you're moving along) and would bob the camera that follows it,
+    // so the player just goes exactly where you press. The bob lives on the mobs below.
+    if (this.player && this.player.active) snap(this.player);
     for (const e of this.enemies.getChildren()) { if (!e.active) continue; snap(e); e.y += bob(e); }
     for (const a of this.allies.getChildren()) { if (!a.active) continue; snap(a); a.y += bob(a); }
     if (s > 1) {
