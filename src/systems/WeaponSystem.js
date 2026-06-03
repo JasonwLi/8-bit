@@ -359,6 +359,18 @@ export default class WeaponSystem {
         }
       }
 
+      // Orbiting blades also shatter breakables (crates/urns) they sweep through — same as
+      // the melee/ranged weapons. Damage each in-range breakable once per tick.
+      if (this.scene.breakables) {
+        for (const b of this.scene.breakables.getChildren()) {
+          if (!b.active) continue;
+          for (const orb of this._orbiters) {
+            const dx = b.x - orb.sprite.x, dy = b.y - orb.sprite.y;
+            if (dx * dx + dy * dy <= hitR2) { this.scene.damageBreakable(b, dmg); break; }
+          }
+        }
+      }
+
       // Purge stale entries from hit cooldown maps to avoid memory leaks
       for (const orb of this._orbiters) {
         for (const [e] of orb.hitCooldowns) {

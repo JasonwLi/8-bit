@@ -236,7 +236,13 @@ export default class GameScene extends Phaser.Scene {
       this.bg.setVisible(false);
       this.bgMotif.setVisible(false);
       this.floorSys = new FloorSystem(this);
+      // RESUME the saved spawn budget so a floor you already cleared stays cleared on
+      // Continue — otherwise you could kill a floor's swarm, quit, and re-enter to farm a
+      // fresh budget. Capture it BEFORE enterFloor() — that calls captureRunState() which
+      // overwrites run.spawnedThisFloor with the freshly-reset 0.
+      const resumeSpawned = this.run.spawnedThisFloor || 0;
       this.enterFloor(this.floor);
+      this.spawner.spawnedThisFloor = resumeSpawned;
     }
 
     if (this.duelTest) this.duel.begin(); // jump straight into the test duel
@@ -953,6 +959,7 @@ export default class GameScene extends Phaser.Scene {
     r.kills = this.player.kills;
     r.stageTime = this.runTime; // legacy; floor is the resume point in dungeon mode
     r.floor = this.floor; // resume on the same floor (same floorSeed → same layout)
+    r.spawnedThisFloor = this.spawner.spawnedThisFloor; // a cleared floor stays cleared on resume
     r.bossPhase = this.bossPhase;
     this.registry.set('run', r);
   }
