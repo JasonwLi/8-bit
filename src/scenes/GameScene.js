@@ -459,6 +459,13 @@ export default class GameScene extends Phaser.Scene {
 
       const isBossFloor = this.bossFloors[this.floor] !== undefined;
       const st = this.floorSys && this.floorSys.stairs;
+      // Soft-lock guard: if the stage-boss reference went stale (the boss is no longer a
+      // live entity but was never formally defeated to unlock the stairs), drop it and
+      // re-arm the challenge — otherwise a boss floor could be locked forever.
+      if (isBossFloor && this.activeBoss && !this.activeBoss.active && st && st.locked) {
+        this.activeBoss = null;
+        this.bossActiveThisFloor = false;
+      }
       // boss floor: reaching the stairs (boss) room triggers the duel challenge
       if (isBossFloor && st && !this.activeBoss && !this.bossActiveThisFloor && !this.dueling
           && !this.challengePending && !this.stageCleared
