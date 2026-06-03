@@ -82,7 +82,7 @@ export default class AbilitySystem {
       for (let i = 0; i < 3; i++) {
         const d = 80 + i * 95;
         this.scene.spawnHazardZone(this.player.x + Math.cos(aim) * d, this.player.y + Math.sin(aim) * d,
-          s.leaveCrater.radius, s.leaveCrater.dmg, 220, 350, s.leaveCrater.dur, 'fire');
+          s.leaveCrater.radius, s.leaveCrater.dmg, 220, 350, s.leaveCrater.dur, 'fire', 'enemies');
       }
     }
     // brief invulnerability on cast (the "ultimate" escape/burst window)
@@ -313,6 +313,18 @@ export default class AbilitySystem {
       // Alexander's wedge uses a spear-streak visual; Belisarius uses the cataphract sprite
       if (s.def.chargeStyle === 'spears') this._spawnSpearChargeVisual(this.player.x, this.player.y, angle, s);
       else this._spawnCataphractVisual(this.player.x, this.player.y, angle, s);
+    }
+    // The charge churns a lane of TRAMPLED EARTH in its wake — a lingering hazard with its
+    // own dust/dirt look (NOT the fiery scorch of meteors/cannon) that grinds down enemies
+    // left in the lane. Drawn along the main charge heading; scales with lane width + damage.
+    const travel = s.length || 820;
+    const r = Math.max(42, (s.width || 80) * 0.6);
+    const dmg = Math.max(4, Math.round(s.damage * 0.06));
+    for (let i = 1; i <= 4; i++) {
+      const t = i / 5;
+      const px = this.player.x + Math.cos(base) * travel * t;
+      const py = this.player.y + Math.sin(base) * travel * t;
+      this.scene.spawnHazardZone(px, py, r, dmg, 70, 360, 1200, 'trample', 'enemies');
     }
   }
 

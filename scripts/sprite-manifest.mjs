@@ -405,6 +405,8 @@ export function buildManifest() {
   // Lingering scorched-earth burn patch — used by the heroes' fire-leaving upgrades
   // (Belisarius embers, Incendiary/Cataclysm/Scorch craters). Distinct from the green acid pool.
   push('scorch_fire', 'effect', { desc: 'a top-down circular patch of burning scorched earth — blackened charred ground with bright orange and yellow flames, glowing red embers and smoke, seen from directly above, a fiery hazard zone' }, 64, 64);
+  // Churned-earth trample mark left by a heavy cavalry CHARGE — distinct from fire scorch.
+  push('trample_dust', 'effect', { desc: 'a top-down patch of churned trampled earth — broken brown dirt and mud clods, scattered pebbles and debris, faint overlapping hoofprints, a low kicked-up tan dust cloud, seen from directly above, no fire, no flames' }, 64, 64);
   // Genghis's trail hazard — a top-down caltrop/arrow trap field he leaves in his wake.
   push('caltrops', 'effect', { desc: 'a top-down patch of scuffed dark earth bristling with scattered sharp iron caltrops and barbed arrows stuck point-up into the ground — a deadly trap field seen from directly above, brown dirt with glinting steel spikes' }, 48, 48);
   const ABIL_ICON = {
