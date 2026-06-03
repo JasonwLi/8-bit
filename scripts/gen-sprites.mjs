@@ -61,6 +61,9 @@ const RECRAFT_SOLID = new Set([
   'crate_japan', 'crate_mongolia', 'crate_norse', 'crate_macedon',
   'block_china', 'block_norse', 'block_macedon', 'block_mongolia',
   'rock_japan', 'rock_macedon', 'shrine_mongolia',
+  // enemies whose Ideogram pass came out hollow/speckled (see-through interior) — the
+  // crate bug. Recraft's solid pixel-art fill + matte renders them densely filled.
+  'enemy_charger', 'enemy_harpy',
 ]);
 
 async function generateOne(asset, key) {
