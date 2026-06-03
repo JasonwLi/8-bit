@@ -157,11 +157,11 @@ export default class GameScene extends Phaser.Scene {
     // doesn't glide floatily, loose enough that the player drifts slightly off-centre so
     // you actually see it pixel-step (lock-step pins it dead-centre → looks unchanged).
     this.cameras.main.startFollow(this.player, true, GAME.cameraLerp, GAME.cameraLerp);
-    // Render-only pixel snap (see snapRender): quantise displayed motion to GAME.pixelStep.
-    // Runs on POST_UPDATE, AFTER arcade physics has synced bodies → sprites, so it only
-    // moves the sprite's render position, never the body — physics/collisions stay exact.
+    // Render-only motion FX (see applyWalkFx): the walk-wobble rotation, plus the dormant
+    // pixel-snap/bob knobs. Runs on POST_UPDATE, AFTER arcade syncs bodies → sprites, so it
+    // only touches the rendered sprite, never the body — physics/collisions stay exact.
     // Idempotent, so a duplicate listener across scene restarts is harmless.
-    this.events.on('postupdate', this.snapRender, this);
+    this.events.on('postupdate', this.applyWalkFx, this);
 
     this.keys = this.input.keyboard.addKeys('W,A,S,D,UP,DOWN,LEFT,RIGHT');
 
@@ -697,40 +697,49 @@ export default class GameScene extends Phaser.Scene {
     });
   }
 
-  // Render-only retro pixel snap. Quantises the DISPLAYED position of every moving thing
-  // to the GAME.pixelStep grid so motion steps pixel-by-pixel instead of gliding on the
-  // fine sub-pixel grid (the "floaty / too-smooth" complaint). Touches only the sprite's
-  // x/y (its render position) — NOT the physics body — so collisions and speed stay exact;
-  // the next frame's physics sync overwrites it before we re-snap. Runs on POST_UPDATE.
-  snapRender() {
+  // Render-only motion FX, applied on POST_UPDATE (after arcade syncs bodies → sprites) so
+  // it only touches what's DRAWN, never the physics body. The live effect is the WALK
+  // WOBBLE; the pixel-snap + y-bob are dormant knobs kept for tuning (both default off).
+  //  • walk wobble — rock a MOVING character's sprite side-to-side (a rotation), easing
+  //    upright when it stops, so single-frame sprites read as WALKING instead of gliding.
+  //    Rotation never affects the axis-aligned arcade body → safe on the player too.
+  applyWalkFx() {
     const s = GAME.pixelStep | 0;
     const amp = GAME.walkBobAmp | 0;
-    if (s <= 1 && amp <= 0) return; // both retro-motion knobs off → nothing to do
-    const stride = GAME.walkBobStride || 16;
+    const wob = GAME.walkWobbleAngle || 0;
+    if (s <= 1 && amp <= 0 && wob <= 0) return; // everything off → nothing to do
+    const bobStride = GAME.walkBobStride || 16;
+    const wobStride = GAME.walkWobbleStride || 18;
     const snap = (o) => { if (s > 1) { o.x = Math.round(o.x / s) * s; o.y = Math.round(o.y / s) * s; } };
-    // Walk bob: hop the sprite up as it travels (distance-driven so faster = quicker steps,
-    // and it sits still when stopped). Uses the physics BODY's true motion, returns a px
-    // offset added to the sprite's render y only. |sin| = a one-way upward hop per stride.
+    // distance-driven phase helpers gate on VELOCITY (framerate-independent): at high refresh
+    // rates the per-frame distance is tiny, so a distance threshold would wrongly read a
+    // moving mob as stopped. Phase accumulates by distance so cadence is the same at any fps.
     const bob = (o) => {
       if (amp <= 0 || !o.body) return 0;
       const cx = o.body.center.x, cy = o.body.center.y;
-      // Gate on VELOCITY (framerate-independent), not per-frame distance: at high refresh
-      // rates the per-frame distance is tiny and a distance threshold would wrongly read a
-      // moving mob as stopped and never bob it. Phase still accumulates by distance so the
-      // step cadence is the same at any framerate.
       const v = o.body.velocity;
       if ((v.x * v.x + v.y * v.y) < 25) { o._bobPhase = 0; o._lbx = cx; o._lby = cy; return 0; }
       const d = Math.hypot(cx - (o._lbx ?? cx), cy - (o._lby ?? cy));
       o._lbx = cx; o._lby = cy;
-      o._bobPhase = (o._bobPhase || 0) + (d / stride) * Math.PI;
+      o._bobPhase = (o._bobPhase || 0) + (d / bobStride) * Math.PI;
       return -Math.round(Math.abs(Math.sin(o._bobPhase)) * amp);
     };
-    // Player: snap only, NO walk bob. A vertical hop fights precise WASD steering (it
-    // wobbles the very axis you're moving along) and would bob the camera that follows it,
-    // so the player just goes exactly where you press. The bob lives on the mobs below.
-    if (this.player && this.player.active) snap(this.player);
-    for (const e of this.enemies.getChildren()) { if (!e.active) continue; snap(e); e.y += bob(e); }
-    for (const a of this.allies.getChildren()) { if (!a.active) continue; snap(a); a.y += bob(a); }
+    const wobble = (o) => {
+      if (wob <= 0 || !o.body || o.isBoss) return; // bosses keep their own bearing
+      const cx = o.body.center.x, cy = o.body.center.y;
+      const v = o.body.velocity;
+      if ((v.x * v.x + v.y * v.y) < 25) { // stopped → ease upright
+        o.rotation *= 0.8; if (Math.abs(o.rotation) < 0.004) o.rotation = 0;
+        o._wlx = cx; o._wly = cy; return;
+      }
+      const d = Math.hypot(cx - (o._wlx ?? cx), cy - (o._wly ?? cy));
+      o._wlx = cx; o._wly = cy;
+      o._wphase = (o._wphase || 0) + (d / wobStride) * Math.PI;
+      o.rotation = Math.sin(o._wphase) * wob;
+    };
+    if (this.player && this.player.active) { snap(this.player); wobble(this.player); }
+    for (const e of this.enemies.getChildren()) { if (!e.active) continue; snap(e); e.y += bob(e); wobble(e); }
+    for (const a of this.allies.getChildren()) { if (!a.active) continue; snap(a); a.y += bob(a); wobble(a); }
     if (s > 1) {
       for (const p of this.projectiles.getChildren()) snap(p);
       for (const p of this.enemyProjectiles.getChildren()) snap(p);

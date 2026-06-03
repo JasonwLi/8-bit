@@ -29,6 +29,13 @@ export const GAME = {
   // amp = hop height in px (0 = off), stride = px travelled per hop (smaller = faster steps).
   walkBobAmp: 0,
   walkBobStride: 16,
+  // Proper walk animation for single-frame sprites: while a character MOVES, rock its
+  // sprite side-to-side (a rotation wobble) in step with the distance travelled, easing
+  // upright when it stops. Rotation is RENDER-ONLY — arcade bodies are axis-aligned, so it
+  // never touches physics/position/camera (safe on the player too, unlike the old y-bob).
+  // angle = max rock in radians (0 = off), stride = px travelled per half-rock.
+  walkWobbleAngle: 0.04,
+  walkWobbleStride: 26,
 };
 
 export const SPRITE = {
