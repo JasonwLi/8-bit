@@ -585,9 +585,35 @@ export default class GameScene extends Phaser.Scene {
       }
 
       EnemyAI.updateMob(this, e, delta, dist, ang); // movement + attack (owned by EnemyAI.js)
+      // If the swarm crush / a beeline shoved this mob INTO the rock, steer it back out so
+      // it can't sit (and attack) from inside a wall. Overrides the velocity AI just set.
+      if (this.dungeonMode) this.unstickFromWall(e);
       // Alexander's javelin slow: damp the velocity EnemyAI just set, while it lasts
       if (e.slowUntil && now < e.slowUntil) e.body.velocity.scale(e.slowFactor || 0.5);
       else if (e.slowUntil) e.slowUntil = 0;
+    }
+  }
+
+  // When an enemy body ends up inside a wall tile (pushed there by the swarm, or a beeline
+  // through a corner), drive it toward the nearest WALKABLE neighbour tile that's most
+  // toward the player — so it walks back out to the fight instead of clipping the rock.
+  unstickFromWall(e) {
+    const fs = this.floorSys;
+    if (!fs || !e.body || fs.isWalkable(e.x, e.y)) return;
+    const t = fs.tile;
+    const { col, row } = fs.worldToTile(e.x, e.y);
+    let bx = 0, by = 0, best = Infinity;
+    for (let dr = -1; dr <= 1; dr++) for (let dc = -1; dc <= 1; dc++) {
+      if (!dr && !dc) continue;
+      const cx = (col + dc) * t + t / 2, cy = (row + dr) * t + t / 2;
+      if (!fs.isWalkable(cx, cy)) continue;
+      const ddx = this.player.x - cx, ddy = this.player.y - cy;
+      const d2 = ddx * ddx + ddy * ddy; // walkable tile closest to the player
+      if (d2 < best) { best = d2; bx = cx; by = cy; }
+    }
+    if (best < Infinity) {
+      const a = Math.atan2(by - e.y, bx - e.x);
+      e.setVelocity(Math.cos(a) * e.speed, Math.sin(a) * e.speed);
     }
   }
 
@@ -679,6 +705,7 @@ export default class GameScene extends Phaser.Scene {
   snapRender() {
     const s = GAME.pixelStep | 0;
     const amp = GAME.walkBobAmp | 0;
+    if (s <= 1 && amp <= 0) return; // both retro-motion knobs off → nothing to do
     const stride = GAME.walkBobStride || 16;
     const snap = (o) => { if (s > 1) { o.x = Math.round(o.x / s) * s; o.y = Math.round(o.y / s) * s; } };
     // Walk bob: hop the sprite up as it travels (distance-driven so faster = quicker steps,

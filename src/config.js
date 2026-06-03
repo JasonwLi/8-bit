@@ -27,7 +27,7 @@ export const GAME = {
   // this they glide. While a character moves, hop its sprite up-and-down in step with the
   // distance travelled so it reads as walking/running rather than floating. Render-only.
   // amp = hop height in px (0 = off), stride = px travelled per hop (smaller = faster steps).
-  walkBobAmp: 3,
+  walkBobAmp: 0,
   walkBobStride: 16,
 };
 
