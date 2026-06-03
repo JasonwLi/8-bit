@@ -160,6 +160,22 @@ export default class SpawnSystem {
     e.flyDx         = 0;
     e.flyDy         = 0;
 
+    // melee swing — chase/zigzag/circle "strikers" stop, telegraph, and SLASH an arc in
+    // front (dodge-able) instead of just dealing passive touch damage. Opt-in via def.swing.
+    e.swing         = !!def.swing;
+    e.swingRange    = def.swingRange    || 60;   // reach the slash arc covers
+    e.swingArc      = def.swingArc      || 1.7;  // cone width (radians) the strike hits
+    e.swingWindup   = def.swingWindup   || 360;  // telegraph (freeze + red flash) before the hit
+    e.swingActiveT  = def.swingActiveT  || 130;  // strike-active window
+    e.swingRecover  = def.swingRecover  || 280;  // recovery hang after the swing
+    e.swingCooldown = def.swingCooldown || 1100; // gap between swings
+    e.swingDmgMult  = def.swingDmgMult  || 1.6;  // the swing hits HARD (vs the contact chip)
+    e.swingState    = null;  // null | 'wind' | 'strike' | 'recover'
+    e.swingTimer    = 0;
+    e.swingCd       = Phaser.Math.Between(250, 850); // stagger first swing across the swarm
+    e.swingAng      = 0;     // facing snapshot at windup (so the player can sidestep)
+    e.swingHitDone  = false;
+
     // bomber
     e.fuseRange       = def.fuseRange     || 80;
     e.fuseDuration    = def.fuseDuration  || 1400;
@@ -259,7 +275,9 @@ export default class SpawnSystem {
       if (e.projDamage) e.projDamage = Math.round(e.projDamage * ct.enemyDmgMult);
     }
     e.hp = e.maxHp;
-    e.contactDamage = e.damage;
+    // Strikers do their real damage with the telegraphed swing, so passive contact is just
+    // a light chip (brushing past still stings, but the headline hit is dodge-able).
+    e.contactDamage = e.swing ? Math.max(1, Math.round(e.damage * 0.25)) : e.damage;
   }
 
   update(_time, delta) {

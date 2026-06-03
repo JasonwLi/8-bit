@@ -215,6 +215,10 @@ function tickRapidBurst(scene, e, delta, ang) {
 // ─────────────────────────────────────────────────────────────────────────────
 
 function updateMelee(scene, e, delta, dist, ang) {
+  // Strikers (chase/zigzag/circle with def.swing) layer a telegraphed slash over their
+  // movement: approach normally, then stop → wind up → arc-strike → recover. While the
+  // swing owns the frame, skip the movement switch below.
+  if (e.swing && handleSwing(scene, e, delta, dist, ang)) return;
   switch (e.move) {
 
     // ── Chase: beeline, but route through corridors (flow field) when walled ──
@@ -461,4 +465,72 @@ function updateMelee(scene, e, delta, dist, ang) {
       break;
     }
   }
+}
+
+// Telegraphed melee swing shared by chase/zigzag/circle strikers. Returns true while the
+// swing owns the frame (windup/strike/recover) so the caller suspends movement. When idle
+// it ticks the cooldown and, if the player is in reach, opens the windup telegraph.
+function handleSwing(scene, e, delta, dist, ang) {
+  if (e.swingCd > 0) e.swingCd -= delta;
+
+  // Phase 1: windup — freeze, flash red. The facing was snapshotted at trigger, so the
+  // player can sidestep out of the arc during the telegraph to dodge the hit entirely.
+  if (e.swingState === 'wind') {
+    e.swingTimer -= delta;
+    e.setVelocity(0, 0);
+    if (e.swingTimer <= 0) {
+      e.swingState = 'strike';
+      e.swingTimer = e.swingActiveT;
+      e.swingHitDone = false;
+      scene.enemySwingArc(e, e.swingAng); // the slash visual
+    }
+    return true;
+  }
+
+  // Phase 2: strike — step forward into the swing; resolve the hit once.
+  if (e.swingState === 'strike') {
+    e.swingTimer -= delta;
+    e.setVelocity(Math.cos(e.swingAng) * e.speed * 0.6, Math.sin(e.swingAng) * e.speed * 0.6);
+    if (!e.swingHitDone) {
+      e.swingHitDone = true;
+      const pdx = scene.player.x - e.x, pdy = scene.player.y - e.y;
+      const pd = Math.sqrt(pdx * pdx + pdy * pdy);
+      if (scene.player.active && pd <= e.swingRange + 20) {
+        const da = Math.abs(Phaser.Math.Angle.Wrap(Math.atan2(pdy, pdx) - e.swingAng));
+        if (da <= e.swingArc / 2) {
+          const dmg = Math.round(e.damage * (e.swingDmgMult || 1));
+          // The swing is dodged by stepping out of the arc; it still respects i-frames so a
+          // swarm of simultaneous swings can't stack into a one-shot burst.
+          scene.reactToHit(scene.player.takeDamage(dmg, scene.time.now));
+        }
+      }
+    }
+    if (e.swingTimer <= 0) {
+      e.swingState = 'recover';
+      e.swingTimer = e.swingRecover;
+      if (e.isElite) e.setTint(e.eliteTint || 0xffd54a); else e.clearTint();
+    }
+    return true;
+  }
+
+  // Phase 3: recover — brief hang before it can move/swing again.
+  if (e.swingState === 'recover') {
+    e.swingTimer -= delta;
+    e.setVelocity(0, 0);
+    if (e.swingTimer <= 0) {
+      e.swingState = null;
+      e.swingCd = e.swingCooldown;
+    }
+    return true;
+  }
+
+  // Idle: in reach and off cooldown → start the windup (red telegraph, snapshot facing).
+  if (e.swingCd <= 0 && dist <= e.swingRange) {
+    e.swingState = 'wind';
+    e.swingTimer = e.swingWindup;
+    e.swingAng = ang;
+    e.setTint(0xff3030);
+    return true;
+  }
+  return false; // not swinging — let the movement switch run (keep approaching)
 }

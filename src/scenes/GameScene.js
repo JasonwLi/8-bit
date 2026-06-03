@@ -663,6 +663,22 @@ export default class GameScene extends Phaser.Scene {
     });
   }
 
+  // A quick slash-arc flash telegraphing a melee enemy's swing (see EnemyAI handleSwing).
+  enemySwingArc(e, ang) {
+    const reach = e.swingRange || 60;
+    const x = e.x + Math.cos(ang) * reach * 0.45;
+    const y = e.y + Math.sin(ang) * reach * 0.45;
+    const tint = e.eliteTint || 0xffd0d0;
+    if (this.textures.exists('sweep')) {
+      const arc = this.add.image(x, y, 'sweep').setDepth(6).setRotation(ang)
+        .setScale((reach * 2) / 128).setAlpha(0).setTint(tint);
+      this.tweens.add({ targets: arc, alpha: 0.9, duration: 60, yoyo: true, hold: 50, onComplete: () => arc.destroy() });
+    } else {
+      const g = this.add.circle(x, y, reach * 0.6, 0xff5050, 0.45).setDepth(6);
+      this.tweens.add({ targets: g, alpha: 0, scale: 1.4, duration: 150, onComplete: () => g.destroy() });
+    }
+  }
+
   // Cao Cao summons reinforcements around himself.
   summonMinions(x, y, count) {
     const def = ENEMIES.soldier;
