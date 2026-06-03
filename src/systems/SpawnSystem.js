@@ -13,7 +13,7 @@ export default class SpawnSystem {
     this.elapsed = 0; // seconds (ticks for elite/boss-minion difficulty scaling only)
     this.dwell = 0;   // seconds spent on the CURRENT floor (resets each descent)
     this.chestTimer = 30000; // first field chest after ~30s
-    this.eliteTimer = 40000; // first elite after ~40s
+    this.eliteTimer = 24000; // first elite after ~24s (elites come thicker now)
     // Per-floor spawn BUDGET: a floor only ever spawns this many enemies, so you can't
     // park on a floor and farm XP forever — descend for more (and tougher) foes.
     this.floorBudget = 60;
@@ -34,7 +34,7 @@ export default class SpawnSystem {
     // Depth-based pacing only. (The old `- dwell*0.4` accelerated spawns the longer you
     // lingered — fine for an endless arena, but with a finite per-floor budget it just
     // front-loaded the fight and left dead air while you explored to the stairs.)
-    return Math.max(255, 920 - floor * 22);
+    return Math.max(200, 820 - floor * 22);
   }
 
   // reset per-floor spawn pacing + budget (called by GameScene on each descent)
@@ -42,8 +42,8 @@ export default class SpawnSystem {
     this.dwell = 0;
     this.accum = 0;
     this.spawnedThisFloor = 0;
-    // deeper floors field a larger horde before they run dry
-    this.floorBudget = Math.round(55 + (floor - 1) * 12);
+    // deeper floors field a larger horde before they run dry (bumped — game was too easy)
+    this.floorBudget = Math.round(85 + (floor - 1) * 16);
   }
 
   // a walkable spawn point on the ring around the camera (reject wall tiles)
@@ -210,6 +210,8 @@ export default class SpawnSystem {
     e.ironclad = false;
     e.warlordEvery = 0;
     e.curseRadius = 0;
+    e.casterEvery = 0; // caster elite: periodic ranged volley
+    e.volatile = false; // volatile elite: AoE detonation on death
     e.bleedUntil = 0; e.bleedStacks = 0; e.bleedAcc = 0; e.bleedDps = 0; // clear any stale bleed DoT
     e.slowUntil = 0; // clear any stale slow (Alexander's javelins)
     e.stunUntil = 0; // clear any stale stun (Genghis's Khan's Cleave)
@@ -241,6 +243,8 @@ export default class SpawnSystem {
       if (mod.id === 'ironclad') e.ironclad = true;
       if (mod.id === 'warlord') { e.warlordEvery = mod.summonEvery; e.warlordCount = mod.summonCount; e.warlordTimer = mod.summonEvery; }
       if (mod.id === 'hex') { e.curseRadius = mod.curseRadius; e.curseSlowAmt = mod.curseSlow; }
+      if (mod.id === 'caster') { e.casterEvery = mod.castEvery; e.casterTimer = mod.castEvery; e.castDmg = mod.castDmg; e.castSpeed = mod.castSpeed; }
+      if (mod.id === 'volatile') { e.volatile = true; e.blastRadius = mod.blastRadius; e.blastDmgElite = mod.blastDmg; }
       e.eliteTint = mod.tint;
       e.setScale(1.5).setTint(mod.tint);
     } else {
@@ -272,16 +276,17 @@ export default class SpawnSystem {
       const remaining = budgeted ? this.floorBudget - this.spawnedThisFloor : Infinity;
       if (remaining <= 0) break; // this floor's budget is spent — find the stairs
       if (this.scene.enemies.countActive(true) >= MAX_ENEMIES) continue;
-      let burst = Math.min(6, 1 + Math.floor((floor - 1) / 2)); // density rises with DEPTH (steady across the floor)
+      let burst = Math.min(8, 2 + Math.floor((floor - 1) / 2)); // density rises with DEPTH (steady across the floor)
       burst = Math.min(burst, remaining);
-      for (let i = 0; i < burst; i++) this.spawnOne();
+      const eliteChance = Math.min(0.14, 0.03 + floor * 0.009); // elites mix into the horde, more with depth
+      for (let i = 0; i < burst; i++) this.spawnOne(Math.random() < eliteChance);
     }
 
     // elites — held back once the floor's budget is spent
     this.eliteTimer -= delta;
     if (this.eliteTimer <= 0) {
       if (!budgeted || this.spawnedThisFloor < this.floorBudget) this.spawnOne(true);
-      this.eliteTimer = Math.max(26000, 52000 - this.elapsed * 90);
+      this.eliteTimer = Math.max(14000, 34000 - this.elapsed * 90);
     }
 
     // free field chests

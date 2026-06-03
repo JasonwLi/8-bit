@@ -530,6 +530,10 @@ export const ELITE_MODIFIERS = [
   { id: 'warlord', name: 'Warlord', tint: 0xb15bff, dmgMult: 1.0, speedMult: 0.9, hpMult: 1.0, summonEvery: 6000, summonCount: 2 },
   { id: 'hex', name: 'Hex', tint: 0x66dd66, dmgMult: 1.0, speedMult: 1.0, hpMult: 1.0, curseRadius: 130, curseSlow: 0.72 },
   { id: 'swift', name: 'Swift', tint: 0x33d6d6, dmgMult: 1.0, speedMult: 1.85, hpMult: 0.6 },
+  // new active-pattern elites (more attack patterns/effects across the board):
+  { id: 'caster', name: 'Caster', tint: 0x9b5cff, dmgMult: 1.0, speedMult: 0.85, hpMult: 1.1, castEvery: 2100, castDmg: 13, castSpeed: 300 }, // lobs a 3-shot volley at you
+  { id: 'volatile', name: 'Volatile', tint: 0xff7a2a, dmgMult: 1.0, speedMult: 1.15, hpMult: 0.85, blastRadius: 120, blastDmg: 30 }, // detonates an AoE on death
+  { id: 'bulwark', name: 'Bulwark', tint: 0xffd54a, dmgMult: 1.2, speedMult: 0.8, hpMult: 1.8 }, // a slow armored wall
 ];
 
 // `from` = elapsed seconds at which the entry unlocks.

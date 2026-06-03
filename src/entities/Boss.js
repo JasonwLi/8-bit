@@ -5,12 +5,12 @@ const TAU = Math.PI * 2;
 // build, so projectile + contact damage is scaled up once at construction (a
 // single tunable chokepoint instead of editing every attack in bosses.js).
 // Tuning pass: bumped ~1.3× for harder hits across all bosses.
-const BOSS_DMG = 2.34; // was 1.8 — scaled by BOSS_ATK_SPEED (1.3×)
+const BOSS_DMG = 2.8; // bosses felt easy — hit harder still
 
 // Global boss attack-speed multiplier. Dividing all cooldown/interval timers
 // by this constant makes every boss attack ~30 % more often without touching
 // individual attack definitions.  Raise it to speed bosses up further.
-const BOSS_ATK_SPEED = 1.3;
+const BOSS_ATK_SPEED = 1.55;
 
 // A boss. Joins the scene's `enemies` group (so the player's weapon damages it
 // and contact hurts the player) but is flagged `isBoss` so GameScene runs

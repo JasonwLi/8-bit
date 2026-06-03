@@ -159,6 +159,7 @@ export default class GameScene extends Phaser.Scene {
 
     // overlaps
     this.physics.add.overlap(this.player, this.enemies, this.onPlayerHit, null, this);
+    this.physics.add.overlap(this.enemies, this.allies, this.onAllyHit, null, this); // enemies damage legionaries
     this.physics.add.overlap(this.projectiles, this.enemies, this.onProjectileHit, null, this);
     this.physics.add.overlap(this.player, this.enemyProjectiles, this.onEnemyProjectileHit, null, this);
     this.physics.add.overlap(this.player, this.gems, this.drops.onGem, null, this.drops);
@@ -533,6 +534,14 @@ export default class GameScene extends Phaser.Scene {
         if (e.curseRadius && dist < e.curseRadius) {
           this.player.curseSlow = Math.min(this.player.curseSlow, e.curseSlowAmt);
         }
+        if (e.casterEvery) { // Caster elite: lob a 3-shot spread at the player
+          e.casterTimer -= delta;
+          if (e.casterTimer <= 0) {
+            e.casterTimer = e.casterEvery;
+            const base = Math.atan2(py - e.y, px - e.x);
+            for (let i = -1; i <= 1; i++) this.spawnHostileProjectile(e.x, e.y, base + i * 0.22, e.castSpeed, e.castDmg, { tint: e.eliteTint });
+          }
+        }
       }
 
       // Stun (Genghis's Khan's Cleave): frozen — no movement, no attack — for the window.
@@ -542,6 +551,22 @@ export default class GameScene extends Phaser.Scene {
       } else if (e.stunUntil) {
         e.stunUntil = 0;
         if (e.isElite) e.setTint(e.eliteTint || 0xffd54a); else e.clearTint(); // restore look
+      }
+
+      // Caesar's legionaries draw AGGRO: a melee enemy with a legionary nearer than the
+      // player engages IT instead (the enemy↔ally overlap deals the damage). Lets allies
+      // actually die / tank, instead of being free invincible DPS.
+      if (!e.isBoss && e.attack !== 'ranged' && this.allies && this.allies.countActive(true)) {
+        const ally = this.nearestAllyTo(e.x, e.y, 220);
+        if (ally) {
+          const adx = ally.x - e.x, ady = ally.y - e.y;
+          if (adx * adx + ady * ady < dist * dist) { // ally closer than the player
+            const aang = Math.atan2(ady, adx);
+            e.setVelocity(Math.cos(aang) * e.speed, Math.sin(aang) * e.speed);
+            e.setFlipX(adx < 0);
+            continue;
+          }
+        }
       }
 
       EnemyAI.updateMob(this, e, delta, dist, ang); // movement + attack (owned by EnemyAI.js)
@@ -701,8 +726,8 @@ export default class GameScene extends Phaser.Scene {
     // geared you are; ×base + the final-boss role multiplier make it a real bout.
     const hpScale = this.stageScale
       * this.playerPower()
-      * 1.7
-      * (isLocalFinal ? 1.7 : 1.0)
+      * 2.6                              // bumped (bosses died too fast / felt easy)
+      * (isLocalFinal ? 2.2 : 1.0)
       * this.contract.bossHpMult;
     // Boss DAMAGE tracks the same character stats — campaign stage × the player's own
     // offense (capped so it threatens without one-shotting). Without this, projectile
@@ -887,6 +912,11 @@ export default class GameScene extends Phaser.Scene {
     this.player.kills += 1;
     this.player.addMomentum(); // builds/extends the musou window if active
     this.fx.death(enemy.x, enemy.y);
+    // Volatile elite: detonate a telegraphed AoE where it died (back off when it's low!)
+    if (enemy.volatile) {
+      this.fx.shockwave(enemy.x, enemy.y, enemy.eliteTint || 0xff7a2a, enemy.blastRadius || 120);
+      this.spawnHazardZone(enemy.x, enemy.y, enemy.blastRadius || 120, enemy.blastDmgElite || 30, 320, 320, 320);
+    }
     this.drops.spawnGem(enemy.x, enemy.y, enemy.xpValue);
     if (enemy.isElite) {
       this.drops.spawnChest(enemy.x, enemy.y);
@@ -972,6 +1002,31 @@ export default class GameScene extends Phaser.Scene {
     return best;
   }
 
+  // Nearest active legionary to a point (for enemy aggro).
+  nearestAllyTo(x, y, maxRange = Infinity) {
+    if (!this.allies) return null;
+    let best = null;
+    let bestD = maxRange * maxRange;
+    for (const a of this.allies.getChildren()) {
+      if (!a.active) continue;
+      const d = (a.x - x) ** 2 + (a.y - y) ** 2;
+      if (d < bestD) { bestD = d; best = a; }
+    }
+    return best;
+  }
+
+  // Enemies damage Caesar's legionaries on contact (they're no longer invincible — they
+  // have HP and die). Throttled per-legionary so an overlapping mob doesn't shred instantly.
+  onAllyHit(enemy, ally) {
+    if (!ally.active || !enemy.active || enemy.isBoss) return;
+    if (ally.allyHurtCd > 0) return;
+    ally.allyHurtCd = 450;
+    ally.allyHp -= enemy.contactDamage || enemy.damage || 8;
+    ally.setTintFill(0xff6b6b);
+    this.time.delayedCall(60, () => { if (ally.active) ally.clearTint(); });
+    if (ally.allyHp <= 0) { this.fx.death(ally.x, ally.y, 0xffe08a); this.deactivate(ally); }
+  }
+
   // Nearest enemy excluding those already hit (ricochet chains never double-back).
   nearestEnemyExcept(x, y, exclude, maxRange = Infinity) {
     let best = null;
@@ -1029,6 +1084,8 @@ export default class GameScene extends Phaser.Scene {
     a.allyRange = opts.range + 18;
     a.allyUntil = this.time.now + opts.life;
     a.allyHitCd = 0;
+    a.allyHp = opts.hp || 40; a.allyMaxHp = a.allyHp; // legionaries are mortal now (Caesar nerf)
+    a.allyHurtCd = 0;
     this.fx.legionDeploy(x, y);
   }
 
@@ -1036,6 +1093,7 @@ export default class GameScene extends Phaser.Scene {
     if (!this.allies) return;
     for (const a of this.allies.getChildren()) {
       if (!a.active) continue;
+      if (a.allyHurtCd > 0) a.allyHurtCd -= delta; // cooldown between taking enemy hits
       if (time >= a.allyUntil) { this.fx.death(a.x, a.y, 0xffe08a); this.deactivate(a); continue; }
       const e = this.nearestEnemyTo(a.x, a.y);
       if (!e) { a.setVelocity(0, 0); continue; }
