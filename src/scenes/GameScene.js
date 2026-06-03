@@ -678,13 +678,36 @@ export default class GameScene extends Phaser.Scene {
   // the next frame's physics sync overwrites it before we re-snap. Runs on POST_UPDATE.
   snapRender() {
     const s = GAME.pixelStep | 0;
-    if (s <= 1) return;
-    const snap = (o) => { if (o && o.active) { o.x = Math.round(o.x / s) * s; o.y = Math.round(o.y / s) * s; } };
-    snap(this.player);
-    for (const e of this.enemies.getChildren()) snap(e);
-    for (const a of this.allies.getChildren()) snap(a);
-    for (const p of this.projectiles.getChildren()) snap(p);
-    for (const p of this.enemyProjectiles.getChildren()) snap(p);
+    const amp = GAME.walkBobAmp | 0;
+    const stride = GAME.walkBobStride || 16;
+    const snap = (o) => { if (s > 1) { o.x = Math.round(o.x / s) * s; o.y = Math.round(o.y / s) * s; } };
+    // Walk bob: hop the sprite up as it travels (distance-driven so faster = quicker steps,
+    // and it sits still when stopped). Uses the physics BODY's true motion, returns a px
+    // offset added to the sprite's render y only. |sin| = a one-way upward hop per stride.
+    const bob = (o) => {
+      if (amp <= 0 || !o.body) return 0;
+      const cx = o.body.center.x, cy = o.body.center.y;
+      const d = Math.hypot(cx - (o._lbx ?? cx), cy - (o._lby ?? cy));
+      o._lbx = cx; o._lby = cy;
+      if (d < 0.25) { o._bobPhase = 0; return 0; }
+      o._bobPhase = (o._bobPhase || 0) + (d / stride) * Math.PI;
+      return -Math.round(Math.abs(Math.sin(o._bobPhase)) * amp);
+    };
+    const cam = this.cameras.main;
+    // Player: snap, then hop the sprite — but cancel the hop from the camera (followOffset)
+    // so the SCREEN stays grounded instead of bobbing with the player. No bob during duels.
+    if (this.player && this.player.active) {
+      snap(this.player);
+      const pb = this.dueling ? 0 : bob(this.player);
+      this.player.y += pb;
+      if (cam.setFollowOffset) cam.setFollowOffset(0, -pb);
+    }
+    for (const e of this.enemies.getChildren()) { if (!e.active) continue; snap(e); e.y += bob(e); }
+    for (const a of this.allies.getChildren()) { if (!a.active) continue; snap(a); a.y += bob(a); }
+    if (s > 1) {
+      for (const p of this.projectiles.getChildren()) snap(p);
+      for (const p of this.enemyProjectiles.getChildren()) snap(p);
+    }
   }
 
   // A quick slash-arc flash telegraphing a melee enemy's swing (see EnemyAI handleSwing).

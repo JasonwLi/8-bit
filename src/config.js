@@ -23,6 +23,12 @@ export const GAME = {
   // centre a touch so you actually see it pixel-step, without the world gliding. See
   // GameScene.startFollow.
   cameraLerp: 0.35,
+  // Procedural WALK BOB: the sprites are single-frame (no walk-cycle art), so without
+  // this they glide. While a character moves, hop its sprite up-and-down in step with the
+  // distance travelled so it reads as walking/running rather than floating. Render-only.
+  // amp = hop height in px (0 = off), stride = px travelled per hop (smaller = faster steps).
+  walkBobAmp: 3,
+  walkBobStride: 16,
 };
 
 export const SPRITE = {
