@@ -153,10 +153,10 @@ export default class GameScene extends Phaser.Scene {
     this.player.contractXpMult = 1 + this.contract.xpBonus;
     this.player.hp = this.player.maxHp; // full heal at each stage start
 
-    // Lock-step follow (lerp 1): a smoothly-lerped camera glides the world under the
-    // player, which reads as "floaty". Hard-following the pixel-snapped player keeps the
-    // whole frame stepping together. roundPixels (2nd arg) snaps the scroll to the grid.
-    this.cameras.main.startFollow(this.player, true, 1, 1);
+    // Camera follow tuned by GAME.cameraLerp (middle ground): tight enough that the world
+    // doesn't glide floatily, loose enough that the player drifts slightly off-centre so
+    // you actually see it pixel-step (lock-step pins it dead-centre → looks unchanged).
+    this.cameras.main.startFollow(this.player, true, GAME.cameraLerp, GAME.cameraLerp);
     // Render-only pixel snap (see snapRender): quantise displayed motion to GAME.pixelStep.
     // Runs on POST_UPDATE, AFTER arcade physics has synced bodies → sprites, so it only
     // moves the sprite's render position, never the body — physics/collisions stay exact.

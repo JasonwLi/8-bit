@@ -14,8 +14,15 @@ export const GAME = {
   // Retro motion: quantise the DISPLAYED position of moving things to this pixel grid
   // (render-only, physics untouched) so motion steps pixel-by-pixel instead of gliding
   // on the fine sub-pixel grid — kills the "floaty / too-smooth" slide. 1 = off (smooth),
-  // 2 = subtle, 3 = chunky, 4 = very chunky. See GameScene.snapRender.
-  pixelStep: 3,
+  // 2 = subtle (slow mobs still glide-step), 3 = chunky (slow mobs start to stutter),
+  // 4 = very chunky. See GameScene.snapRender.
+  pixelStep: 2,
+  // How tightly the camera follows the player (0–1). LOW = floaty/laggy world-slide
+  // (0.12 was the original, too smooth); 1 = rigid lock-step (pins the player dead-centre
+  // so its own stepping never shows on screen). A MIDDLE value lets the player drift off
+  // centre a touch so you actually see it pixel-step, without the world gliding. See
+  // GameScene.startFollow.
+  cameraLerp: 0.35,
 };
 
 export const SPRITE = {
