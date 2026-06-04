@@ -39,6 +39,9 @@ export default class ConquestScene extends Phaser.Scene {
       run.final = true;
       run.stageTime = 0;
       run.bossPhase = 0;
+      run.floor = 1;                              // the final stage starts at floor 1 too
+      run.floorSeed = (Math.random() * 1e9) | 0;
+      run.spawnedThisFloor = 0;
       this.registry.set('run', run);
       Save.save(run);
       this.scene.start('ContractScene');
@@ -195,6 +198,9 @@ export default class ConquestScene extends Phaser.Scene {
     run.final = false;
     run.stageTime = 0;
     run.bossPhase = 0;
+    run.floor = 1;                              // a new stage starts at floor 1 (was inheriting 15)
+    run.floorSeed = (Math.random() * 1e9) | 0;  // fresh layouts per stage (not a repeat of stage 1)
+    run.spawnedThisFloor = 0;                   // fresh spawn budget for the new floor 1
     this.registry.set('run', run);
     Save.save(run);
     this.scene.start('ContractScene');

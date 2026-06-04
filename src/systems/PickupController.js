@@ -192,7 +192,7 @@ export default class PickupController {
     }
     const roll = Math.random();
     if (roll < 0.16) this.spawnHeart(b.x, b.y);
-    else if (roll < 0.2) this.spawnChest(b.x, b.y);
+    else if (roll < 0.18) this.spawnChest(b.x, b.y); // chest from a crate: 4% -> 2%
     b.destroy();
   }
 }

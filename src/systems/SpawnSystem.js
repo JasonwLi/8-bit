@@ -12,7 +12,7 @@ export default class SpawnSystem {
     this.accum = 0;
     this.elapsed = 0; // seconds (ticks for elite/boss-minion difficulty scaling only)
     this.dwell = 0;   // seconds spent on the CURRENT floor (resets each descent)
-    this.chestTimer = 30000; // first field chest after ~30s
+    this.chestTimer = 45000; // first field chest after ~45s
     this.eliteTimer = 24000; // first elite after ~24s (elites come thicker now)
     // Per-floor spawn BUDGET: a floor only ever spawns this many enemies, so you can't
     // park on a floor and farm XP forever — descend for more (and tougher) foes.
@@ -312,7 +312,7 @@ export default class SpawnSystem {
     this.chestTimer -= delta;
     if (this.chestTimer <= 0) {
       this.scene.spawnChest();
-      this.chestTimer = Phaser.Math.Between(40000, 60000);
+      this.chestTimer = Phaser.Math.Between(60000, 90000); // spaced out (was 40–60s)
     }
   }
 }

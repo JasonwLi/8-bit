@@ -1174,8 +1174,9 @@ export default class GameScene extends Phaser.Scene {
     }
     this.drops.spawnGem(enemy.x, enemy.y, enemy.xpValue);
     if (enemy.isElite) {
-      this.drops.spawnChest(enemy.x, enemy.y);
-      if (Math.random() < 0.6) this.drops.spawnPowerup(enemy.x + 30, enemy.y);
+      // gear/powerups from elites were flooding in and over-powering the build — halve them
+      if (Math.random() < 0.5) this.drops.spawnChest(enemy.x, enemy.y);
+      if (Math.random() < 0.3) this.drops.spawnPowerup(enemy.x + 30, enemy.y);
     } else if (Math.random() < 0.04) {
       this.drops.spawnHeart(enemy.x, enemy.y); // rare health drop
     }
