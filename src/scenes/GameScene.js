@@ -1197,10 +1197,16 @@ export default class GameScene extends Phaser.Scene {
   // Enemies damage Caesar's legionaries on contact (they're no longer invincible — they
   // have HP and die). Throttled per-legionary so an overlapping mob doesn't shred instantly.
   onAllyHit(enemy, ally) {
-    if (!ally.active || !enemy.active || enemy.isBoss) return;
+    if (!ally.active || !enemy.active) return;
     if (ally.allyHurtCd > 0) return;
     ally.allyHurtCd = 450;
-    ally.allyHp -= enemy.contactDamage || enemy.damage || 8;
+    // Bosses now hurt the legion too (it was invincible free DPS against them). Their hit
+    // is player-tuned and would one-shot a legionary, so cap it to ~half max HP — the legion
+    // is a brief meatshield (a couple of hits) at a boss, not vaporised and not invulnerable.
+    const dmg = enemy.isBoss
+      ? Math.min(enemy.contactDamage || 30, Math.round((ally.allyMaxHp || 40) * 0.5))
+      : (enemy.contactDamage || enemy.damage || 8);
+    ally.allyHp -= dmg;
     ally.setTintFill(0xff6b6b);
     this.time.delayedCall(60, () => { if (ally.active) ally.clearTint(); });
     if (ally.allyHp <= 0) { this.fx.death(ally.x, ally.y, 0xffe08a); this.deactivate(ally); }
