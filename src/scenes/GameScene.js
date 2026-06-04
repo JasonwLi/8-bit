@@ -498,10 +498,19 @@ export default class GameScene extends Phaser.Scene {
     this.player.updateBuffs(time);
     this.player.applyRegen(delta / 1000);
 
-    // empowered aura follows the player while the musou window is open
-    if (this.player.empowered) {
-      this.empowerAura.setVisible(true).setPosition(this.player.x, this.player.y)
-        .setScale(1.2).setTint(this.player.empowerColor);
+    // Status aura around the player — makes active buffs/debuffs obvious at a glance.
+    // Priority: empowered (musou) > berserk (red) > defense/testudo (gold) > speed (green)
+    // > slowed/cursed (blue).
+    const p = this.player;
+    let aura = null;
+    if (p.empowered) aura = p.empowerColor;
+    else if (p.buffDamageMult > 1) aura = 0xff4444;                 // berserker rage
+    else if (p.buffDamageTakenMult < 1) aura = 0xffd766;            // testudo / defense
+    else if (p.buffSpeedMult > 1) aura = 0x66ff99;                  // speed
+    else if (p.curseSlow < 0.99) aura = 0x6699ff;                   // hex curse / slow
+    if (aura != null) {
+      this.empowerAura.setVisible(true).setPosition(p.x, p.y)
+        .setScale(p.empowered ? 1.25 : 1.1).setTint(aura);
     } else if (this.empowerAura.visible) {
       this.empowerAura.setVisible(false);
     }
@@ -556,6 +565,7 @@ export default class GameScene extends Phaser.Scene {
       } else if (e.bleedUntil) {
         e.bleedUntil = 0; e.bleedStacks = 0; e.bleedDps = 0;
       }
+      this.applyStatusTint(e, now, delta); // OBVIOUS status: stun/fear/slow tint + stun stars
       if (e.isBoss) {
         if (this.dueling) e.bossDuelUpdate(delta); // fighting-game melee + block
         else e.bossUpdate(delta); // open-field ranged patterns (declined duel)
@@ -808,6 +818,33 @@ export default class GameScene extends Phaser.Scene {
     } else {
       const g = this.add.circle(x, y, reach * 0.6, 0xff5050, 0.45).setDepth(6);
       this.tweens.add({ targets: g, alpha: 0, scale: 1.4, duration: 150, onComplete: () => g.destroy() });
+    }
+  }
+
+  // Make status effects OBVIOUS on enemies: recolour a mob by its dominant active status
+  // and float "stun stars" over its head. stun (Genghis's cleave etc.) = dazed yellow
+  // flicker + gold sparks; fear = purple; slow = cyan. Render-only; restores the elite/clear
+  // tint when the status ends. A brief white hit-flash still overrides it for ~50ms.
+  applyStatusTint(e, now, delta) {
+    if (e.isBoss) return;
+    const stunned = e.stunUntil && now < e.stunUntil;
+    const feared = !stunned && e.fearUntil && now < e.fearUntil;
+    const slowed = e.slowUntil && now < e.slowUntil;
+    let tint = null;
+    if (stunned) tint = (((now / 90) | 0) % 2) ? 0xffe98a : 0xfff7d0; // dazed flicker
+    else if (feared) tint = 0xc070ff; // purple — fleeing
+    else if (slowed) tint = 0x66ccff; // cyan — chilled
+    if (tint != null) { e.setTint(tint); e._statusTinted = true; }
+    else if (e._statusTinted) {
+      e._statusTinted = false;
+      if (e.isElite) e.setTint(e.eliteTint || 0xffd54a); else e.clearTint();
+    }
+    if (stunned) { // gold spark "stars" puff above the head
+      e._stunAcc = (e._stunAcc || 0) + delta;
+      if (e._stunAcc >= 240) {
+        e._stunAcc = 0;
+        this.fx.impact(e.x + (Math.random() * 16 - 8), e.y - (e.displayHeight || 30) * 0.5, 0xfff2a0);
+      }
     }
   }
 
