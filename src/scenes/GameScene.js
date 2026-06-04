@@ -898,7 +898,7 @@ export default class GameScene extends Phaser.Scene {
     // geared you are; ×base + the final-boss role multiplier make it a real bout.
     const hpScale = this.stageScale
       * this.playerPower()
-      * 2.6                              // bumped (bosses died too fast / felt easy)
+      * 2.21                             // boss HP buff (was 2.6 — eased ~15%)
       * (isLocalFinal ? 2.2 : 1.0)
       * this.contract.bossHpMult;
     // Boss DAMAGE tracks the same character stats — campaign stage × the player's own

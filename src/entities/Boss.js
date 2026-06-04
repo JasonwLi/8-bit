@@ -5,7 +5,7 @@ const TAU = Math.PI * 2;
 // build, so projectile + contact damage is scaled up once at construction (a
 // single tunable chokepoint instead of editing every attack in bosses.js).
 // Tuning pass: bumped ~1.3× for harder hits across all bosses.
-const BOSS_DMG = 2.8; // bosses felt easy — hit harder still
+const BOSS_DMG = 2.38; // global boss damage buff (was 2.8 — eased ~15%)
 
 // Global boss attack-speed multiplier. Dividing all cooldown/interval timers
 // by this constant makes every boss attack ~30 % more often without touching
