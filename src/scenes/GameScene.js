@@ -142,9 +142,10 @@ export default class GameScene extends Phaser.Scene {
     const r = this.run;
     this.player.loadProgress(r.level, r.xp);
     this.player.kills = r.kills || 0;
-    Object.assign(this.weapons.points, r.weaponPoints);
-    Object.assign(this.secondary.points, r.secondaryPoints || {});
-    Object.assign(this.ability.points, r.abilityPoints);
+    this.applyPointsByPosition(this.weapons, r.weaponPoints);
+    this.applyPointsByPosition(this.secondary, r.secondaryPoints);
+    Object.assign(this.ability.points, r.abilityPoints); // ability points key on stable slots
+
     if (r.levelMods) Object.assign(this.player.levelMods, r.levelMods); // carried hero-stat upgrades
     for (const [slot, item] of Object.entries(r.equipment || {})) if (item) this.player.equipment[slot] = item;
     this.player.artifactMods = (r.artifacts || []).map((id) => getArtifact(id).mods);
@@ -973,13 +974,35 @@ export default class GameScene extends Phaser.Scene {
     Audio.setIntensity(0);
   }
 
+  // Save a weapon/secondary's invested points as an ARRAY indexed by axis POSITION. Points
+  // are keyed internally by axis id, but axis ids get renamed across builds (e.g. balance
+  // tweaks), which orphaned the saved points by id and wiped skill levels on every deploy.
+  // Position is stable, so a renamed axis keeps its slot. (Legacy weapons with no axes fall
+  // back to the raw points object.)
+  packPointsByPosition(ws) {
+    const axes = ws.def && ws.def().axes;
+    if (!axes) return { ...ws.points };
+    return axes.map((a) => ws.points[a.id] || 0);
+  }
+
+  // Restore points saved by packPointsByPosition. Accepts the new position ARRAY or, for
+  // pre-existing saves, the legacy { axisId: n } OBJECT (matched by id where ids still line up).
+  applyPointsByPosition(ws, saved) {
+    if (!saved) return;
+    const axes = ws.def && ws.def().axes;
+    if (!axes) { Object.assign(ws.points, saved); return; }
+    axes.forEach((a, i) => {
+      ws.points[a.id] = Array.isArray(saved) ? (saved[i] || 0) : (saved[a.id] || 0);
+    });
+  }
+
   // Write current live progression back into the run object.
   captureRunState() {
     const r = this.run;
     r.level = this.player.level;
     r.xp = this.player.xp;
-    r.weaponPoints = { ...this.weapons.points };
-    r.secondaryPoints = { ...this.secondary.points };
+    r.weaponPoints = this.packPointsByPosition(this.weapons);
+    r.secondaryPoints = this.packPointsByPosition(this.secondary);
     r.abilityPoints = { ...this.ability.points };
     r.levelMods = { ...this.player.levelMods };
     r.swarmElapsed = this.spawner.elapsed; // carry swarm difficulty into the next stage
