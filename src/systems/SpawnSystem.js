@@ -21,12 +21,12 @@ export default class SpawnSystem {
   }
 
   get difficulty() {
-    // FLOOR is the primary driver (+ a mild dwell term so lingering ramps pressure),
-    // and we KEEP the PLAYER'S OFFENSE × the campaign stage scale so a stacked build
-    // stays challenged and later civs stay harder. Drives enemy HP, XP, and damage.
+    // KEEP the PLAYER'S OFFENSE so a stacked build stays challenged, × the CONTINUOUS
+    // campaign scale (scene.stageScale now ramps with conquestDepth — the per-stage floor
+    // ramp is folded into it, so a new stage's floor 1 doesn't dip below the last floor 15).
+    // + a mild dwell term so lingering ramps pressure. Drives enemy HP, XP, and damage.
     const power = this.scene.playerPower ? this.scene.playerPower() : 1;
-    const floor = this.scene.floor || 1;
-    return power * (1 + (floor - 1) * 0.14 + this.dwell / 200) * (this.scene.stageScale || 1);
+    return power * (1 + this.dwell / 200) * (this.scene.stageScale || 1);
   }
 
   get spawnInterval() {

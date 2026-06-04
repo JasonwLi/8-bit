@@ -49,7 +49,6 @@ export default class GameScene extends Phaser.Scene {
       return Math.round(this.stageDuration * frac);
     });
     this.bossPhase = this.run.bossPhase || 0; // resume support
-    this.stageScale = 1 + stageIndex(this.run) * 0.9; // each cleared stage ramps difficulty
     this.contract = contractEffects(this.run.contracts || []); // active difficulty contracts
 
     this.pendingLevels = 0;
@@ -81,6 +80,20 @@ export default class GameScene extends Phaser.Scene {
     this._fogVisAcc = 0; // accumulator for the ~100ms fog-concealment visibility pass
     this._lastMoveDir = 0; // last movement heading (radians); persists while standing still
     this.aimDir = null;    // effective aim each frame = move direction (null in duels → auto-target)
+  }
+
+  // CONTINUOUS progress across the WHOLE 7/7 conquest: total floors descended so far
+  // (cleared stages × floorsPerStage + the current floor). 0-based. Drives a single smooth
+  // difficulty + loot curve so a NEW stage's floor 1 is harder than the last stage's floor
+  // 15 (no per-stage reset/dip) — important because gear/levels carry across stages.
+  get conquestDepth() {
+    return stageIndex(this.run) * DUNGEON.floorsPerStage + ((this.floor || 1) - 1);
+  }
+
+  // Campaign difficulty multiplier — now continuous with conquestDepth (was a per-stage
+  // step of 0.9, which dropped at each new stage). Drives enemy HP/damage + boss scaling.
+  get stageScale() {
+    return 1 + this.conquestDepth * 0.14; // tune here: higher = harder overall
   }
 
   create() {

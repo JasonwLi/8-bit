@@ -97,10 +97,14 @@ export default class PickupController {
   openLoot() {
     const s = this.s;
     s.lootOpen = true;
-    // rarity bias = campaign depth (each cleared stage) + time in this stage + the
-    // character's luck. Early game stays common; deep/lucky runs roll high tiers.
-    const luck = stageIndex(s.run) * 4 + (s.runTime / 60000) * 0.6 + (s.player.luck || 0);
-    const item = rollItem(luck);
+    // Both the RARITY bias and the raw STAT power scale with CONTINUOUS conquest depth
+    // (cleared stages × floors + current floor) + character luck — so gear keeps pace with
+    // the (now continuous) difficulty all the way through the 7/7 conquest, and a deep floor
+    // rolls richer loot than an early one. Early game still stays common.
+    const depth = s.conquestDepth;
+    const luck = depth * 0.3 + (s.player.luck || 0);
+    const powerMult = 1 + depth * 0.012; // deeper floors → bigger stat rolls (≈2.6× by the end)
+    const item = rollItem(luck, null, powerMult);
     s.scene.pause();
     s.scene.launch('LootScene', { gameScene: s, item });
   }

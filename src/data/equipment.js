@@ -181,7 +181,7 @@ function flavoredName(rarityName, slotName, flavors, rarityIndex) {
 
 // Roll a random item. `luck` (campaign stage + elapsed time + character luck;
 // computed by the caller) biases the rarity roll toward higher tiers.
-export function rollItem(luck = 0, slotId = null) {
+export function rollItem(luck = 0, slotId = null, powerMult = 1) {
   const slot = slotId
     ? getSlot(slotId)
     : DROP_SLOTS[Math.floor(Math.random() * DROP_SLOTS.length)];
@@ -207,7 +207,7 @@ export function rollItem(luck = 0, slotId = null) {
     }
   }
 
-  const mods = scaleMods(baseMods, rarity.mult);
+  const mods = scaleMods(baseMods, rarity.mult * powerMult); // powerMult = depth-based stat scaling
 
   return {
     slot: slot.id,
