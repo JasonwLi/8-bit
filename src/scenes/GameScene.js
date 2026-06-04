@@ -811,6 +811,28 @@ export default class GameScene extends Phaser.Scene {
     }
   }
 
+  // Attack animation for RANGED enemies (catapults / ballistae / gunners / etc): a muzzle
+  // flash at the barrel + a recoil scale-jolt of the sprite, so single-frame shooters read
+  // as firing instead of standing inert. Render-only (flash fx + a yoyo scale tween that
+  // resets to the sprite's base scale); never touches the physics body.
+  enemyFireFx(e, ang) {
+    if (!e || !e.active) return;
+    const off = (e.displayWidth || 40) * 0.42;
+    const mx = e.x + Math.cos(ang) * off, my = e.y + Math.sin(ang) * off;
+    // muzzle flash (additive) + a small spark burst at the barrel
+    const flash = this.add.circle(mx, my, Math.max(6, off * 0.32), 0xfff1b0, 0.95).setDepth(9).setBlendMode('ADD');
+    this.tweens.add({ targets: flash, scale: 2.4, alpha: 0, duration: 150, ease: 'Quad.easeOut', onComplete: () => flash.destroy() });
+    if (this.fx && this.fx.impact) this.fx.impact(mx, my, 0xffd27a);
+    // recoil jolt — one at a time (rapid fire just gets the flashes), reset to base scale
+    if (e._recoilT) return;
+    if (e._baseSX == null) { e._baseSX = e.scaleX; e._baseSY = e.scaleY; }
+    e._recoilT = this.tweens.add({
+      targets: e, scaleX: e._baseSX * 1.16, scaleY: e._baseSY * 0.86,
+      duration: 70, yoyo: true, ease: 'Quad.easeOut',
+      onComplete: () => { if (e.active) e.setScale(e._baseSX, e._baseSY); e._recoilT = null; },
+    });
+  }
+
   // Cao Cao summons reinforcements around himself.
   summonMinions(x, y, count) {
     const def = ENEMIES.soldier;

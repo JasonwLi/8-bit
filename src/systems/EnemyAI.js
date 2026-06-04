@@ -101,6 +101,8 @@ function fireEnemyShot(scene, e, ang) {
     ? ang
     : Math.atan2(scene.player.y - e.y, scene.player.x - e.x);
 
+  if (scene.enemyFireFx) scene.enemyFireFx(e, a); // muzzle flash + recoil jolt
+
   const lifespan = (e.range / e.projSpeed) * 1000 * 2.4;
 
   switch (e.rangedKind) {
