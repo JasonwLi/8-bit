@@ -23,7 +23,7 @@ const AXIS_ICON = {
 const STAT_UPGRADES = [
   { id: 'might', label: 'Might', desc: '+5% damage', mod: ['damageMult', 0.05], color: 0xff5252, icon: 'axis_damage' },
   { id: 'haste', label: 'Haste', desc: '−4% all cooldowns', mod: ['cooldownMult', -0.04], color: 0xffe030, icon: 'axis_speed' },
-  { id: 'vitality', label: 'Vitality', desc: '+22 max HP', mod: ['maxHpFlat', 22], color: 0x66dd88, icon: 'axis_amount' },
+  { id: 'vitality', label: 'Vitality', desc: '+35 max HP', mod: ['maxHpFlat', 35], color: 0x66dd88, icon: 'axis_amount' },
   { id: 'swiftness', label: 'Swiftness', desc: '+5% move speed', mod: ['speedMult', 0.05], color: 0x64c8ff, icon: 'axis_haste' },
   { id: 'armor', label: 'Armor', desc: '+3% damage reduction', mod: ['damageReduction', 0.03], color: 0x9aa6c0, icon: 'axis_area' },
   { id: 'evasion', label: 'Evasion', desc: '+3% dodge', mod: ['dodge', 0.03], color: 0x33d6d6, icon: 'axis_reach' },

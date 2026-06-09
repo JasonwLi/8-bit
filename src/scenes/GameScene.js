@@ -756,7 +756,15 @@ export default class GameScene extends Phaser.Scene {
             const dy = this.player.y - y;
             if (dx * dx + dy * dy <= radius * radius) {
               this.warnHazardOnce();
-              this.reactToHit(this.player.takeDamage(damage, this.time.now, { bypassIframes: true, ranged: true }));
+              // Shared 250ms hazard gate: zone ticks bypass normal iframes, so N OVERLAPPING
+              // zones used to deal N× damage in the same instant — late floors blanket the
+              // ground in elite/siege zones and stacked ticks one-shot even tank builds
+              // (observed: a 621-HP player taking a 700+ burst). Zones still tick fast, but
+              // only one zone can bill the player per window.
+              if (this.time.now - (this._lastHazardHit || 0) >= 250) {
+                this._lastHazardHit = this.time.now;
+                this.reactToHit(this.player.takeDamage(damage, this.time.now, { bypassIframes: true, ranged: true }));
+              }
             }
           }
           if (++done >= ticks) this.tweens.add({ targets: pool, alpha: 0, duration: 200, onComplete: () => pool.destroy() });

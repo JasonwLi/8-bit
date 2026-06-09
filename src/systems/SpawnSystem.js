@@ -239,7 +239,10 @@ export default class SpawnSystem {
     const floor = this.scene.floor || 1;
     // Capped so the depth×stage×power stack can't let a high-base-damage mob (titan/golem)
     // one-shot even a stacked build — threatening, not instant-death.
-    const dmgScale = Math.min(10, (1 + (floor - 1) * 0.12 + this.dwell / 160) * (this.scene.stageScale || 1) * (1 + (power - 1) * 0.06));
+    // Cap 6 (was 10): playtest at conquest depth 104 showed even a fully-geared 488-HP tank
+    // absorbing ~35 incoming DPS and dying mid-floor — every mob hit the old cap and ELITE
+    // multipliers stack on top of it. 6 matches the boss damage cap.
+    const dmgScale = Math.min(6, (1 + (floor - 1) * 0.12 + this.dwell / 160) * (this.scene.stageScale || 1) * (1 + (power - 1) * 0.06));
     e.maxHp = Math.round(def.hp * this.difficulty * (forceElite ? 4 : 1));
     // early-floor toughness so nothing is one-shot on arrival (fades by earlyHpFloors)
     if (this.scene.dungeonMode) {

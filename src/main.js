@@ -38,6 +38,12 @@ window.__bootErrors = [];
 window.addEventListener('error', (e) =>
   window.__bootErrors.push(`${e.message} @ ${e.filename || ''}:${e.lineno}:${e.colno}`)
 );
+
+// QA/balance harness hooks: lets an automated playtest construct representative
+// late-conquest loadouts (gear rolls) without going through hours of real play.
+import { rollItem, DROP_SLOTS } from './data/equipment.js';
+import { newRun } from './data/campaign.js';
+window.__qa = { rollItem, DROP_SLOTS, newRun };
 window.addEventListener('unhandledrejection', (e) =>
   window.__bootErrors.push(`promise: ${e.reason}`)
 );

@@ -32,7 +32,7 @@ export const CHARACTERS = [
     startingWeapon: 'matchlock_volley',
     secondary: 'scattershot',
     ultimate: 'barrage',
-    stats: { maxHp: 90, speed: 230, attack: 1.0, defense: 0.0, rangedDefense: 0.06, lifesteal: 0, regen: 0.025, pickup: 115, luck: 1 },
+    stats: { maxHp: 100, speed: 230, attack: 1.0, defense: 0.0, rangedDefense: 0.06, lifesteal: 0, regen: 0.025, pickup: 115, luck: 1 },
     palette: {
       skin: 0xe2b0a0,
       primary: 0x1b1b2f, // dark nanban armor
@@ -122,7 +122,7 @@ export const CHARACTERS = [
     startingWeapon: 'composite_bow',
     secondary: 'arrow_storm',
     ultimate: 'sky_arrows',
-    stats: { maxHp: 100, speed: 230, attack: 1.05, defense: 0.02, rangedDefense: 0.06, lifesteal: 0, regen: 0.026, pickup: 114, luck: 2 },
+    stats: { maxHp: 120, speed: 230, attack: 1.05, defense: 0.02, rangedDefense: 0.06, lifesteal: 0, regen: 0.026, pickup: 114, luck: 2 },
     palette: {
       skin: 0xd9a878,
       primary: 0x4a3a28, // dark leather

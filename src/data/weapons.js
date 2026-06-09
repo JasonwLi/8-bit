@@ -37,7 +37,7 @@ export const WEAPONS = {
     kind: 'projectile_aimed',
     color: 0xffe08a,
     base: {
-      damage: 22, cooldown: 820, count: 1, pierce: 2, speed: 680, spread: 0,
+      damage: 27, cooldown: 820, count: 1, pierce: 2, speed: 680, spread: 0,
       pierceAll: true,   // always drills through the full line
     },
     axes: [
@@ -55,7 +55,7 @@ export const WEAPONS = {
     kind: 'lob_aoe',
     color: 0xff7b1c,
     base: {
-      damage: 10, cooldown: 1500, count: 1, radius: 70,
+      damage: 12, cooldown: 1500, count: 1, radius: 70,
       duration: 1600, tick: 240, speed: 360,
     },
     axes: [
@@ -90,7 +90,7 @@ export const WEAPONS = {
     kind: 'summon',
     color: 0xcfd6e0,
     base: {
-      damage: 16, cooldown: 2600, count: 1,
+      damage: 18, cooldown: 2600, count: 1,
       allyHp: 40, allyLife: 7000, allySpeed: 150, allyRange: 30,
     },
     axes: [
@@ -108,7 +108,7 @@ export const WEAPONS = {
     kind: 'line_thrust',
     color: 0xcdb070,
     base: {
-      damage: 30, cooldown: 560, length: 150, width: 46,
+      damage: 33, cooldown: 560, length: 150, width: 46,
       knockback: 12,   // 12px knockback default-on; scales with 'knockback' axis
     },
     axes: [
@@ -145,7 +145,7 @@ export const WEAPONS = {
     kind: 'boomerang',
     color: 0xb0b0c0,
     base: {
-      damage: 26, cooldown: 720, count: 1, speed: 560, range: 230, spin: 22,
+      damage: 29, cooldown: 720, count: 1, speed: 560, range: 230, spin: 22,
       pierce: 1,   // 1 pierce default-on; scales with 'pierce' axis
     },
     axes: [
