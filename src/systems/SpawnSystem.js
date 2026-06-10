@@ -288,7 +288,7 @@ export default class SpawnSystem {
       if (mod.id === 'bulwark') { e.bulwarkAuraRadius = mod.auraRadius || 110; }
       e.eliteTint = mod.tint;
       // ITEM B: generate a flavoured name for this elite
-      e.eliteTitle = generateEliteTitle(civId, mod.name);
+      e.eliteTitle = generateEliteTitle(civId, mod.name, e.typeId);
       e.setScale(1.5).setTint(mod.tint);
       Audio.sfx('elite'); // menacing low sting (internally throttled to ≤1/s)
       // ITEM B: show a throttled banner for named elites (>=8s apart)
