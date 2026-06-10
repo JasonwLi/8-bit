@@ -51,6 +51,53 @@ const SLAM_COOLDOWN_MS      = 1000;
 const OVERKILL_CARRY_FRAC   = 0.60;
 const OVERKILL_CARRY_RANGE  = 120;
 
+// ── Juice / game-feel constants ───────────────────────────────────────────────
+const JUICE = {
+  flinchBudget:          12,   // max concurrent flinch tweens
+  lightEnemyHpThreshold: 40,   // maxHp ≤ this = interruptable on hit
+  interruptCooldownMs:   800,  // min ms between interrupts per enemy
+  overkillThreshold:     0.50, // dmg > 50% maxHp = overkill visual
+  corpseBudget:          8,    // max concurrent corpse fling tweens
+  corpseStayChance:      0.20, // probability corpse lingers before fling
+  corpseStayMs:          1200, // how long a lingering corpse stays before fling
+};
+
+const JUICE_CAM = {
+  budgetPerSec: 18,    // max px of total kick per second (all hits combined)
+  hitPowerMin:  1.0,   // px per normal hit
+  hitPowerMax:  3.0,   // px cap per hit (scaled by damage)
+  heavyPower:   5.0,   // px for heavy/slam
+  bossPower:    8.0,   // px for boss hits
+  slamExtra:    4.0,   // additional for ground-slam
+  shakeDecayMs: 80,    // how long each kick lasts
+};
+
+const MOTION_PARAMS = {
+  melee_arc:          { antMs:40, antSX:0.92, antSY:1.06, leanPx:8, leanRot:-0.14, lungeMs:70, lungeSX:1.08, lungeSY:0.94, lungePx:10, settleMs:90 },
+  line_thrust:        { antMs:25, antSX:0.88, antSY:1.10, leanPx:6, leanRot:-0.10, lungeMs:55, lungeSX:1.12, lungeSY:0.90, lungePx:16, settleMs:70 },
+  projectile_aimed:   { antMs:20, antSX:0.94, antSY:1.00, leanPx:0, leanRot:0,     lungeMs:30, lungeSX:1.00, lungeSY:1.00, lungePx:-6, settleMs:60 },
+  burst_aimed:        { antMs:20, antSX:0.94, antSY:1.00, leanPx:0, leanRot:0,     lungeMs:30, lungeSX:1.00, lungeSY:1.00, lungePx:-6, settleMs:60 },
+  ricochet:           { antMs:20, antSX:0.94, antSY:1.00, leanPx:0, leanRot:0,     lungeMs:30, lungeSX:1.00, lungeSY:1.00, lungePx:-6, settleMs:60 },
+  boomerang:          { antMs:20, antSX:0.94, antSY:1.00, leanPx:0, leanRot:0,     lungeMs:30, lungeSX:1.00, lungeSY:1.00, lungePx:-6, settleMs:60 },
+  projectile_radial:  { antMs:15, antSX:0.92, antSY:0.92, leanPx:0, leanRot:0,     lungeMs:25, lungeSX:1.10, lungeSY:1.10, lungePx:0,  settleMs:50 },
+  lob_aoe:            { antMs:30, antSX:0.96, antSY:1.04, leanPx:5, leanRot:0.17,  lungeMs:60, lungeSX:1.04, lungeSY:0.97, lungePx:8,  settleMs:80 },
+  charge_tap:         { antMs:20, antSX:0.97, antSY:1.00, leanPx:0, leanRot:0,     lungeMs:30, lungeSX:1.00, lungeSY:1.00, lungePx:-3, settleMs:60 },
+  charge_heavy:       { antMs:30, antSX:0.88, antSY:1.10, leanPx:8, leanRot:-0.21, lungeMs:90, lungeSX:1.14, lungeSY:0.92, lungePx:18, settleMs:110 },
+  default:            { antMs:20, antSX:0.95, antSY:1.00, leanPx:0, leanRot:0,     lungeMs:30, lungeSX:1.00, lungeSY:1.00, lungePx:-4, settleMs:50 },
+};
+
+// Per-enemy-type debris tint for juicyDeath colored particles
+const ENEMY_DEBRIS_COLOR = {
+  soldier:0xd45030, archer:0xd45030, weaver:0xc04028, circler:0xb84830,
+  charger:0xd85040, lunger:0xd05038, brute:0xc04838, sentinel:0xb04030,
+  reaver:0xd04838, repeater:0xd04030, cannoneer:0xc85040, gunner:0xd04038,
+  spreader:0x9090a0, lobber:0xa09080, catapult:0x808898, bomber:0xa09080,
+  machine:0x8090a0, ballista:0x9098a8,
+  harpy:0x80d0d0, vulture:0x9090c0, jackal:0xc0a060, shaman:0xb060c0,
+  acolyte:0xd0d0f0, blinker:0xff8040, wraith:0xc0b0ff, shard:0xc0b090,
+  golem:0xa09080, titan:0xa08870,
+};
+
 // ── Charge attack constants ────────────────────────────────────────────────────
 const CHARGE_FULL_MS   = 650;   // ms to reach heavy shot (was 900 — snappier hold cadence)
 const CHARGE_TAP_MS    = 120;   // release under this = tap (quick shot); fires INSTANTLY on press
@@ -477,8 +524,127 @@ export default class GameScene extends Phaser.Scene {
     this._hitStopUntil = Math.max(this._hitStopUntil || 0, this.time.now + ms);
   }
 
+  // ── Juice helpers ─────────────────────────────────────────────────────────────
+
+  // Per-frame-budgeted directional camera nudge. All hit/kill/boss reactions funnel
+  // through here so crowds can't compound into nauseating shakes.
+  screenKick(ang, power) {
+    this._camBudgetUsed = (this._camBudgetUsed || 0) + power;
+    if (this._camBudgetUsed > JUICE_CAM.budgetPerSec / 60) return;
+    const cam = this.cameras.main;
+    const kx = Math.cos(ang) * power;
+    const ky = Math.sin(ang) * power;
+    cam.setScroll(cam.scrollX + kx, cam.scrollY + ky);
+    this.time.delayedCall(JUICE_CAM.shakeDecayMs, () => {
+      if (!cam) return;
+      cam.setScroll(cam.scrollX - kx, cam.scrollY - ky);
+    });
+  }
+
+  // Render-only attack body-motion: three-phase squash/lean/lunge tween.
+  // Never touches the physics body — only sprite x/y/scale/rotation.
+  // Skips while the player is dashing (dash has its own motion).
+  playerAttackMotion(kind, aim) {
+    const p = this.player;
+    if (p._attackMotionActive) return;
+    if (p.dashing) return; // dash has its own motion — don't fight it
+    // No body motion for continuous/cast types
+    if (kind === 'orbital' || kind === 'summon' || kind === 'trail' || kind === 'pike_wall') return;
+    p._attackMotionActive = true;
+    const sx0 = p.scaleX, sy0 = p.scaleY, r0 = p.rotation;
+    const cos = Math.cos(aim), sin = Math.sin(aim);
+    const T = MOTION_PARAMS[kind] || MOTION_PARAMS.default;
+    // Phase 1: anticipation (lean back from aim)
+    this.tweens.add({
+      targets: p,
+      scaleX: sx0 * T.antSX, scaleY: sy0 * T.antSY,
+      x: p.x - cos * T.leanPx, y: p.y - sin * T.leanPx,
+      rotation: r0 + T.leanRot,
+      duration: T.antMs, ease: 'Quad.easeOut',
+      onComplete: () => {
+        if (!p.active) { p._attackMotionActive = false; return; }
+        const x1 = p.x, y1 = p.y;
+        // Phase 2: lunge forward
+        this.tweens.add({
+          targets: p,
+          scaleX: sx0 * T.lungeSX, scaleY: sy0 * T.lungeSY,
+          x: x1 + cos * T.lungePx, y: y1 + sin * T.lungePx,
+          rotation: r0,
+          duration: T.lungeMs, ease: 'Quad.easeIn',
+          onComplete: () => {
+            if (!p.active) { p._attackMotionActive = false; return; }
+            const x2 = p.x, y2 = p.y;
+            // Phase 3: settle back to original scale
+            this.tweens.add({
+              targets: p,
+              scaleX: sx0, scaleY: sy0, rotation: r0,
+              x: x2 - cos * T.lungePx + cos * T.leanPx,
+              y: y2 - sin * T.lungePx + sin * T.leanPx,
+              duration: T.settleMs, ease: 'Back.easeOut',
+              onComplete: () => { p._attackMotionActive = false; },
+            });
+          },
+        });
+      },
+    });
+  }
+
+  // Replace the standard fx.death() with a directional corpse-fling + colored debris.
+  juicyDeath(enemy, dmg = 0) {
+    const x = enemy.x, y = enemy.y;
+    const ang = Math.atan2(y - this.player.y, x - this.player.x);
+    const overkill = dmg > (enemy.maxHp || 1) * JUICE.overkillThreshold;
+    const flingDist = overkill ? Phaser.Math.Between(55, 80) : Phaser.Math.Between(30, 55);
+    const flingDur  = overkill ? 300 : 350;
+    const debrisColor = ENEMY_DEBRIS_COLOR[enemy.typeId] || 0xbfc4d0;
+
+    // Inline death visuals tinted to the enemy type
+    if (this.fx.budgetPoof > 0) {
+      this.fx.budgetPoof -= 1;
+      this.fx._tint(this.fx.poof, debrisColor);
+      this.fx.poof.emitParticleAt(x, y, 8);
+    }
+    this.fx._tint(this.fx.spark, debrisColor);
+    this.fx.spark.emitParticleAt(x, y, overkill ? 10 : 5);
+    this.fx._ring(x, y, overkill ? 72 : 56, debrisColor, 340, 3);
+    this.fx._flash(x, y, overkill ? 12 : 8, 0xffffff, 0.7, 160);
+    if (overkill && this.fx.explosion) this.fx.explosion(x, y, this.theme.accent || 0xff8a3a, 60);
+
+    // Corpse fling (render-only ghost image that slides + spins + fades)
+    if ((this._corpseTweenCount || 0) < JUICE.corpseBudget) {
+      this._corpseTweenCount = (this._corpseTweenCount || 0) + 1;
+      const tex = enemy.texture ? enemy.texture.key : 'spark';
+      const corpse = this.add.image(x, y, tex)
+        .setDepth(4).setAlpha(0.85).setFlipX(enemy.flipX)
+        .setScale(enemy.scaleX || 1, enemy.scaleY || 1)
+        .setTint(0x888888);
+      const ex = x + Math.cos(ang) * flingDist;
+      const ey = y + Math.sin(ang) * flingDist;
+      const extraStay = Math.random() < JUICE.corpseStayChance ? JUICE.corpseStayMs : 0;
+      this.tweens.add({
+        targets: corpse,
+        x: ex, y: ey,
+        rotation: (Math.random() > 0.5 ? 1 : -1) * Math.PI * 3,
+        alpha: 0,
+        delay: extraStay,
+        duration: flingDur,
+        ease: 'Quad.easeOut',
+        onComplete: () => {
+          corpse.destroy();
+          this._corpseTweenCount = Math.max(0, (this._corpseTweenCount || 1) - 1);
+        },
+      });
+    }
+
+    // Screen micro-pulse
+    const killAng = Math.atan2(y - this.player.y, x - this.player.x);
+    this.screenKick(killAng, overkill ? 2.5 : 1.2);
+  }
+
   update(time, delta) {
     if (this.gameOver) return;
+    // per-frame camera budget reset (screenKick uses this)
+    this._camBudgetUsed = 0;
     // hit-stop watchdog: restore physics speed once the freeze window passes
     if (this._hitStopUntil && this.time.now >= this._hitStopUntil) {
       this._hitStopUntil = 0;
@@ -2210,6 +2376,27 @@ export default class GameScene extends Phaser.Scene {
       }
     }
 
+    // ── Light-enemy interrupt: small foes (≤JUICE.lightEnemyHpThreshold) get their
+    // windup cancelled when hit, once per JUICE.interruptCooldownMs to avoid stunlocking.
+    if (opts.fromPlayer && !enemy.isBoss && !counterHit) {
+      const isLight = (enemy.maxHp || 999) <= JUICE.lightEnemyHpThreshold;
+      const nowI = this.time.now;
+      const lastInterrupt = enemy._lastInterruptAt || 0;
+      if (isLight && (nowI - lastInterrupt) >= JUICE.interruptCooldownMs) {
+        if (enemy.swingState === 'wind') {
+          releaseAttackToken(this, enemy);
+          enemy.swingState = null;
+          enemy.swingCd = enemy.swingCooldown || 1200;
+          enemy._lastInterruptAt = nowI;
+        } else if (enemy.winding) {
+          releaseAttackToken(this, enemy);
+          enemy.winding = false;
+          enemy.fireTimer = enemy.fireCooldown || 1200;
+          enemy._lastInterruptAt = nowI;
+        }
+      }
+    }
+
     this.fx.damageNumber(enemy.x, enemy.y - enemy.displayHeight * 0.4, dmg,
       enemy.isBoss ? { color: this.theme.accentCss, big: true, fromPlayer: true }
                    : { color: counterHit ? '#ffd700' : '#ffffff', fromPlayer: true });
@@ -2220,16 +2407,15 @@ export default class GameScene extends Phaser.Scene {
       this.fx._ring(enemy.x, enemy.y, 32, 0xffffff, 180, 2);
       this.fx._tint(this.fx.spark, 0xffd700);
       this.fx.spark.emitParticleAt(enemy.x, enemy.y, 8);
-      // Hit-stop + 2px camera kick toward the enemy on counter hits
+      // Hit-stop + budgeted camera kick toward the enemy on counter hits
       this.hitStop(40, 8);
       const kickA2 = Math.atan2(enemy.y - this.player.y, enemy.x - this.player.x);
-      const cam2 = this.cameras.main;
-      const kx2 = Math.cos(kickA2) * 2; const ky2 = Math.sin(kickA2) * 2;
-      cam2.setScroll(cam2.scrollX + kx2, cam2.scrollY + ky2);
-      this.time.delayedCall(60, () => { cam2.setScroll(cam2.scrollX - kx2, cam2.scrollY - ky2); });
+      this.screenKick(kickA2, 4.0);
       if (this.tutorial) this.events.emit('tut', 'counter'); // tut: step (d)
     } else {
-      this.fx.impact(enemy.x, enemy.y);
+      // Directional impact sparks along the hit vector
+      const impactAng = Math.atan2(enemy.y - this.player.y, enemy.x - this.player.x);
+      this.fx.impact(enemy.x, enemy.y, counterHit ? 0xffd700 : 0xffe08a, impactAng);
     }
     Audio.sfx('hit');
     this.player.lifestealFrom(dmg);
@@ -2254,6 +2440,62 @@ export default class GameScene extends Phaser.Scene {
       enemy.setTintFill(0xffd700);
       this.time.delayedCall(80, () => { if (enemy.active) enemy.clearTint(); });
     }
+
+    // ── Heavy hit floor dust ──────────────────────────────────────────────────
+    if (opts.isHeavy && opts.fromPlayer) {
+      this.fx._tint(this.fx.dustEmitter, 0xb0a890);
+      this.fx.dustEmitter.emitParticleAt(enemy.x, enemy.y + (enemy.displayHeight || 30) * 0.4, 4);
+    }
+
+    // ── Directional flinch (render-only sprite nudge, budget-capped) ─────────
+    if (!enemy.isBoss && opts.fromPlayer) {
+      const flinchAng = Math.atan2(enemy.y - this.player.y, enemy.x - this.player.x);
+      const flinchPx = Phaser.Math.Clamp(dmg / 4, 3, 6);
+      const ex0 = enemy.scaleX, ey0 = enemy.scaleY;
+      const perpRot = flinchAng + Math.PI / 2;
+      if ((this._flinchTweenCount || 0) < JUICE.flinchBudget) {
+        this._flinchTweenCount = (this._flinchTweenCount || 0) + 1;
+        const ox = enemy.x, oy = enemy.y;
+        // Nudge sprite position (render-only — physics body position unchanged)
+        enemy.x += Math.cos(flinchAng) * flinchPx;
+        enemy.y += Math.sin(flinchAng) * flinchPx;
+        this.tweens.add({
+          targets: enemy,
+          scaleX: ex0 * (1 - 0.15 * Math.abs(Math.cos(perpRot))),
+          scaleY: ey0 * (1 - 0.15 * Math.abs(Math.sin(perpRot))),
+          duration: 30, ease: 'Quad.easeOut',
+          onComplete: () => {
+            if (!enemy.active) { this._flinchTweenCount = Math.max(0, (this._flinchTweenCount||1)-1); return; }
+            this.tweens.add({
+              targets: enemy,
+              x: ox, y: oy, scaleX: ex0, scaleY: ey0,
+              duration: 60, ease: 'Back.easeOut',
+              onComplete: () => { this._flinchTweenCount = Math.max(0, (this._flinchTweenCount||1)-1); },
+            });
+          },
+        });
+      }
+    }
+
+    // ── Camera kick on player hits ────────────────────────────────────────────
+    if (opts.fromPlayer) {
+      if (enemy.isBoss) {
+        const bossAng = Math.atan2(enemy.y - this.player.y, enemy.x - this.player.x);
+        this.screenKick(bossAng, JUICE_CAM.bossPower);
+      } else if (!counterHit) {
+        const hitAng = Math.atan2(enemy.y - this.player.y, enemy.x - this.player.x);
+        const power = Phaser.Math.Clamp(dmg / 20, JUICE_CAM.hitPowerMin, JUICE_CAM.hitPowerMax);
+        this.screenKick(hitAng, power);
+      }
+    }
+    if (opts.isHeavy && opts.fromPlayer && !enemy.isBoss) {
+      const hitAng = Math.atan2(enemy.y - this.player.y, enemy.x - this.player.x);
+      this.screenKick(hitAng, JUICE_CAM.heavyPower);
+    }
+
+    // Store last damage for juicyDeath to read
+    enemy._lastDmg = dmg;
+
     if (enemy.hp <= 0) this.killEnemy(enemy);
   }
 
@@ -2277,7 +2519,8 @@ export default class GameScene extends Phaser.Scene {
     if (this.player.mutations && this.player.mutations.speed_on_kill) {
       this.player.addBuff('speed', 1.4, 2000, this.time.now);
     }
-    this.fx.death(enemy.x, enemy.y);
+    // juicyDeath: directional corpse-fling + debris tint + overkill variants
+    this.juicyDeath(enemy, enemy._lastDmg || 0);
     // Volatile elite: detonate a telegraphed AoE where it died (back off when it's low!)
     if (enemy.volatile) {
       this.fx.shockwave(enemy.x, enemy.y, enemy.eliteTint || 0xff7a2a, enemy.blastRadius || 120);
@@ -3039,10 +3282,8 @@ export default class GameScene extends Phaser.Scene {
     this.fx.shockwave(px, py, 0xffd700, r);
     this.fx.dustEmitter.emitParticleAt(px, py, 12);
     Audio.sfx('hit');
-    // Camera kick downward (slam feel)
-    const cam = this.cameras.main;
-    cam.setScroll(cam.scrollX, cam.scrollY + 3);
-    this.time.delayedCall(60, () => { cam.setScroll(cam.scrollX, cam.scrollY - 3); });
+    // Budgeted downward camera kick via screenKick
+    this.screenKick(Math.PI / 2, JUICE_CAM.slamExtra + JUICE_CAM.heavyPower);
     // Hit all enemies in radius
     for (const e of this.enemies.getChildren()) {
       if (!e.active || e.isBoss) continue;
@@ -3095,6 +3336,15 @@ export default class GameScene extends Phaser.Scene {
     // Tag as heavy so CRUMPLE can fire: set BEFORE fire(), clear after
     const isHeavyShot = (mode === 'heavy' || mode === 'heavy_manual');
     this.weapons._isHeavyShot = isHeavyShot;
+    // Override attack-motion kind for charge modes so the heavier squash fires,
+    // overriding whatever the weapon kind would produce.
+    if (mode === 'tap') {
+      // force motion before fire() runs (fire() also calls playerAttackMotion but
+      // _attackMotionActive guard means first caller wins)
+      this.playerAttackMotion('charge_tap', this.aimDir != null ? this.aimDir : 0);
+    } else if (mode === 'heavy' || mode === 'heavy_manual') {
+      this.playerAttackMotion('charge_heavy', this.aimDir != null ? this.aimDir : 0);
+    }
     this.weapons.fire(chargedS);
     this.weapons._isHeavyShot = false;
 
@@ -3115,13 +3365,9 @@ export default class GameScene extends Phaser.Scene {
       // Hit-stop: ~40ms physics + velocity freeze via a short timeScale dip on physics
       // (safe: Phaser Arcade Physics respects world.timeScale; no tween side-effects)
       this.hitStop(40, 8);
-      // 2px camera kick in the aim direction
+      // Budgeted camera kick via screenKick (replaces raw setScroll pair)
       const kickAngle = this.aimDir != null ? this.aimDir : 0;
-      const cam = this.cameras.main;
-      const kx = Math.cos(kickAngle) * 2;
-      const ky = Math.sin(kickAngle) * 2;
-      cam.setScroll(cam.scrollX + kx, cam.scrollY + ky);
-      this.time.delayedCall(60, () => { cam.setScroll(cam.scrollX - kx, cam.scrollY - ky); });
+      this.screenKick(kickAngle, JUICE_CAM.heavyPower);
       Audio.sfx('parry'); // sharp metallic hit
     }
 

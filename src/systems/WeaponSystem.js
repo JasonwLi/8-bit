@@ -592,6 +592,8 @@ export default class WeaponSystem {
       ? Math.atan2(target.y - this.player.y, target.x - this.player.x)
       : (this.player.flipX ? Math.PI : 0);
     this._lastAimAngle = preAim;
+    // Render-only body-motion tween for attack feel (squash/lean/lunge)
+    if (this.scene.playerAttackMotion) this.scene.playerAttackMotion(s.def.kind, preAim);
 
     // On-cast self-buffs (Genghis arrow-storm speed burst, Ragnar shield-bash block).
     // Only secondaries carry these (3s cooldown) — primaries have none, so no spam.
@@ -740,19 +742,36 @@ export default class WeaponSystem {
       // standard melee sweep: the crescent arc, tinted to the weapon's colour. A weapon
       // may override the texture via `def.sweepTex` (e.g. Genghis's distinct cleave slash).
       const sweepKey = (s.def.sweepTex && this.scene.textures.exists(s.def.sweepTex)) ? s.def.sweepTex : 'sweep';
+      const baseRot = facing - halfArc;
+      const endRot  = facing + halfArc;
       const fx = this.scene.add
         .image(this.player.x, this.player.y, sweepKey)
-        .setRotation(facing)
+        .setRotation(baseRot)
         .setDepth(9)
         .setScale((s.radius / 60) * 0.5)
         .setAlpha(0.9)
         .setTint(s.def.color || 0xffffff);
+      // Sweeping rotation over 110ms (more dynamic than a static scale-fade)
       this.scene.tweens.add({
         targets: fx,
+        rotation: endRot,
         scale: s.radius / 60,
         alpha: 0,
-        duration: 220,
+        duration: 110,
+        ease: 'Quad.easeOut',
         onComplete: () => fx.destroy(),
+      });
+      // Ghost afterimage at the arc midpoint for a motion-trail feel
+      const ghost = this.scene.add
+        .image(this.player.x, this.player.y, sweepKey)
+        .setRotation(facing)
+        .setDepth(8)
+        .setScale((s.radius / 60) * 0.85)
+        .setAlpha(0.45)
+        .setTint(s.def.color || 0xffffff);
+      this.scene.tweens.add({
+        targets: ghost, alpha: 0, duration: 190,
+        onComplete: () => ghost.destroy(),
       });
       // a sharp leading-edge flash along the sweep tip for extra punch
       this.scene.fx._flash(tipX, tipY, 8, 0xffffff, 0.7, 140);

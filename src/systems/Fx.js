@@ -111,13 +111,25 @@ export default class Fx {
     this.scene.tweens.add({ targets: t, scale: big ? 1 : t.scaleX, y: t.y - (big ? 34 : 24), alpha: 0, duration: big ? 720 : 500, ease: 'Quad.easeOut', onComplete: () => { t.destroy(); this.activeNumbers -= 1; } });
   }
 
-  // a hit landing: white pop + a few colored sparks
-  impact(x, y, color = 0xffe08a) {
+  // a hit landing: white pop + a few colored sparks.
+  // hitAngle (optional radians): emit sparks in a ±45° cone along the hit direction.
+  impact(x, y, color = 0xffe08a, hitAngle = null) {
     if (this.budgetSpark <= 0) return;
     this.budgetSpark -= 1;
+    if (hitAngle != null) {
+      const spreadRad = Math.PI / 4;
+      this.spark.setEmitterAngle({
+        min: Phaser.Math.RadToDeg(hitAngle - spreadRad),
+        max: Phaser.Math.RadToDeg(hitAngle + spreadRad),
+      });
+    } else {
+      this.spark.setEmitterAngle({ min: 0, max: 360 });
+    }
     this._tint(this.spark, color);
-    this.spark.emitParticleAt(x, y, 4);
+    this.spark.emitParticleAt(x, y, 5);
     this._flash(x, y, 5, 0xffffff, 0.9, 120);
+    // restore radial for other callers
+    if (hitAngle != null) this.spark.setEmitterAngle({ min: 0, max: 360 });
   }
 
   // an enemy dying: debris poof + a small ring + colored sparks + soft pop
