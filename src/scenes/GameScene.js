@@ -30,11 +30,13 @@ import TutorialController from '../systems/TutorialController.js';
 import { HERO_DIALOGUE, BOSS_DIALOGUE, STAGE_INTROS, pickRandom } from '../data/dialogue.js';
 
 // ── Charge attack constants ────────────────────────────────────────────────────
-const CHARGE_FULL_MS  = 900;   // ms to reach heavy shot
-const CHARGE_TAP_MS   = 120;   // release under this = tap (quick shot)
-const CHARGE_TAP_DMG  = 0.60;  // damage mult for tap
-const CHARGE_HEAVY_DMG = 1.80; // damage mult for heavy
-const CHARGE_TAP_CD   = 0.45;  // cooldown mult for tap (shorter inter-shot gap)
+const CHARGE_FULL_MS   = 650;   // ms to reach heavy shot (was 900 — snappier hold cadence)
+const CHARGE_TAP_MS    = 120;   // release under this = tap (quick shot); fires INSTANTLY on press
+const CHARGE_TAP_DMG   = 0.60;  // damage mult for tap
+const CHARGE_HEAVY_DMG = 1.80;  // damage mult for heavy (auto-release)
+const CHARGE_HEAVY_MANUAL_DMG = 1.80 * 1.15; // +15% for manual release at ≥95% charge
+const CHARGE_MANUAL_PCT = 0.95; // fraction of full charge that counts as "perfect" manual release
+const CHARGE_TAP_CD    = 0.45;  // cooldown mult for tap (shorter inter-shot gap)
 
 export default class GameScene extends Phaser.Scene {
   constructor() {
@@ -2038,10 +2040,20 @@ export default class GameScene extends Phaser.Scene {
                    : { color: counterHit ? '#ffd700' : '#ffffff', fromPlayer: true });
     if (counterHit) {
       // Distinctive counter-hit FX: gold flash + outward ring to signal the interrupt
-      this.fx._flash(enemy.x, enemy.y, 14, 0xffd700, 0.9, 200);
-      this.fx._ring(enemy.x, enemy.y, 52, 0xffd700, 280, 3);
+      this.fx._flash(enemy.x, enemy.y, 18, 0xffd700, 0.9, 220);
+      this.fx._ring(enemy.x, enemy.y, 60, 0xffd700, 320, 4);
+      this.fx._ring(enemy.x, enemy.y, 32, 0xffffff, 180, 2);
       this.fx._tint(this.fx.spark, 0xffd700);
-      this.fx.spark.emitParticleAt(enemy.x, enemy.y, 6);
+      this.fx.spark.emitParticleAt(enemy.x, enemy.y, 8);
+      // Hit-stop + 2px camera kick toward the enemy on counter hits
+      const ws2 = this.physics.world.timeScale;
+      this.physics.world.timeScale = 8;
+      this.time.delayedCall(40, () => { this.physics.world.timeScale = ws2; });
+      const kickA2 = Math.atan2(enemy.y - this.player.y, enemy.x - this.player.x);
+      const cam2 = this.cameras.main;
+      const kx2 = Math.cos(kickA2) * 2; const ky2 = Math.sin(kickA2) * 2;
+      cam2.setScroll(cam2.scrollX + kx2, cam2.scrollY + ky2);
+      this.time.delayedCall(60, () => { cam2.setScroll(cam2.scrollX - kx2, cam2.scrollY - ky2); });
       if (this.tutorial) this.events.emit('tut', 'counter'); // tut: step (d)
     } else {
       this.fx.impact(enemy.x, enemy.y);
@@ -2512,12 +2524,27 @@ export default class GameScene extends Phaser.Scene {
     if (!this.canAct()) return;
 
     // ── CHARGE STATE MACHINE (replaces bare fireHeld) ────────────────────────
-    // Three outcomes: tap (<120ms) → quick shot 0.6×; normal release → 1.0×;
-    // hold-to-full (≥900ms) → heavy auto-release 1.8×. Orbital weapons are
-    // passive (fireHeld already guards them); they get a cosmetic flare instead.
+    // Three outcomes: tap (<120ms) → quick shot 0.6× INSTANTLY on press;
+    // manual release ≥95% → heavy +15% bonus (PERFECT RELEASE); normal release
+    // → 1.0×; hold-to-full (≥650ms) → heavy auto-release 1.8×. Orbital
+    // weapons are passive; they get a cosmetic flare instead.
     {
       const primaryDown = bk.primary.isDown;
-      const primaryJustUp = Phaser.Input.Keyboard.JustUp(bk.primary);
+      const primaryJustDown = Phaser.Input.Keyboard.JustDown(bk.primary);
+      const primaryJustUp   = Phaser.Input.Keyboard.JustUp(bk.primary);
+
+      // TAP: fire INSTANTLY on the press frame (no perceptible lockout).
+      // Only fires if the weapon is ready — otherwise fall through to normal charge.
+      if (primaryJustDown && this.weapons.ready()) {
+        // Pre-arm for tap: if the weapon is ready we fire on press. The key-up path
+        // sees _chargeMs==0 + _chargeFired==true and skips the second fire.
+        this._chargeMs = 0;
+        this._tapFiredThisPress = true;
+        this._fireCharged('tap');
+        // Don't return — still need to start the charge ring for a hold
+      } else {
+        this._tapFiredThisPress = false;
+      }
 
       // hold-compat: _chargeFired is cleared here (not just on key-up) so that
       // a player who keeps holding after an auto-release immediately starts a new
@@ -2527,7 +2554,7 @@ export default class GameScene extends Phaser.Scene {
       }
 
       if (primaryDown && !this._chargeFired) {
-        // Key held: accumulate charge time
+        // Key held: accumulate charge time (includes the current frame where tap fired)
         this._chargeMs += delta;
 
         // Draw/update charge ring (render-only, depth 11, follows player)
@@ -2545,7 +2572,7 @@ export default class GameScene extends Phaser.Scene {
         if (this._chargeMs >= CHARGE_FULL_MS && !this._chargeArmed) {
           this._chargeArmed = true;
         }
-        // Auto-release when armed
+        // Auto-release when armed (hold-to-full)
         if (this._chargeArmed) {
           this._fireCharged('heavy');
           this._chargeArmed = false;
@@ -2559,10 +2586,14 @@ export default class GameScene extends Phaser.Scene {
       }
 
       if (primaryJustUp || (!primaryDown && this._chargeMs > 0 && !this._chargeFired)) {
-        // Key released — decide tap vs normal
+        // Key released — decide mode
         if (!this._chargeFired) {
-          if (this._chargeMs < CHARGE_TAP_MS) {
-            this._fireCharged('tap');
+          const frac = this._chargeMs / CHARGE_FULL_MS;
+          if (this._tapFiredThisPress || this._chargeMs < CHARGE_TAP_MS) {
+            // tap was already fired on press — skip the second fire
+          } else if (frac >= CHARGE_MANUAL_PCT) {
+            // Perfect manual release: ≥95% charge on key-up → bonus heavy
+            this._fireCharged('heavy_manual');
           } else {
             this._fireCharged('normal');
           }
@@ -2571,6 +2602,7 @@ export default class GameScene extends Phaser.Scene {
         this._chargeMs = 0;
         this._chargeArmed = false;
         this._chargeFired = false;
+        this._tapFiredThisPress = false;
         if (this._chargeFx) { this._chargeFx.destroy(); this._chargeFx = null; }
       }
 
@@ -2579,6 +2611,7 @@ export default class GameScene extends Phaser.Scene {
         this._chargeMs = 0;
         this._chargeFired = false;
         this._chargeArmed = false;
+        this._tapFiredThisPress = false;
         if (this._chargeFx) { this._chargeFx.destroy(); this._chargeFx = null; }
       }
     }
@@ -2780,11 +2813,35 @@ export default class GameScene extends Phaser.Scene {
 
     this.weapons._aimOverride = null;
 
-    // Heavy shot FX: brief golden screen-flash + ring on the player
-    if (mode === 'heavy') {
-      this.fx._flash(this.player.x, this.player.y, 18, 0xffd700, 0.8, 180);
-      this.fx._ring(this.player.x, this.player.y, 28, 0xffd700, 220, 3);
-      Audio.sfx('parry'); // sharp metallic hit — good "charged release" read
+    // Heavy / perfect-manual FX: chunkier impact + hit-stop + camera kick
+    const isHeavy = (mode === 'heavy' || mode === 'heavy_manual');
+    if (isHeavy) {
+      // Chunkier visual — larger flash + double ring so heavies feel distinct
+      this.fx._flash(this.player.x, this.player.y, 26, 0xffd700, 0.85, 200);
+      this.fx._ring(this.player.x, this.player.y, 40, 0xffd700, 280, 4);
+      this.fx._ring(this.player.x, this.player.y, 22, 0xffffff, 160, 2);
+      // Hit-stop: ~40ms physics + velocity freeze via a short timeScale dip on physics
+      // (safe: Phaser Arcade Physics respects world.timeScale; no tween side-effects)
+      const ws = this.physics.world.timeScale; // save (should be 1 normally)
+      this.physics.world.timeScale = 8;        // crank up so ~40ms real = ~5ms physics
+      this.time.delayedCall(40, () => { this.physics.world.timeScale = ws; });
+      // 2px camera kick in the aim direction
+      const kickAngle = this.aimDir != null ? this.aimDir : 0;
+      const cam = this.cameras.main;
+      const kx = Math.cos(kickAngle) * 2;
+      const ky = Math.sin(kickAngle) * 2;
+      cam.setScroll(cam.scrollX + kx, cam.scrollY + ky);
+      this.time.delayedCall(60, () => { cam.setScroll(cam.scrollX - kx, cam.scrollY - ky); });
+      Audio.sfx('parry'); // sharp metallic hit
+    }
+
+    // Perfect manual release: extra tick + 'PERFECT RELEASE' text
+    if (mode === 'heavy_manual') {
+      const t = this.add.text(this.player.x, this.player.y - 48, 'PERFECT RELEASE', {
+        fontFamily: 'monospace', fontSize: '12px', color: '#ffd700', fontStyle: 'bold',
+        stroke: '#000000', strokeThickness: 2,
+      }).setOrigin(0.5).setDepth(52).setScrollFactor(1);
+      this.tweens.add({ targets: t, y: t.y - 22, alpha: 0, duration: 800, ease: 'Quad.easeIn', onComplete: () => t.destroy() });
     }
   }
 
@@ -2796,8 +2853,8 @@ export default class GameScene extends Phaser.Scene {
       out.damage = s.damage * CHARGE_TAP_DMG;
       return out;
     }
-    // mode === 'heavy'
-    out.damage = s.damage * CHARGE_HEAVY_DMG;
+    // mode === 'heavy' or 'heavy_manual'
+    out.damage = s.damage * (mode === 'heavy_manual' ? CHARGE_HEAVY_MANUAL_DMG : CHARGE_HEAVY_DMG);
     switch (s.def.kind) {
       case 'melee_arc':
         // wider finisher sweep: arc + 50° (capped 360), radius + 20%
