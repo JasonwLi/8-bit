@@ -102,9 +102,49 @@ export function updateMob(scene, e, delta, dist, ang) {
 
   if (e.attack === 'ranged') {
     updateRanged(scene, e, delta, dist, ang);
-    return;
+  } else {
+    updateMelee(scene, e, delta, dist, ang);
   }
-  updateMelee(scene, e, delta, dist, ang);
+
+  // ── CORNER-SLIDE: if arcade body is blocked on one axis while moving toward
+  // that wall, zero the blocked component and renorm the other to full speed.
+  // This lets enemies slide cleanly around corners instead of snagging.
+  // If blocked for > 1 s (accumulated), fall back to the flow-field direction.
+  // No per-frame allocs: only uses existing body.blocked and velocity fields.
+  if (e.body && e.active) {
+    const b = e.body.blocked;
+    const vx = e.body.velocity.x;
+    const vy = e.body.velocity.y;
+    const spd = e.speed || 80;
+
+    // Determine which axes are blocked in the direction of current movement
+    const blockedX = (b.left && vx < 0) || (b.right && vx > 0);
+    const blockedY = (b.up   && vy < 0) || (b.down  && vy > 0);
+
+    if (blockedX || blockedY) {
+      // Accumulate blocked time on this entity (no alloc — stored on entity)
+      e._blockedMs = (e._blockedMs || 0) + delta;
+
+      if (e._blockedMs > 1000) {
+        // Stuck > 1 s — force flow-field routing to break out of dead-end
+        const na = navAngle(scene, e, ang, dist);
+        e.body.velocity.x = Math.cos(na) * spd;
+        e.body.velocity.y = Math.sin(na) * spd;
+      } else {
+        // Corner-slide: zero the blocked axis, renorm the free axis to full speed
+        let nx = blockedX ? 0 : vx;
+        let ny = blockedY ? 0 : vy;
+        if (nx !== 0 || ny !== 0) {
+          const mag = Math.sqrt(nx * nx + ny * ny) || 1;
+          e.body.velocity.x = (nx / mag) * spd;
+          e.body.velocity.y = (ny / mag) * spd;
+        }
+      }
+    } else {
+      // Not blocked — reset the stuck timer
+      e._blockedMs = 0;
+    }
+  }
 }
 
 // Wall-aware MOVEMENT heading toward the player via the floor flow field. When close

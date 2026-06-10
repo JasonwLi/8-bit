@@ -435,7 +435,8 @@ export default class SpawnSystem {
     e.slowUntil = 0; // clear any stale slow (Alexander's javelins)
     e.stunUntil = 0; // clear any stale stun (Genghis's Khan's Cleave)
     e.fearUntil = 0; // clear any stale fear
-    e._dormant = false; // garrison dormant flag — cleared on pool reuse (normal spawns are always active)
+    e._dormant = false;    // garrison dormant flag — cleared on pool reuse (normal spawns are always active)
+    e._blockedMs = 0;      // corner-slide stuck timer — reset so old blocked time doesn't carry over
 
     // Damage scales with FLOOR depth + dwell AND the campaign stage AND (mildly) the
     // player's offense — so deeper floors / later stages / stronger builds hit back hard.
