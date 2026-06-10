@@ -2643,6 +2643,8 @@ export default class GameScene extends Phaser.Scene {
       if (obj.tumbleScaleBase) obj.setScale(obj.tumbleScaleBase);
       if (obj._tumbleShadow) { obj._tumbleShadow.destroy(); obj._tumbleShadow = null; }
       if (this._tumbleEnemies) this._tumbleEnemies.delete(obj);
+      // Restore tint on pool reuse (was set to 0xa0d0ff on tumble entry)
+      if (obj.isElite) { if (obj.eliteTint) obj.setTint(obj.eliteTint); } else obj.clearTint();
     }
   }
 
@@ -3675,8 +3677,8 @@ export default class GameScene extends Phaser.Scene {
     if (this._counterGlintFx) { this._counterGlintFx.destroy(); this._counterGlintFx = null; }
 
     this.weapons._aimOverride = this.aimDir != null ? this.aimDir : null;
-    // C4+ counts as heavy for CRUMPLE; C2/C3 do not
-    this.weapons._isHeavyShot = depth >= 3;
+    // C3 and C4 count as heavy shots for CRUMPLE; C2 does not (per spec)
+    this.weapons._isHeavyShot = depth >= 2;
 
     if (fd) {
       // Fire through the appropriate path via fireStringStep (respects kind override)
@@ -3766,6 +3768,8 @@ export default class GameScene extends Phaser.Scene {
       enemy.stunUntil = Math.max(enemy.stunUntil || 0, this.time.now + 250);
       return;
     }
+    // Release any held attack token so the cap doesn't leak while the enemy is airborne
+    releaseAttackToken(this, enemy);
     enemy.tumbleUntil     = this.time.now + dur;
     enemy.tumbleScaleBase = enemy.scaleX;
     enemy.setScale(enemy.scaleX * 1.25, enemy.scaleY * 1.25); // pop up 1.25×
