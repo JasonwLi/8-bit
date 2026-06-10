@@ -534,15 +534,24 @@ export const ENEMIES = {
 // Elite tactical modifiers — an elite rolls one, changing HOW it fights (not just
 // HP). Applied at spawn in SpawnSystem; combat hooks live in GameScene.
 export const ELITE_MODIFIERS = [
+  // Berserker: extreme speed + damage but glassy — pulsing red ring visual tells the threat
   { id: 'berserker', name: 'Berserker', tint: 0xff5a2a, dmgMult: 1.5, speedMult: 1.5, hpMult: 0.5 },
+  // Ironclad: armored shell — top 60% HP resists 65%, bottom 40% takes +30%; tint ring signals the shell
   { id: 'ironclad', name: 'Ironclad', tint: 0x9aa6c0, dmgMult: 1.0, speedMult: 0.9, hpMult: 1.3 },
+  // Warlord: summons 2 minions every 6s — purple burst fx marks each call
   { id: 'warlord', name: 'Warlord', tint: 0xb15bff, dmgMult: 1.0, speedMult: 0.9, hpMult: 1.0, summonEvery: 6000, summonCount: 2 },
+  // Hex: slow-curse aura (130px); standing inside it applies 0.72× move speed — green ring pulses the zone
   { id: 'hex', name: 'Hex', tint: 0x66dd66, dmgMult: 1.0, speedMult: 1.0, hpMult: 1.0, curseRadius: 130, curseSlow: 0.72 },
+  // Swift: 1.85× speed + cyan afterimage trail so you can read its trajectory
   { id: 'swift', name: 'Swift', tint: 0x33d6d6, dmgMult: 1.0, speedMult: 1.85, hpMult: 0.6 },
-  // new active-pattern elites (more attack patterns/effects across the board):
-  { id: 'caster', name: 'Caster', tint: 0x9b5cff, dmgMult: 1.0, speedMult: 0.85, hpMult: 1.1, castEvery: 2100, castDmg: 13, castSpeed: 300 }, // lobs a 3-shot volley at you
-  { id: 'volatile', name: 'Volatile', tint: 0xff7a2a, dmgMult: 1.0, speedMult: 1.15, hpMult: 0.85, blastRadius: 120, blastDmg: 30 }, // detonates an AoE on death
-  { id: 'bulwark', name: 'Bulwark', tint: 0xffd54a, dmgMult: 1.2, speedMult: 0.8, hpMult: 1.8 }, // a slow armored wall
+  // Caster: lobs a 3-shot spread every 2.1s independent of its base attack — magenta bolts
+  { id: 'caster', name: 'Caster', tint: 0x9b5cff, dmgMult: 1.0, speedMult: 0.85, hpMult: 1.1, castEvery: 2100, castDmg: 13, castSpeed: 300 },
+  // Volatile: detonates a fire hazard zone (r=120, dmg=30) on death — back off when it's low!
+  { id: 'volatile', name: 'Volatile', tint: 0xff7a2a, dmgMult: 1.0, speedMult: 1.15, hpMult: 0.85, blastRadius: 120, blastDmg: 30 },
+  // Bulwark: slow armored wall + grants 40% DR aura to nearby allies (110px) — gold ring marks the zone
+  { id: 'bulwark', name: 'Bulwark', tint: 0xffd54a, dmgMult: 1.2, speedMult: 0.8, hpMult: 1.8, auraRadius: 110 },
+  // Vampiric: heals 25% of damage dealt back to itself — magenta lifesteal puff on each hit
+  { id: 'vampiric', name: 'Vampiric', tint: 0xff44aa, dmgMult: 1.1, speedMult: 1.0, hpMult: 0.9, vampiricRate: 0.25 },
 ];
 
 // `from` = elapsed seconds at which the entry unlocks.

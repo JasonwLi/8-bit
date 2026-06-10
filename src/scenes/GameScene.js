@@ -628,6 +628,8 @@ export default class GameScene extends Phaser.Scene {
     const px = this.player.x;
     const py = this.player.y;
     this.player.curseSlow = 1; // reset; Hex elites re-apply below
+    // Bulwark elite damage-reduction aura: reset each frame, re-applied below per active bulwark
+    for (const e of this.enemies.getChildren()) { if (e.active && !e.isBoss) e._bulwarkShield = false; }
     const now = this.time.now;
     for (const e of this.enemies.getChildren()) {
       if (!e.active) continue;
@@ -660,7 +662,13 @@ export default class GameScene extends Phaser.Scene {
       if (e.eliteMod) {
         if (e.warlordEvery) {
           e.warlordTimer -= delta;
-          if (e.warlordTimer <= 0) { this.summonMinions(e.x, e.y, e.warlordCount); e.warlordTimer = e.warlordEvery; }
+          if (e.warlordTimer <= 0) {
+            this.summonMinions(e.x, e.y, e.warlordCount);
+            e.warlordTimer = e.warlordEvery;
+            // visual: brief crown-burst particle when the warlord calls for reinforcements
+            this.fx.impact(e.x, e.y - (e.displayHeight || 30) * 0.6, 0xb15bff);
+            this.fx.shockwave(e.x, e.y, 0xb15bff, 60);
+          }
         }
         if (e.curseRadius && dist < e.curseRadius) {
           this.player.curseSlow = Math.min(this.player.curseSlow, e.curseSlowAmt);
@@ -673,7 +681,72 @@ export default class GameScene extends Phaser.Scene {
             for (let i = -1; i <= 1; i++) this.spawnHostileProjectile(e.x, e.y, base + i * 0.22, e.castSpeed, e.castDmg, { tint: e.eliteTint });
           }
         }
+        // Berserker: rage visual — pulsing red ring drawn each frame (cheap line-circle; reuses existing arc fx)
+        if (e.eliteMod === 'berserker') {
+          e._berserkerPulse = (e._berserkerPulse || 0) + delta;
+          if (e._berserkerPulse >= 600) {
+            e._berserkerPulse = 0;
+            const r = (e.displayWidth || 36) * 0.7;
+            const ring = this.add.circle(e.x, e.y, r, 0xff5a2a, 0).setDepth(4).setStrokeStyle(2, 0xff5a2a, 0.8);
+            this.tweens.add({ targets: ring, scale: 1.6, alpha: 0, duration: 500, ease: 'Quad.easeOut', onComplete: () => ring.destroy() });
+          }
+        }
+        // Swift: afterimage trail — brief ghost every ~150ms
+        if (e.eliteMod === 'swift') {
+          e._swiftTrailAcc = (e._swiftTrailAcc || 0) + delta;
+          if (e._swiftTrailAcc >= 150 && (e.body && (Math.abs(e.body.velocity.x) > 10 || Math.abs(e.body.velocity.y) > 10))) {
+            e._swiftTrailAcc = 0;
+            const ghost = this.add.image(e.x, e.y, e.texture.key).setDepth(4)
+              .setScale(e.scaleX, e.scaleY).setTint(0x33d6d6).setAlpha(0.45).setFlipX(e.flipX);
+            this.tweens.add({ targets: ghost, alpha: 0, duration: 260, onComplete: () => ghost.destroy() });
+          }
+        }
+        // Bulwark: nearby-ally damage-reduction aura — mark allies within bulwarkAuraRadius
+        if (e.eliteMod === 'bulwark' && e.bulwarkAuraRadius) {
+          for (const nb of this.enemies.getChildren()) {
+            if (!nb.active || nb === e || nb.isBoss) continue;
+            const bx = nb.x - e.x, by = nb.y - e.y;
+            if (bx * bx + by * by <= e.bulwarkAuraRadius * e.bulwarkAuraRadius) {
+              nb._bulwarkShield = true;
+            }
+          }
+          // pulsing gold ring around the bulwark itself
+          e._bulwarkRingAcc = (e._bulwarkRingAcc || 0) + delta;
+          if (e._bulwarkRingAcc >= 900) {
+            e._bulwarkRingAcc = 0;
+            const br = this.add.circle(e.x, e.y, e.bulwarkAuraRadius, 0xffd54a, 0)
+              .setDepth(3).setStrokeStyle(2, 0xffd54a, 0.55);
+            this.tweens.add({ targets: br, scale: 1.06, alpha: 0, duration: 700, ease: 'Quad.easeOut', onComplete: () => br.destroy() });
+          }
+        }
+        // Ironclad: silver glow ring when the armored shell is active (top 60% HP)
+        if (e.eliteMod === 'ironclad' && e.ironclad) {
+          const shellActive = e.hp > e.maxHp * 0.6;
+          if (shellActive) {
+            e._ironcladRingAcc = (e._ironcladRingAcc || 0) + delta;
+            if (e._ironcladRingAcc >= 1400) {
+              e._ironcladRingAcc = 0;
+              const ir = this.add.circle(e.x, e.y, (e.displayWidth || 36) * 0.65, 0x9aa6c0, 0)
+                .setDepth(3).setStrokeStyle(3, 0x9aa6c0, 0.9);
+              this.tweens.add({ targets: ir, alpha: 0, duration: 700, ease: 'Quad.easeOut', onComplete: () => ir.destroy() });
+            }
+          }
+        }
+        // Vampiric lifesteal: handled in damageEnemy via e.vampiric flag (set at spawn)
+        // Hex: pulsing green aura ring so players can read the slow zone visually
+        if (e.eliteMod === 'hex' && e.curseRadius) {
+          e._hexRingAcc = (e._hexRingAcc || 0) + delta;
+          if (e._hexRingAcc >= 1100) {
+            e._hexRingAcc = 0;
+            const hr = this.add.circle(e.x, e.y, e.curseRadius, 0x66dd66, 0)
+              .setDepth(3).setStrokeStyle(2, 0x66dd66, 0.5);
+            this.tweens.add({ targets: hr, alpha: 0, duration: 900, ease: 'Sine.easeInOut', onComplete: () => hr.destroy() });
+          }
+        }
       }
+
+      // update overhead elite nameplate (position + visibility follows the sprite)
+      this._updateElitePlate(e);
 
       // Stun (Genghis's Khan's Cleave): frozen — no movement, no attack — for the window.
       if (e.stunUntil && now < e.stunUntil) {
@@ -1327,6 +1400,64 @@ export default class GameScene extends Phaser.Scene {
     }
   }
 
+  // ── Elite overhead nameplate: slim title + HP bar drawn world-space above the sprite.
+  // Called from updateEnemies each frame (mirrors sprite visibility for fog of war).
+  // The plate is created lazily in spawnOne (after elite setup) and destroyed on deactivate.
+  _updateElitePlate(e) {
+    if (!e.isElite || !e._plate) return;
+    const plate = e._plate;
+    const spriteH = (e.displayHeight || 36) * 0.5 + 4;
+    plate.setPosition(e.x, e.y - spriteH - 14);
+    plate.setVisible(e.visible);
+    // update bar fill width proportional to hp
+    const ratio = Math.max(0, Math.min(1, e.hp / e.maxHp));
+    const barW = Math.round(34 * ratio);
+    if (plate._lastRatio !== ratio) {
+      plate._lastRatio = ratio;
+      plate._bar.clear();
+      // dark background
+      plate._bar.fillStyle(0x1a1a1a, 0.85);
+      plate._bar.fillRect(-17, 2, 34, 4);
+      // red HP fill
+      if (barW > 0) {
+        plate._bar.fillStyle(0xdd2222, 1);
+        plate._bar.fillRect(-17, 2, barW, 4);
+      }
+    }
+  }
+
+  // Tear down and null a stale elite plate (called on deactivate + reuse).
+  _destroyElitePlate(e) {
+    if (e._plate) {
+      e._plate.destroy();
+      e._plate = null;
+    }
+  }
+
+  // Create the overhead nameplate container for an elite (called from spawnOne after elite setup).
+  _createElitePlate(e) {
+    this._destroyElitePlate(e); // guard: clear any stale plate from a previous life
+    const container = this.add.container(e.x, e.y).setDepth(12);
+    // title text — tiny gold monospace
+    const label = this.add.text(0, -8, e.eliteTitle || e.eliteName || '', {
+      fontFamily: 'monospace',
+      fontSize: '9px',
+      color: '#ffd54a',
+      stroke: '#000000',
+      strokeThickness: 2,
+    }).setOrigin(0.5, 1);
+    // HP bar graphics object
+    const bar = this.add.graphics();
+    bar.fillStyle(0x1a1a1a, 0.85);
+    bar.fillRect(-17, 2, 34, 4);
+    bar.fillStyle(0xdd2222, 1);
+    bar.fillRect(-17, 2, 34, 4);
+    container.add([label, bar]);
+    container._bar = bar;
+    container._lastRatio = 1;
+    e._plate = container;
+  }
+
   // ITEM B: throttled elite-spawn banner (at least 8 s apart so the screen
   // isn't flooded when a horde of elites spawns simultaneously).
   showEliteBanner(title) {
@@ -1355,9 +1486,11 @@ export default class GameScene extends Phaser.Scene {
     if (this.playerDmgScale !== 1 && !enemy.isBoss) dmg *= this.playerDmgScale;
     // duel guard: a blocking boss soaks most of any attack until you break it
     if (enemy.blocking) dmg *= 0.2;
-    // Ironclad elite: an armored shell (top 40% HP) resists, then turns brittle
+    // Ironclad elite: an armored shell (top 60% HP) resists, then turns brittle
     if (enemy.ironclad) dmg *= enemy.hp > enemy.maxHp * 0.6 ? 0.35 : 1.3;
     if (enemy.armor && !opts.armorPierce) dmg *= 1 - enemy.armor; // armored types; Armor-Piercing ignores it
+    // Bulwark aura: nearby allies (marked each frame) take 40% less damage
+    if (enemy._bulwarkShield) dmg *= 0.6;
     dmg = Math.round(dmg);
     enemy.hp -= dmg;
     this.fx.damageNumber(enemy.x, enemy.y - enemy.displayHeight * 0.4, dmg,
@@ -1365,6 +1498,14 @@ export default class GameScene extends Phaser.Scene {
     this.fx.impact(enemy.x, enemy.y);
     Audio.sfx('hit');
     this.player.lifestealFrom(dmg);
+    // Vampiric elite: heals back a fraction of the damage it just took
+    if (enemy.active && enemy.vampiric && enemy.vampiricRate) {
+      const heal = Math.round(dmg * enemy.vampiricRate);
+      if (heal > 0) {
+        enemy.hp = Math.min(enemy.maxHp, enemy.hp + heal);
+        this.fx.impact(enemy.x, enemy.y - (enemy.displayHeight || 30) * 0.5, 0xff44aa);
+      }
+    }
     if (!enemy.winding) {
       enemy.setTintFill(0xffffff);
       this.time.delayedCall(50, () => {
@@ -1406,6 +1547,8 @@ export default class GameScene extends Phaser.Scene {
       obj.body.stop();
       obj.body.enable = false;
     }
+    // tear down any elite nameplate so it doesn't linger after the sprite is pooled
+    if (obj._plate) this._destroyElitePlate(obj);
   }
 
   // delegators so external systems keep their stable `scene.X` entry points
