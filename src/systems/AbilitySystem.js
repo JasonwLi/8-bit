@@ -92,6 +92,7 @@ export default class AbilitySystem {
     this.player.empowerMax = now + EMPOWER_MS + 3000; // momentum can extend up to +3s
     this.player.empowerColor = s.def.color;
     this.player.momentumStacks = 0;
+    Audio.sfx('empower'); // bright power chord as the musou window opens
     return true;
   }
 

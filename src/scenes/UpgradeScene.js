@@ -59,14 +59,33 @@ export default class UpgradeScene extends Phaser.Scene {
     this.choiceLevel = gs.player.level - gs.pendingLevels + 1;
     this.ultimateLevel = this.choiceLevel % 5 === 0;
 
-    const choices = this.rollChoices();
+    // one reroll per level-up presentation
+    this._rerolled = false;
+    this._choices = this.rollChoices();
+    this._buildCards(width, height);
+
+    this.input.keyboard.on('keydown', (e) => {
+      const n = parseInt(e.key, 10);
+      if (n >= 1 && n <= this._choices.length) this.pick(this._choices[n - 1]);
+      if (e.key === 'r' || e.key === 'R') this.reroll(width, height);
+    });
+  }
+
+  // Build (or rebuild after a reroll) the subtitle + cards and reroll button.
+  _buildCards(width, height) {
+    // destroy any previously rendered card objects so reroll doesn't leave ghosts
+    if (this._cardObjs) this._cardObjs.forEach((o) => o.destroy());
+    this._cardObjs = [];
+    const reg = (o) => { this._cardObjs.push(o); return o; };
+
+    const choices = this._choices;
     const allStats = choices.every((c) => c.kind === 'stat');
     const subtitle = allStats
       ? 'Hero stat upgrade — choose one'
       : (this.ultimateLevel ? `★ Lv ${this.choiceLevel} — ULTIMATE upgrade (every 5 levels)` : 'Upgrade your attacks — choose one');
-    this.add.text(width / 2, height / 2 - 152, subtitle, {
+    reg(this.add.text(width / 2, height / 2 - 152, subtitle, {
       fontFamily: 'monospace', fontSize: '15px', color: this.ultimateLevel && !allStats ? '#ffd700' : '#c9c4e0',
-    }).setOrigin(0.5).setDepth(1);
+    }).setOrigin(0.5).setDepth(1));
 
     const cardW = 168;
     const cardH = 212;
@@ -74,12 +93,27 @@ export default class UpgradeScene extends Phaser.Scene {
     const total = choices.length * cardW + (choices.length - 1) * gap;
     const startX = (width - total) / 2 + cardW / 2;
     const cy = height / 2 + 24;
-    choices.forEach((c, i) => this.buildCard(startX + i * (cardW + gap), cy, cardW, cardH, c, i + 1));
+    choices.forEach((c, i) => this.buildCard(startX + i * (cardW + gap), cy, cardW, cardH, c, i + 1, reg));
 
-    this.input.keyboard.on('keydown', (e) => {
-      const n = parseInt(e.key, 10);
-      if (n >= 1 && n <= choices.length) this.pick(choices[n - 1]);
-    });
+    // reroll affordance — dimmed after use
+    const rerollColor = this._rerolled ? '#555566' : '#9a93c0';
+    const rerollLabel = this._rerolled ? '↻ rerolled' : '↻ reroll  [R]';
+    const rb = reg(this.add.text(width / 2, height / 2 + cardH / 2 + 38, rerollLabel, {
+      fontFamily: 'monospace', fontSize: '13px', color: rerollColor,
+    }).setOrigin(0.5).setDepth(2));
+    if (!this._rerolled) {
+      rb.setInteractive({ useHandCursor: true });
+      rb.on('pointerover', () => rb.setColor('#ffffff'));
+      rb.on('pointerout', () => rb.setColor(rerollColor));
+      rb.on('pointerdown', () => this.reroll(width, height));
+    }
+  }
+
+  reroll(width, height) {
+    if (this._rerolled) return;
+    this._rerolled = true;
+    this._choices = this.rollChoices(); // re-roll a fresh hand
+    this._buildCards(width, height);
   }
 
   // A hero-stat card (offered when abilities are capped / to fill the pool).
@@ -154,44 +188,44 @@ export default class UpgradeScene extends Phaser.Scene {
     return this.fillWithStats(pool.slice(0, 5));
   }
 
-  buildCard(cx, cy, w, h, c, num) {
+  buildCard(cx, cy, w, h, c, num, reg = (o) => o) {
     const top = cy - h / 2;
-    const g = this.add.graphics().setDepth(1);
+    const g = reg(this.add.graphics().setDepth(1));
     drawPanel(g, cx - w / 2, top, w, h, c.color, { header: 30 });
 
     const tagColor = c.kind === 'ability' ? Phaser.Display.Color.IntegerToColor(c.color).rgba : '#ffd27a';
-    this.add.text(cx, top + 16, `${num}. ${c.tag}`, {
+    reg(this.add.text(cx, top + 16, `${num}. ${c.tag}`, {
       fontFamily: 'monospace', fontSize: '12px', color: tagColor, fontStyle: 'bold',
-    }).setOrigin(0.5).setDepth(2);
-    this.add.text(cx, top + 34, c.group, {
+    }).setOrigin(0.5).setDepth(2));
+    reg(this.add.text(cx, top + 34, c.group, {
       fontFamily: 'monospace', fontSize: '10px', color: '#9a93c0',
       align: 'center', wordWrap: { width: w - 16 },
-    }).setOrigin(0.5, 0).setDepth(2);
+    }).setOrigin(0.5, 0).setDepth(2));
 
     // Make the ABILITY obvious: its emblem is the large centred icon, so the player
     // sees WHICH ability this card upgrades at a glance. The axis (the stat being
     // raised) reads from its smaller emblem badge + the bold label text below.
     const bigIcon = (c.weaponIcon && this.textures.exists(c.weaponIcon)) ? c.weaponIcon : c.icon;
     if (bigIcon && this.textures.exists(bigIcon)) {
-      this.add.image(cx, top + 86, bigIcon).setDepth(2);
+      reg(this.add.image(cx, top + 86, bigIcon).setDepth(2));
     }
     // axis emblem badge (which STAT) — top-left of the ability icon
     if (this.textures.exists(c.icon) && c.icon !== bigIcon) {
-      this.add.image(cx - 30, top + 70, c.icon).setScale(0.6).setDepth(3);
+      reg(this.add.image(cx - 30, top + 70, c.icon).setScale(0.6).setDepth(3));
     }
 
-    this.add.text(cx, top + 124, c.label, {
+    reg(this.add.text(cx, top + 124, c.label, {
       fontFamily: 'monospace', fontSize: '16px', color: '#ffffff', fontStyle: 'bold',
-    }).setOrigin(0.5).setDepth(2);
-    this.add.text(cx, top + 146, c.desc, {
+    }).setOrigin(0.5).setDepth(2));
+    reg(this.add.text(cx, top + 146, c.desc, {
       fontFamily: 'monospace', fontSize: '11px', color: '#c9c4e0',
       align: 'center', wordWrap: { width: w - 22 },
-    }).setOrigin(0.5, 0).setDepth(2);
-    this.add.text(cx, cy + h / 2 - 22, `Lv ${c.level} ▸ ${c.level + 1}`, {
+    }).setOrigin(0.5, 0).setDepth(2));
+    reg(this.add.text(cx, cy + h / 2 - 22, `Lv ${c.level} ▸ ${c.level + 1}`, {
       fontFamily: 'monospace', fontSize: '12px', color: '#ffd27a',
-    }).setOrigin(0.5).setDepth(2);
+    }).setOrigin(0.5).setDepth(2));
 
-    const zone = this.add.zone(cx, cy, w, h).setInteractive({ useHandCursor: true }).setDepth(3);
+    const zone = reg(this.add.zone(cx, cy, w, h).setInteractive({ useHandCursor: true }).setDepth(3));
     zone.on('pointerover', () => g.setAlpha(0.82));
     zone.on('pointerout', () => g.setAlpha(1));
     zone.on('pointerdown', () => this.pick(c));

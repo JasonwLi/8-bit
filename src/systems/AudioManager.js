@@ -163,6 +163,42 @@ class AudioManager {
           setTimeout(() => this._tone(f, 0.3, { type: 'triangle', vol: 0.18, sweepTo: f * 0.6 }), i * 140)
         );
         break;
+
+      // Item 5: new procedural SFX
+      case 'descend':
+        // Low stone-grind sweep — a slow downward rumble, like a heavy slab sliding shut.
+        this._tone(180, 0.55, { type: 'sawtooth', vol: 0.18, sweepTo: 55 });
+        this._noise(0.5, { vol: 0.10, lowpass: 900 });
+        break;
+      case 'empower':
+        // Bright power chord — an ascending triad burst when the musou window opens.
+        [330, 415, 523].forEach((f, i) =>
+          setTimeout(() => this._tone(f, 0.28, { type: 'square', vol: 0.15, sweepTo: f * 1.35 }), i * 55)
+        );
+        break;
+      case 'resonance':
+        // Resonance synergy unlock — a shimmering bell arpeggio.
+        [880, 1108, 1320, 1760].forEach((f, i) =>
+          setTimeout(() => this._tone(f, 0.22, { type: 'sine', vol: 0.13, attack: 0.02 }), i * 65)
+        );
+        break;
+      case 'elite':
+        // Menacing low sting — a sub-bass drone + a harsh descending tone.
+        if (!this._ok('elite', 1000)) return; // throttle: at most once per second
+        this._tone(110, 0.35, { type: 'sawtooth', vol: 0.16, sweepTo: 72 });
+        this._noise(0.28, { vol: 0.08, lowpass: 600 });
+        break;
+      case 'heartbeat':
+        // Near-death heartbeat thump — a single dull kick.
+        if (!this._ok('heartbeat', 800)) return;
+        this._tone(80, 0.14, { type: 'sine', vol: 0.22, sweepTo: 48, decay: 0.12 });
+        break;
+      case 'parry':
+        // Duel parry counter-hit — a sharp metallic clash ring.
+        this._tone(1480, 0.06, { type: 'square', vol: 0.14, sweepTo: 880, decay: 0.14 });
+        this._noise(0.06, { vol: 0.08, lowpass: 5000 });
+        break;
+
       default:
         break;
     }

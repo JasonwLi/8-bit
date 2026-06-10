@@ -15,7 +15,7 @@ import FloorSystem from '../systems/FloorSystem.js';
 import FlowField from '../systems/FlowField.js';
 import { getArtifact } from '../data/artifacts.js';
 import { contractEffects } from '../data/contracts.js';
-import { Save } from '../systems/SaveSystem.js';
+import { Save, Legacy } from '../systems/SaveSystem.js';
 import Fx from '../systems/Fx.js';
 import MapSystem from '../systems/MapSystem.js';
 import DuelController from '../systems/DuelController.js';
@@ -147,6 +147,15 @@ export default class GameScene extends Phaser.Scene {
     Object.assign(this.ability.points, r.abilityPoints); // ability points key on stable slots
 
     if (r.levelMods) Object.assign(this.player.levelMods, r.levelMods); // carried hero-stat upgrades
+    // Apply one-time legacy boon at the start of a fresh run (not on stage resumes).
+    // `r._boonApplied` guards against re-applying on Continue or multi-stage saves.
+    if (!r._boonApplied) {
+      r._boonApplied = true;
+      if (Legacy.consumeBoon('veteransEdge')) {
+        // Veteran's Edge: +10% damage for this entire run (consumed — one-shot purchase)
+        this.player.levelMods.damageMult = (this.player.levelMods.damageMult || 0) + 0.10;
+      }
+    }
     for (const [slot, item] of Object.entries(r.equipment || {})) if (item) this.player.equipment[slot] = item;
     this.player.artifactMods = (r.artifacts || []).map((id) => getArtifact(id).mods);
     this.updateResonances(); // recomputes from carried weapon/ability points
@@ -291,7 +300,14 @@ export default class GameScene extends Phaser.Scene {
   descendFloor() {
     if (this.floor >= this.floorsTotal) return;
     this.clearField();
-    Audio.sfx('levelup');
+    Audio.sfx('descend'); // low stone-grind sweep (item 5)
+
+    // Floor-completion XP bonus: award at least ~50% of the CURRENT xp-to-next so
+    // deep floors — where the exponential curve steepens — always yield upgrade choices.
+    const bonusXp = Math.ceil(this.player.xpToNext * 0.5);
+    const gained = this.player.addXp(bonusXp);
+    if (gained > 0) this.pendingLevels += gained;
+
     this.enterFloor(this.floor + 1);
   }
 
@@ -516,6 +532,11 @@ export default class GameScene extends Phaser.Scene {
     }
 
     if (this.pendingLevels > 0 && !this.levelingUp && !this.lootOpen) this.requestLevelUp();
+
+    // Near-death heartbeat: slow low thump every ~1s while HP < 20% (throttled by Audio)
+    if (this.player.active && this.player.hp > 0 && this.player.hp / this.player.maxHp < 0.20) {
+      Audio.sfx('heartbeat');
+    }
   }
 
   // Toroidal wrap: if an entity passes an edge, teleport it the world's width to the
@@ -915,6 +936,17 @@ export default class GameScene extends Phaser.Scene {
     if (wp.reach >= 4 && ap.area >= 4) { mods.push({ reachMult: 0.18 }); names.push('Range & Reach'); }
     if (wp.speed >= 4 && ap.haste >= 4) { mods.push({ cooldownMult: -0.1 }); names.push('Storm & Haste'); }
     if (wp.effect >= 4 && ap.amount >= 4) { bonusProj = 1; bonusAbil = 1; names.push('Arsenal & Multitude'); }
+
+    // play 'resonance' SFX + banner only the FIRST time each synergy name is unlocked
+    if (!this._unlockedResonances) this._unlockedResonances = new Set();
+    for (const name of names) {
+      if (!this._unlockedResonances.has(name)) {
+        this._unlockedResonances.add(name);
+        Audio.sfx('resonance');
+        this.showBanner(`⟡ Resonance: ${name}`, '#8fe6ff');
+      }
+    }
+
     this.player.resonanceMods = mods;
     this.player.bonusProjectiles = bonusProj;
     this.player.bonusAbilityCount = bonusAbil;
@@ -1600,6 +1632,13 @@ export default class GameScene extends Phaser.Scene {
       this.time.delayedCall(700, () => { this.scene.stop('UIScene'); this.scene.start('MenuScene'); });
       return;
     }
+    // award legacy coins before clearing the save
+    const floorsDescended = Math.max(0, (this.floor || 1) - 1);
+    const coinsEarned = Legacy.awardCoins(
+      this.player.kills,
+      floorsDescended,
+      this.run.conquered ? this.run.conquered.length : 0,
+    );
     Save.clear(); // death ends the run
     this.cameras.main.flash(300, 120, 0, 0);
     this.time.delayedCall(700, () => {
@@ -1610,6 +1649,7 @@ export default class GameScene extends Phaser.Scene {
         kills: this.player.kills,
         time: this.runTime,
         conquered: this.run.conquered.length,
+        coinsEarned,
       });
     });
   }

@@ -32,6 +32,7 @@ export default class DuelController {
     this.comboText = null;
     this.challengeUI = null;
     this.stunText = null;
+    this.flawlessText = null; // gold "★ flawless" indicator while clean is true
 
     // player attack state machine
     this.atkState = 'ready'; // 'ready' | 'startup' | 'active' | 'recovery'
@@ -42,6 +43,9 @@ export default class DuelController {
     this.buffered = null; // one-slot input buffer pressed mid-swing
     this.pStunUntil = 0; // player interrupted/stunned (by the boss rage burst)
     this.countdown = 0;
+
+    // parry cooldown: prevents rapid-fire parry chains (~1.5s between parries)
+    this._parryCooldownUntil = 0;
   }
 
   // commitment frames (ms) per attack tier — the real attack-speed cap
@@ -69,6 +73,8 @@ export default class DuelController {
     this.arena.update(delta); // tick bait-hazards (hurt player + boss)
     this.clampToArena();
     if (s.player.hp / s.player.maxHp < 0.5) this.clean = false;
+    // keep flawless indicator in sync with clean status
+    if (this.flawlessText) this.flawlessText.setVisible(this.clean);
 
     const now = s.time.now;
     const stunned = this.pStunUntil > now;
@@ -156,10 +162,29 @@ export default class DuelController {
 
   applyPrimaryHit() {
     const s = this.s;
+    const now = s.time.now;
     const aim = this.aimAngle();
     s.player.setFlipX(Math.cos(aim) < 0);
     s.weapons.castManual(aim, false); // exhaust is the only gate; ignore weapon cooldown
     this.bumpCombo();
+
+    // PARRY: if the boss is in its telegraph (windup) state and our cooldown allows,
+    // cancel that attack, stagger the boss, drop its block, and flash it white.
+    // Boss.state === 'telegraph' is its windup window (the player's dodge/counter window).
+    const b = s.activeBoss;
+    if (b && b.active && b.state === 'telegraph' && now >= this._parryCooldownUntil) {
+      this._parryCooldownUntil = now + 1500; // ~1.5s between parries
+      // cancel the boss's telegraph and stagger it
+      b.state = 'idle';
+      b.telegraphTimer = 0;
+      if (b.blocking) { b.blocking = false; }
+      b.stunUntil = Math.max(b.stunUntil || 0, now + 400); // 400ms stagger
+      b.setTintFill(0xffffff); // white flash
+      s.time.delayedCall(80, () => { if (b.active) b.clearTint(); });
+      s.fx.shockwave(b.x, b.y, 0xffd700, 140);
+      Audio.sfx('parry');
+      s.showBanner('✦ PARRY!', '#ffd700');
+    }
   }
 
   applySecondaryHit() {
@@ -319,6 +344,10 @@ export default class DuelController {
     this.comboText = s.add.text(W / 2, 96, '', {
       fontFamily: 'monospace', fontSize: '20px', color: '#ffd700', fontStyle: 'bold',
     }).setOrigin(0.5).setScrollFactor(0).setDepth(50).setVisible(false);
+    // flawless indicator: gold star shown in letterbox while the player hasn't dropped below 50% HP
+    this.flawlessText = s.add.text(W - 14, 22, '★ flawless', {
+      fontFamily: 'monospace', fontSize: '13px', color: '#ffd700', fontStyle: 'bold',
+    }).setOrigin(1, 0).setScrollFactor(0).setDepth(51).setVisible(true);
     this.fx.push(s.add.text(W / 2, H - 30, 'Arrows move/aim  ·  J primary  ·  F secondary  ·  SPACE ultimate breaks guard', {
       fontFamily: 'monospace', fontSize: '12px', color: '#d8d3ee',
     }).setOrigin(0.5).setScrollFactor(0).setDepth(50));
@@ -362,6 +391,7 @@ export default class DuelController {
     }
     if (this.comboText) { this.comboText.destroy(); this.comboText = null; }
     if (this.stunText) { this.stunText.destroy(); this.stunText = null; }
+    if (this.flawlessText) { this.flawlessText.destroy(); this.flawlessText = null; }
   }
 
   // Dramatic kill flourish (called from GameScene.defeatBoss when wasDuel).

@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { getCharacter } from '../data/characters.js';
 import { getTheme } from '../data/themes.js';
+import { Legacy } from '../systems/SaveSystem.js';
 
 export default class GameOverScene extends Phaser.Scene {
   constructor() {
@@ -31,9 +32,12 @@ export default class GameOverScene extends Phaser.Scene {
     const mm = String(Math.floor(total / 60)).padStart(2, '0');
     const ss = String(total % 60).padStart(2, '0');
 
+    const legacyData = Legacy.load();
+    const totalCoins = legacyData.coins || 0;
+    const earnedLine = r.coinsEarned > 0 ? `\n+${r.coinsEarned}⛁  (Legacy: ${totalCoins}⛁ total)` : '';
     this.add
       .text(width / 2, height / 2 + 10,
-        `${c.name}  •  ${c.civ}\n\nSurvived  ${mm}:${ss}\nReached  Level ${r.level}\nSlew  ${r.kills} foes`,
+        `${c.name}  •  ${c.civ}\n\nSurvived  ${mm}:${ss}\nReached  Level ${r.level}\nSlew  ${r.kills} foes${earnedLine}`,
         { fontFamily: 'monospace', fontSize: '18px', color: '#ffffff', align: 'center', lineSpacing: 6 })
       .setOrigin(0.5, 0);
 
