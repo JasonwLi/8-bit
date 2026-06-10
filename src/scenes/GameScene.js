@@ -434,6 +434,17 @@ export default class GameScene extends Phaser.Scene {
           if (dx * dx + dy * dy >= p.boomRange * p.boomRange) {
             p.boomPhase = 'back';
             if (p.hitSet) p.hitSet.clear(); // re-hits allowed on the return leg
+            // Storm of Axes (evolution): spawn a trample zone at the turnaround point
+            if (p.boomExplosion) {
+              this.spawnHazardZone(
+                p.x, p.y,
+                p.boomExplosionRadius || 70,
+                p.boomExplosionDmg || 20,
+                0, 300, p.boomExplosionLinger || 1200,
+                'trample', 'enemies',
+              );
+              this.fx.shockwave(p.x, p.y, 0xb0b0c0, (p.boomExplosionRadius || 70) * 1.2);
+            }
           }
         } else {
           const ang = Math.atan2(this.player.y - p.y, this.player.x - p.x);
@@ -1610,6 +1621,11 @@ export default class GameScene extends Phaser.Scene {
       const lb = projectile.leaveBurn;
       this.spawnHazardZone(projectile.x, projectile.y, lb.radius, lb.dmg, 120, 300, lb.dur, 'fire', 'enemies');
     }
+    // Legion's Thunder (pilum_volley evolution): each javelin plants a trample zone on impact
+    if (projectile.leaveTramp && this.fx) {
+      const lt = projectile.leaveTramp;
+      this.spawnHazardZone(projectile.x, projectile.y, lt.radius, lt.dmg, 80, 350, lt.linger, 'trample', 'enemies');
+    }
     if (projectile.hitSet) projectile.hitSet.add(enemy);
     // Genghis ricochet: chain to the next-nearest un-hit enemy instead of dying
     if (projectile.ricochet && projectile.bouncesLeft > 0) {
@@ -1730,6 +1746,8 @@ export default class GameScene extends Phaser.Scene {
     a.allyHitCd = 0;
     a.allyHp = opts.hp || 40; a.allyMaxHp = a.allyHp; // legionaries are mortal now (Caesar nerf)
     a.allyHurtCd = 0;
+    // Testudo Immortalis: tag the ally with its slow-aura config (applied in updateAllies)
+    a.slowAura = opts.slowAura || null;
     this.fx.legionDeploy(x, y);
   }
 
@@ -1782,6 +1800,19 @@ export default class GameScene extends Phaser.Scene {
           this.damageEnemy(e, a.allyDamage);
           this.fx.impact(e.x, e.y, 0xffe08a);
           a.allyHitCd = 650;
+        }
+      }
+      // Testudo Immortalis slow aura: slow every enemy within the aura radius
+      if (a.slowAura) {
+        const aura = a.slowAura;
+        const r2 = aura.radius * aura.radius;
+        for (const en of this.enemies.getChildren()) {
+          if (!en.active) continue;
+          const dx = en.x - a.x, dy = en.y - a.y;
+          if (dx * dx + dy * dy <= r2) {
+            en.slowUntil = this.time.now + aura.dur;
+            en.slowFactor = aura.factor;
+          }
         }
       }
     }

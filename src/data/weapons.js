@@ -27,6 +27,19 @@ export const WEAPONS = {
       { id: 'blood', kind: 'lifesteal', label: 'Bloodlust',      desc: '+3% lifesteal on hit' },
       { id: 'crush', kind: 'knockback', label: 'Crushing Blow',  desc: '+16px knockback per point' },
     ],
+    // EVOLVE — Wrath of Heaven: double sweep + full 360° second spin, every hit burns
+    // the ground, lifesteal doubled. Lü Bu becomes a blazing blender.
+    evolution: {
+      name: 'Wrath of Heaven',
+      desc: 'Double sweep — the second hit is a full 360° spin. Every hit scorches the earth. Lifesteal ×2.',
+      overlay: {
+        damage: 37,        // ×1.7 vs maxed base
+        // evolved-only flags read by fireMeleeArc
+        dualSweep: true,   // queue a second 360° arc 180ms after the first
+        leaveBurn: { radius: 48, dmg: 9, dur: 1800 }, // melee burn patch per hit
+        lifestealMult: 2,  // applied on top of axis-scaled lifesteal in computeStatsGeneric
+      },
+    },
   },
 
   // Nobunaga — long-range precision matchlock. Pierces ALL targets by default.
@@ -46,6 +59,21 @@ export const WEAPONS = {
       { id: 'ap',    kind: 'armorpierce',label: 'Armor-Piercing', desc: 'Shots ignore enemy armor' },
       { id: 'hail',  kind: 'count',      label: 'Hailfire',       desc: '+1 shot every ~3 points', per: 0.34 },
     ],
+    // EVOLVE — Demon King's Fusillade: each shot detonates a fire zone at impact.
+    // Rewarded for long-range placement — the shell pierces everything AND leaves
+    // a blazing pool wherever it lands.
+    evolution: {
+      name: "Demon King's Fusillade",
+      desc: 'Shots detonate a fire zone on impact. Armor-piercing always on. +75% damage.',
+      overlay: {
+        damage: 47,        // ×1.75 vs maxed base
+        cooldown: 943,     // +15% to compensate for the zone burst
+        armorPierce: true,
+        leaveBurn: { radius: 55, dmg: 14, dur: 2000 },
+        // replaceGunFx: true — visual flag; WeaponSystem uses explosion instead of tracer
+        incendiaryShell: true,
+      },
+    },
   },
 
   // Belisarius — lobbed Greek fire pools. Effect adds pools and scales burn duration.
@@ -64,6 +92,18 @@ export const WEAPONS = {
       { id: 'sticky', kind: 'burnpatch',label: 'Sticky Fire',    desc: 'Pools last longer and scorch the ground' },
       { id: 'conf',   kind: 'size',     label: 'Conflagration',  desc: '+12% pool radius' },
     ],
+    // EVOLVE — Napalm Tide: each pot splits into THREE sub-pools on landing, covering
+    // a wide triangle of overlapping burn zones in addition to the central pool.
+    evolution: {
+      name: 'Napalm Tide',
+      desc: 'Each pot splits into 3 extra burning sub-pools on landing — overlapping fire triangles flood the arena.',
+      overlay: {
+        // napalmTide flag tells spawnFlamePool to scatter sub-pools on landing
+        napalmTide: true,
+        napalmSubRadius: 52,
+        napalmSubOffset: 55,
+      },
+    },
   },
 
   // Gilgamesh — orbiting golden blades from the Gate of Babylon treasury.
@@ -81,6 +121,21 @@ export const WEAPONS = {
       { id: 'orbit', kind: 'size',  label: 'Wider Orbit',     desc: '+12% orbit radius' },
       { id: 'spin',  kind: 'spin',  label: 'Whirlwind',       desc: 'Blades spin faster, striking more often' },
     ],
+    // EVOLVE — Treasury Unleashed: every 3 seconds the ring of blades fires outward as
+    // homing seeking projectiles, then immediately re-forms. Orbital grinder ↔ seeking salvo.
+    evolution: {
+      name: 'Treasury Unleashed',
+      desc: 'Every 3 s the blades eject as homing projectiles then re-form. Orbital damage ×1.6, orbit ×1.3 speed.',
+      overlay: {
+        damage: 17,        // ×1.6 vs base damage (axis scaling applies on top)
+        orbitSpeed: 2.99,  // ×1.3 for the snappy re-forming energy
+        // orbitalEject: true tells _updateOrbiters to fire the burst on a 3 s timer
+        orbitalEject: true,
+        orbitalEjectMs: 3000,
+        orbitalEjectHoming: { range: 380, turn: 0.14 },
+        orbitalEjectPierce: 3,
+      },
+    },
   },
 
   // Caesar — commands the legion. Deploys allied legionary units. Effect adds legionaries.
@@ -99,6 +154,22 @@ export const WEAPONS = {
       { id: 'veterans', kind: 'allydmg', label: 'Veterans',      desc: '+16% legionary damage per point' },
       { id: 'muster',   kind: 'cadence', label: 'Rapid Muster',  desc: '−7% deploy cooldown' },
     ],
+    // EVOLVE — Testudo Immortalis: legionaries spawn with +80% HP, deal 50% more damage,
+    // and each emits a permanent slow-field aura (30px, 40% slow) that grinds the horde
+    // to a halt. Deploy count +2 unconditionally.
+    evolution: {
+      name: 'Testudo Immortalis',
+      desc: 'Legionaries gain +80% HP, ×1.5 dmg, and a 30px slow aura. +2 extra deployed.',
+      overlay: {
+        allyHp: 72,        // 40 * 1.8
+        count: 3,          // base count bumped by 2 (axes still add on top)
+        allyDmgMult: 1.5,  // applied in fireSummon
+        legionSlowAura: true, // flag read in updateAllies to apply proximity slow
+        legionSlowRadius: 30,
+        legionSlowFactor: 0.6,
+        legionSlowDur: 400,
+      },
+    },
   },
 
   // Alexander — the phalanx. A long forward sarissa thrust. Always knocks back.
@@ -117,6 +188,18 @@ export const WEAPONS = {
       { id: 'phal',   kind: 'arc',       label: 'Phalanx',      desc: '+10px line width' },
       { id: 'impale', kind: 'knockback', label: 'Impale',       desc: '+16px knockback per point' },
     ],
+    // EVOLVE — Macedonian Onslaught: THREE parallel lanes fire simultaneously — center
+    // at full length, left/right at ×0.85 length, staggered 60ms. Total ≈ ×2.1 damage.
+    evolution: {
+      name: 'Macedonian Onslaught',
+      desc: 'Three parallel sarissa lanes — center + left + right staggered 60 ms. Shatters entire battle lines.',
+      overlay: {
+        damage: 69,        // ×2.1 / 3 lanes ≈ ×2.1 total volley (each lane full damage)
+        tripleLane: true,  // flag: fireLineThrust fires 3 lanes instead of 1
+        tripleLaneOffset: 0.22, // radians (±13°)
+        tripleLaneLengthMult: 0.85, // flanking lanes shorter
+      },
+    },
   },
 
   // Genghis — horse archer. Rapid stream of arrows. Pierces ALL; bleeds targets.
@@ -136,6 +219,18 @@ export const WEAPONS = {
       { id: 'vol',   kind: 'count',   label: 'Volley',        desc: '+1 arrow every 2 points', per: 0.5 },
       { id: 'barb',  kind: 'bleed',   label: 'Barbed Arrows', desc: '+0.6 bleed dps & +1 stack cap' },
     ],
+    // EVOLVE — Blood Sky Barrage: arrows gain homing + tripled bleed stack cap, creating
+    // a self-correcting swarm of bloodletting needles that curve into running targets.
+    evolution: {
+      name: 'Blood Sky Barrage',
+      desc: 'Arrows home onto targets. Bleed stack cap ×3 (15). +60% damage, −10% cooldown.',
+      overlay: {
+        damage: 12,        // ×1.6 vs base (axes scale further)
+        cooldown: 180,     // −10% cadence
+        homing: { range: 280, turn: 0.09 }, // subtle tracking on rapid-fire
+        bleed: { dps: 1.5, duration: 5000, stackMax: 15 }, // tripled stack cap
+      },
+    },
   },
 
   // Ragnar — boomerang axes. Axes return and hit twice. Has base pierce.
@@ -154,6 +249,20 @@ export const WEAPONS = {
       { id: 'range', kind: 'size',   label: 'Long Throw', desc: '+12% throw range' },
       { id: 'cleave',kind: 'pierce', label: 'Cleaving',   desc: '+1 pierce per point (axes cut through more foes)' },
     ],
+    // EVOLVE — Storm of Axes: axes explode at max range spawning a trample zone, then
+    // sweep back. Three damage events per throw: outbound + trample zone + return.
+    evolution: {
+      name: 'Storm of Axes',
+      desc: 'Axes explode at max range — trample zone + return sweep = 3 hit windows. +70% dmg, +1 axe.',
+      overlay: {
+        damage: 49,        // ×1.7 vs base (axes scale further)
+        count: 2,          // +1 axe unconditionally on evolution base
+        // boomExplosion flag: hooked in boomPhase transition in GameScene update
+        boomExplosion: true,
+        boomExplosionRadius: 70,
+        boomExplosionLinger: 1200,
+      },
+    },
   },
 };
 

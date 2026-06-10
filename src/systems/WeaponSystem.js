@@ -36,6 +36,8 @@ export default class WeaponSystem {
     this._orbiterAngle = 0; // master orbit rotation (radians, advances per frame)
     this._orbiterDamageTick = 0; // ms accumulator for proximity damage checks
     this._orbiterCount = 0; // track re-sync when count changes
+    // Treasury Unleashed evolution: accumulated ms toward the next ejection burst
+    this._orbitalEjectAcc = 0;
   }
 
   def() {
@@ -281,9 +283,11 @@ export default class WeaponSystem {
 
     // universal, scalable on-hit effects (default-on via base, upgraded by their axis)
     s.knockback = (b.knockback || 0) + P('knockback') * M('knockback', 16);
-    s.stunMs = (b.stun || 0) + P('stun') * M('stun', 250);
+    // stunMs: evolution overlays may hard-override axis scaling (e.g. Thunderous Cleave 2 s)
+    s.stunMs = (b.stunMs != null) ? b.stunMs : (b.stun || 0) + P('stun') * M('stun', 250);
     s.fearMs = (b.fear || 0) + P('fear') * M('fear', 300);
-    s.weaponLifesteal = (b.lifesteal || 0) + P('lifesteal') * M('lifesteal', 0.03);
+    // lifesteal: evolution may double via lifestealMult (Wrath of Heaven)
+    s.weaponLifesteal = ((b.lifesteal || 0) + P('lifesteal') * M('lifesteal', 0.03)) * (b.lifestealMult || 1);
     s.armorPierce = !!b.armorPierce || P('armorpierce') > 0;
     if (b.homing) s.homing = b.homing; // seeking projectiles (Gilgamesh's Gate of Babylon)
     if (b.bleed) {
@@ -297,6 +301,53 @@ export default class WeaponSystem {
     if (b.leaveBurn || P('burnpatch')) {
       const k = P('burnpatch');
       s.leaveBurn = { radius: (b.leaveBurn?.radius || 42) + k * 6, dmg: (b.leaveBurn?.dmg || 6) + k * 2, dur: b.leaveBurn?.dur || 1300 };
+    }
+    // ── Evolution-only behaviour flags (passed through from the overlay) ─────────────
+    // These are read by the fire* methods / GameScene and never appear in the base def.
+    if (b.dualSweep) s.dualSweep = true;                               // Wrath of Heaven
+    if (b.incendiaryShell) s.incendiaryShell = true;                   // Demon King's Fusillade
+    if (b.napalmTide) {                                                 // Napalm Tide
+      s.napalmTide = true;
+      s.napalmSubRadius = b.napalmSubRadius || 52;
+      s.napalmSubOffset = b.napalmSubOffset || 55;
+    }
+    if (b.orbitalEject) {                                               // Treasury Unleashed
+      s.orbitalEject = true;
+      s.orbitalEjectMs = b.orbitalEjectMs || 3000;
+      s.orbitalEjectHoming = b.orbitalEjectHoming;
+      s.orbitalEjectPierce = b.orbitalEjectPierce || 3;
+    }
+    if (b.legionSlowAura) {                                             // Testudo Immortalis
+      s.legionSlowAura = true;
+      s.legionSlowRadius = b.legionSlowRadius || 30;
+      s.legionSlowFactor = b.legionSlowFactor || 0.6;
+      s.legionSlowDur = b.legionSlowDur || 400;
+    }
+    if (b.tripleLane) {                                                 // Macedonian Onslaught
+      s.tripleLane = true;
+      s.tripleLaneOffset = b.tripleLaneOffset || 0.22;
+      s.tripleLaneLengthMult = b.tripleLaneLengthMult || 0.85;
+    }
+    if (b.boomExplosion) {                                              // Storm of Axes
+      s.boomExplosion = true;
+      s.boomExplosionRadius = b.boomExplosionRadius || 70;
+      s.boomExplosionLinger = b.boomExplosionLinger || 1200;
+    }
+    if (b.skyRend) {                                                    // Sky Rend
+      s.skyRend = true;
+      s.skyRendRadius = b.skyRendRadius || 100;
+      s.skyRendBleed = b.skyRendBleed;
+      s.skyRendKnockback = b.skyRendKnockback || 28;
+    }
+    if (b.leaveTramp) s.leaveTramp = b.leaveTramp;                     // Legion's Thunder
+    if (b.afterCleaveCaltrops) s.afterCleaveCaltrops = true;           // Thunderous Cleave
+    if (b.mjolnirEcho) {                                                // Mjolnir's Echo
+      s.mjolnirEcho = true;
+      s.mjolnirEchoDmgMult = b.mjolnirEchoDmgMult || 0.7;
+    }
+    // allyDmgMult from overlay (Testudo Immortalis — overlay hard-sets it before axis scaling)
+    if (b.allyDmgMult && b.allyDmgMult > 1) {
+      s.allyDmgMult = Math.max(s.allyDmgMult || 1, b.allyDmgMult);
     }
     return s;
   }
@@ -410,6 +461,27 @@ export default class WeaponSystem {
         for (const [e] of orb.hitCooldowns) {
           if (!e.active) orb.hitCooldowns.delete(e);
         }
+      }
+    }
+
+    // Treasury Unleashed (divine_arsenal evolution): every N ms eject the current ring
+    // as a seeking salvo, then immediately re-form the orbiters.
+    if (s.orbitalEject) {
+      this._orbitalEjectAcc += delta;
+      if (this._orbitalEjectAcc >= (s.orbitalEjectMs || 3000)) {
+        this._orbitalEjectAcc = 0;
+        // Build a burst-stat object enriched with homing + pierce
+        const burstS = Object.assign({}, s, {
+          def: Object.assign({}, s.def, { id: 'divine_arsenal', kind: 'projectile_radial' }),
+          count: Math.max(4, s.count * 2),
+          pierce: s.orbitalEjectPierce || 3,
+          speed: 480,
+          homing: s.orbitalEjectHoming,
+        });
+        this._fireOrbitalBurst(burstS);
+        // Force orbiters to re-form (reset count tracker so the rebuild loop fires)
+        this._destroyOrbiters();
+        this._orbiterCount = 0;
       }
     }
   }
@@ -614,6 +686,7 @@ export default class WeaponSystem {
     p.stunMs = s.stunMs || 0; // stun-on-hit
     p.weaponLifesteal = s.weaponLifesteal || 0; // heal the player per hit (Bloodlust etc.)
     p.leaveBurn = s.leaveBurn || null; // leave a fire patch on hit (Incendiary etc.)
+    p.leaveTramp = s.leaveTramp || null; // leave a trample zone on hit (Legion's Thunder)
     p.fearMs = s.fearMs || 0; // make the foe flee briefly
     p.armorPierce = !!s.armorPierce; // ignore enemy armor
     // reset signature flags so a recycled sprite doesn't keep a prior weapon's behaviour
@@ -685,6 +758,11 @@ export default class WeaponSystem {
         if (s.fearMs && e.active && !e.isBoss) e.fearUntil = this.scene.time.now + s.fearMs;
         if (s.bleed && e.active) this.scene.applyBleed(e, s.bleed);
         if (s.weaponLifesteal) this.scene.player.heal(damage * s.weaponLifesteal); // Bloodlust
+        // Wrath of Heaven: every melee hit scorches the ground with a fire patch
+        if (s.leaveBurn && e.active) {
+          const lb = s.leaveBurn;
+          this.scene.spawnHazardZone(e.x, e.y, lb.radius, lb.dmg, 80, 300, lb.dur, 'fire', 'enemies');
+        }
         hitAny = true;
       }
     }
@@ -701,6 +779,53 @@ export default class WeaponSystem {
       const dy = b.y - this.player.y;
       if (dx * dx + dy * dy <= s.radius * s.radius) this.scene.damageBreakable(b, damage);
     }
+
+    // Wrath of Heaven: queue a second full 360° sweep 180ms after the first
+    if (s.dualSweep) {
+      const secondS = Object.assign({}, s, { arc: 360, dualSweep: false }); // no recurse
+      this.scene.time.delayedCall(180, () => {
+        if (!this.player.active) return;
+        this.fireMeleeArc(secondS);
+        this.scene.fx.goldenBurst(this.player.x, this.player.y, 6);
+      });
+    }
+
+    // Thunderous Cleave: after the arc resolves plant a caltrop field across the full radius
+    if (s.afterCleaveCaltrops) {
+      this.scene.spawnCaltropField(
+        this.player.x, this.player.y,
+        s.radius,
+        Math.round(s.damage * 0.6),
+        2500, 280,
+      );
+      this.scene.fx.shockwave(this.player.x, this.player.y, 0xd2a04a, s.radius * 1.1);
+    }
+
+    // Mjolnir's Echo: after the bash, spawn 3 homing shield-echo projectiles
+    if (s.mjolnirEcho) {
+      const echoDmg = Math.round(damage * (s.mjolnirEchoDmgMult || 0.7));
+      const echoTex = this.scene.textures.exists('proj_shield_bash') ? 'proj_shield_bash' : 'proj_axe_throw';
+      const fakeS = Object.assign({}, s, {
+        def: Object.assign({}, s.def, { id: 'shield_bash', kind: 'projectile_aimed', projScale: 1 }),
+        damage: echoDmg,
+        speed: 520, pierce: 2,
+        homing: { range: 300, turn: 0.13 },
+        leaveBurn: null, mjolnirEcho: false,
+      });
+      // override the texture lookup via the def id pointing at echoTex
+      fakeS.def.id = echoTex.replace('proj_', '');
+      const angles = [facing - 0.52, facing, facing + 0.52]; // ±30°
+      angles.forEach((ang, i) => {
+        this.scene.time.delayedCall(i * 80, () => {
+          if (!this.player.active) return;
+          const ep = this.spawnProjectile(fakeS, this.player.x, this.player.y, ang);
+          if (ep) {
+            ep.damage = echoDmg;
+            ep.setTint(0xb0d0ff);
+          }
+        });
+      });
+    }
   }
 
   fireProjectileAimed(s) {
@@ -713,6 +838,29 @@ export default class WeaponSystem {
       ? Math.PI
       : 0;
     this._lastAimAngle = baseAngle;
+
+    // Sky Rend (thrust_sky evolution): skip the projectile entirely — slam a divine
+    // shockwave down at the nearest target, bleed-infecting everything in radius.
+    if (s.skyRend) {
+      const tx = target ? target.x : this.player.x + Math.cos(baseAngle) * 120;
+      const ty = target ? target.y : this.player.y + Math.sin(baseAngle) * 120;
+      // Visual: halberd lunge rotated straight down
+      this.scene.fx.weaponLunge('weapon_halberd', tx, ty, Math.PI / 2, 90, s.def.color);
+      this.scene.fx.shockwave(tx, ty, 0xffe08a, s.skyRendRadius * 1.5);
+      this.scene.fx.flameBurst(tx, ty, s.skyRendRadius * 0.6);
+      for (const e of this.scene.enemies.getChildren()) {
+        if (!e.active) continue;
+        const dx = e.x - tx, dy = e.y - ty;
+        if (dx * dx + dy * dy > s.skyRendRadius * s.skyRendRadius) continue;
+        this.scene.damageEnemy(e, Math.round(s.damage));
+        if (s.skyRendBleed) this.scene.applyBleed(e, s.skyRendBleed);
+        if (e.active && !e.isBoss) {
+          this.scene.knockbackEnemy(e, Math.atan2(dy, dx), s.skyRendKnockback || 28);
+        }
+      }
+      return; // no projectile spawned
+    }
+
     const spread = (s.spread * Math.PI) / 180;
     for (let i = 0; i < s.count; i++) {
       const t = s.count === 1 ? 0 : i / (s.count - 1) - 0.5;
@@ -738,9 +886,15 @@ export default class WeaponSystem {
     if (s.def.id === 'thrust_sky') {
       this.scene.fx.weaponLunge('weapon_halberd', this.player.x, this.player.y, baseAngle, 120, s.def.color);
     }
-    // Nobunaga's matchlock: draw a bright tracer line showing the shot path
+    // Nobunaga's matchlock: tracer OR incendiary shell explosion (evolved)
     if (s.def.id === 'matchlock_volley') {
-      this.scene.fx.gunTracer(this.player.x, this.player.y, baseAngle, s.speed * 1.4 * 0.001);
+      if (s.incendiaryShell) {
+        // Demon King's Fusillade: a heavier explosion at point of impact (deferred via leaveBurn)
+        // Show a richer muzzle — a red-orange explosion flash at the barrel
+        this.scene.fx.explosion(this.player.x, this.player.y, 0xff4400, 32);
+      } else {
+        this.scene.fx.gunTracer(this.player.x, this.player.y, baseAngle, s.speed * 1.4 * 0.001);
+      }
     }
   }
 
@@ -875,6 +1029,28 @@ export default class WeaponSystem {
       },
     });
     pool.on('destroy', () => ev.remove(false));
+
+    // Napalm Tide (greek_fire evolution): scatter THREE extra sub-pools at landing point.
+    // Positions form a fire triangle offset from the central pool impact.
+    if (s.napalmTide) {
+      const subR = s.napalmSubRadius || 52;
+      const off = s.napalmSubOffset || 55;
+      const subOffsets = [
+        { dx: 0,    dy: -off },          // directly behind / above
+        { dx: -off, dy:  off * 0.55 },   // lower-left
+        { dx:  off, dy:  off * 0.55 },   // lower-right
+      ];
+      const subS = Object.assign({}, s, {
+        radius: subR, napalmTide: false,  // no recursion
+        damage: damage,
+      });
+      for (const o of subOffsets) {
+        const sx = x + o.dx;
+        const sy = y + o.dy;
+        this.scene.spawnHazardZone(sx, sy, subR, damage, 0, 260, 1800, 'fire', 'enemies');
+        this.scene.fx.flameBurst(sx, sy, subR * 0.5);
+      }
+    }
   }
 
   // ── Caesar: deploy legionary allies that march out and fight ───────────────
@@ -891,11 +1067,18 @@ export default class WeaponSystem {
         speed: s.allySpeed,
         range: s.allyRange,
         color: s.def.color,
+        // Testudo Immortalis: each legionary emits a proximity slow-field aura
+        slowAura: s.legionSlowAura ? {
+          radius: s.legionSlowRadius || 30,
+          factor: s.legionSlowFactor || 0.6,
+          dur: s.legionSlowDur || 400,
+        } : null,
       });
     }
   }
 
   // ── Alexander: an instant forward line-strike skewering a narrow lane ───────
+  // Macedonian Onslaught evolution: fires THREE parallel lanes simultaneously.
   fireLineThrust(s) {
     const target = this.nearestEnemy();
     const facing = this._aimOverride != null
@@ -904,33 +1087,58 @@ export default class WeaponSystem {
       ? Math.atan2(target.y - this.player.y, target.x - this.player.x)
       : this.player.flipX ? Math.PI : 0;
     this._lastAimAngle = facing;
-    const damage = Math.round(s.damage);
-    const len = s.length;
-    const halfW = s.width / 2;
-    const px = this.player.x;
-    const py = this.player.y;
-    const cos = Math.cos(facing);
-    const sin = Math.sin(facing);
-    this.scene.fx.weaponLunge('weapon_sarissa', px, py, facing, len, s.def.color); // the sarissa STABS forward
-    const inLane = (o) => {
-      const dx = o.x - px;
-      const dy = o.y - py;
-      const along = dx * cos + dy * sin; // projection along the thrust
-      const perp = Math.abs(-dx * sin + dy * cos); // distance off the centre line
-      return along >= -12 && along <= len && perp <= halfW;
+
+    // Helper: hit-check + FX for a single thrust lane
+    const doLane = (ang, len) => {
+      const damage = Math.round(s.damage);
+      const halfW = s.width / 2;
+      const px = this.player.x;
+      const py = this.player.y;
+      const cos = Math.cos(ang);
+      const sin = Math.sin(ang);
+      this.scene.fx.weaponLunge('weapon_sarissa', px, py, ang, len, s.def.color);
+      const inLane = (o) => {
+        const dx = o.x - px;
+        const dy = o.y - py;
+        const along = dx * cos + dy * sin;
+        const perp = Math.abs(-dx * sin + dy * cos);
+        return along >= -12 && along <= len && perp <= halfW;
+      };
+      let hitAny = false;
+      const kb = s.knockback || 0;
+      for (const e of this.scene.enemies.getChildren()) {
+        if (e.active && inLane(e)) {
+          this.scene.damageEnemy(e, damage);
+          // center lane applies knockback; flanking lanes skip it to avoid chaotic scatter
+          if (kb && ang === facing && e.active && !e.isBoss) {
+            this.scene.knockbackEnemy(e, Math.atan2(e.y - py, e.x - px), kb);
+          }
+          hitAny = true;
+        }
+      }
+      for (const b of this.scene.breakables.getChildren()) {
+        if (b.active && inLane(b)) this.scene.damageBreakable(b, damage);
+      }
+      if (hitAny) {
+        const tipX = px + cos * len * 0.7;
+        const tipY = py + sin * len * 0.7;
+        this.scene.fx._tint(this.scene.fx.spark, 0xcdb070);
+        this.scene.fx.spark.emitParticleAt(tipX, tipY, 6);
+      }
     };
-    let hitAny = false;
-    for (const e of this.scene.enemies.getChildren()) {
-      if (e.active && inLane(e)) { this.scene.damageEnemy(e, damage); hitAny = true; }
-    }
-    for (const b of this.scene.breakables.getChildren()) {
-      if (b.active && inLane(b)) this.scene.damageBreakable(b, damage);
-    }
-    if (hitAny) {
-      const tipX = px + cos * len * 0.7;
-      const tipY = py + sin * len * 0.7;
-      this.scene.fx._tint(this.scene.fx.spark, 0xcdb070);
-      this.scene.fx.spark.emitParticleAt(tipX, tipY, 6);
+
+    // Center lane fires immediately
+    doLane(facing, s.length);
+
+    if (s.tripleLane) {
+      // Left + right flanking lanes fire 60ms later, slightly shorter
+      const offset = s.tripleLaneOffset || 0.22;
+      const shortLen = s.length * (s.tripleLaneLengthMult || 0.85);
+      this.scene.time.delayedCall(60, () => {
+        if (!this.player.active) return;
+        doLane(facing - offset, shortLen);
+        doLane(facing + offset, shortLen);
+      });
     }
   }
 
@@ -977,6 +1185,8 @@ export default class WeaponSystem {
   }
 
   // ── Ragnar: axes that fly out to range then return, hitting on both legs ────
+  // Storm of Axes (evolution): tags projectiles with boomExplosion so GameScene spawns
+  // a trample zone at the turnaround point (the boomPhase 'out'→'back' transition).
   fireBoomerang(s) {
     const target = this.nearestEnemy();
     const baseAngle = this._aimOverride != null
@@ -998,6 +1208,13 @@ export default class WeaponSystem {
       p.spin = s.spin;
       p.pierceLeft = 999; // passes through; re-hits are gated by hitSet (reset on the return leg)
       p.lifespan = 6000; // safety cap; normally ends when it returns to the thrower
+      // Storm of Axes: tag the projectile so GameScene fires a trample zone at turnaround
+      if (s.boomExplosion) {
+        p.boomExplosion = true;
+        p.boomExplosionRadius = s.boomExplosionRadius || 70;
+        p.boomExplosionDmg = Math.round(s.damage * 0.8);
+        p.boomExplosionLinger = s.boomExplosionLinger || 1200;
+      }
     }
   }
 }
