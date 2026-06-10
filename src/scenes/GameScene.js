@@ -467,8 +467,22 @@ export default class GameScene extends Phaser.Scene {
     if (this.allies) for (const a of this.allies.getChildren()) if (a.active) this.deactivate(a);
   }
 
+  // Centralised hit-stop. The old per-site save/restore pattern raced: two overlapping
+  // hit-stops saved each other's slowed timeScale as the "restore" value and left the
+  // whole game stuck in slow motion. Overlaps now just extend one deadline; the watchdog
+  // in update() restores normal speed exactly once.
+  hitStop(ms, scale = 8) {
+    this.physics.world.timeScale = Math.max(this.physics.world.timeScale, scale);
+    this._hitStopUntil = Math.max(this._hitStopUntil || 0, this.time.now + ms);
+  }
+
   update(time, delta) {
     if (this.gameOver) return;
+    // hit-stop watchdog: restore physics speed once the freeze window passes
+    if (this._hitStopUntil && this.time.now >= this._hitStopUntil) {
+      this._hitStopUntil = 0;
+      this.physics.world.timeScale = 1;
+    }
     this.runTime += delta;
     this.fx.newFrame();
     if (this.tutorial) this.tutorial.tick(); // tut: keep prompt alive across frames
@@ -850,9 +864,7 @@ export default class GameScene extends Phaser.Scene {
               this.fx._flash(e.x, e.y, 32, 0xff4444, 0.95, 240);
               this.fx._ring(e.x, e.y, 80, 0xff4444, 380, 6);
               this.fx.spark.emitParticleAt(e.x, e.y, 12);
-              const ws = this.physics.world.timeScale;
-              this.physics.world.timeScale = 80;
-              this.time.delayedCall(80, () => { this.physics.world.timeScale = ws; });
+              this.hitStop(80, 80); // execution freeze-frame
               this.player.heal(8);
               this.player.streak += 5;
               this.killEnemy(e);
@@ -2208,9 +2220,7 @@ export default class GameScene extends Phaser.Scene {
       this.fx._tint(this.fx.spark, 0xffd700);
       this.fx.spark.emitParticleAt(enemy.x, enemy.y, 8);
       // Hit-stop + 2px camera kick toward the enemy on counter hits
-      const ws2 = this.physics.world.timeScale;
-      this.physics.world.timeScale = 8;
-      this.time.delayedCall(40, () => { this.physics.world.timeScale = ws2; });
+      this.hitStop(40, 8);
       const kickA2 = Math.atan2(enemy.y - this.player.y, enemy.x - this.player.x);
       const cam2 = this.cameras.main;
       const kx2 = Math.cos(kickA2) * 2; const ky2 = Math.sin(kickA2) * 2;
@@ -3102,9 +3112,7 @@ export default class GameScene extends Phaser.Scene {
       this.fx._ring(this.player.x, this.player.y, 22, 0xffffff, 160, 2);
       // Hit-stop: ~40ms physics + velocity freeze via a short timeScale dip on physics
       // (safe: Phaser Arcade Physics respects world.timeScale; no tween side-effects)
-      const ws = this.physics.world.timeScale; // save (should be 1 normally)
-      this.physics.world.timeScale = 8;        // crank up so ~40ms real = ~5ms physics
-      this.time.delayedCall(40, () => { this.physics.world.timeScale = ws; });
+      this.hitStop(40, 8);
       // 2px camera kick in the aim direction
       const kickAngle = this.aimDir != null ? this.aimDir : 0;
       const cam = this.cameras.main;
