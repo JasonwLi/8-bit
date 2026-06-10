@@ -48,10 +48,11 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
     // persistent state (it's a session-only reward for sustained aggression).
     this.streak = 0;
 
-    // dash: 2 independent charges, each recharges in 1.8s
-    this.dashCharges = 2;
-    this.dashChargeMax = 2;
-    this.dashRecharge = [0, 0]; // timestamps at which each spent charge refills
+    // dash: 2 independent charges (per-character stats may grant more — Nobunaga's
+    // marksman footwork carries 3), each recharges in 1.8s
+    this.dashChargeMax = (character.stats && character.stats.dashCharges) || 2;
+    this.dashCharges = this.dashChargeMax;
+    this.dashRecharge = new Array(this.dashChargeMax).fill(0); // refill timestamp per spent charge
     this.dashing = false;       // true for the ~240ms burst window
     this.dashUntil = 0;         // when the burst velocity ends
     this.dashInvulnUntil = 0;   // i-frames extend 60ms past the burst (separate from takeDamage invuln)

@@ -32,7 +32,7 @@ export const CHARACTERS = [
     startingWeapon: 'matchlock_volley',
     secondary: 'scattershot',
     ultimate: 'barrage',
-    stats: { maxHp: 100, speed: 230, attack: 1.0, defense: 0.0, rangedDefense: 0.06, lifesteal: 0, regen: 0.025, pickup: 115, luck: 1 },
+    stats: { maxHp: 110, speed: 230, attack: 1.0, defense: 0.0, rangedDefense: 0.10, lifesteal: 0, regen: 0.025, pickup: 115, luck: 1, dashCharges: 3 },
     palette: {
       skin: 0xe2b0a0,
       primary: 0x1b1b2f, // dark nanban armor
