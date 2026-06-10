@@ -294,6 +294,7 @@ export default class GameScene extends Phaser.Scene {
 
     this.floorSys.build(this.run.floorSeed + floor, { lockStairs: isBossFloor });
     const start = this.floorSys.startWorld();
+    this._lastSafeX = start.x; this._lastSafeY = start.y; // re-anchor the anti-tunnel guard
     this.player.setPosition(start.x, start.y);
     this.player.body.reset(start.x, start.y);
     this.cameras.main.centerOn(start.x, start.y);
@@ -419,6 +420,17 @@ export default class GameScene extends Phaser.Scene {
     if (dx !== 0 || dy !== 0) this._lastMoveDir = Math.atan2(dy, dx); // remember heading
     this.aimDir = (this.dungeonMode && !this.dueling) ? this._lastMoveDir : null;
     this.player.move(dx, dy);
+    // Anti-tunnel guard: at high speed (speed gear/buffs × dash) the arcade body can step
+    // clean past a thin wall in a single frame (no continuous collision in Arcade). Track
+    // the last walkable position and snap back if a frame ends inside rock. Skipped in
+    // duels — the arena lives off the floor grid where isWalkable is false everywhere.
+    if (this.dungeonMode && this.floorSys && !this.dueling) {
+      if (this.floorSys.isWalkable(this.player.x, this.player.y)) {
+        this._lastSafeX = this.player.x; this._lastSafeY = this.player.y;
+      } else if (this._lastSafeX !== undefined) {
+        this.player.body.reset(this._lastSafeX, this._lastSafeY);
+      }
+    }
     if (!this.dungeonMode) this.wrapEntity(this.player, true); // open world is a torus; floors have hard walls
 
     this.updateEnemies(delta);
@@ -919,17 +931,8 @@ export default class GameScene extends Phaser.Scene {
   knockbackEnemy(e, ang, dist) {
     // Gravitic Pull mutation: flip the angle 180° so the shove pulls toward the player.
     if (this.player.mutations && this.player.mutations.reverse_knockback) ang = ang + Math.PI;
-    const cos = Math.cos(ang), sin = Math.sin(ang);
-    const fs = this.floorSys;
-    if (!this.dungeonMode || !fs) { e.x += cos * dist; e.y += sin * dist; }
-    else if (fs.isWalkable(e.x + cos * dist, e.y + sin * dist)) { e.x += cos * dist; e.y += sin * dist; }
-    else {
-      let moved = false;
-      for (let f = 0.66; f >= 0.2; f -= 0.23) {
-        if (fs.isWalkable(e.x + cos * dist * f, e.y + sin * dist * f)) { e.x += cos * dist * f; e.y += sin * dist * f; moved = true; break; }
-      }
-      if (!moved) return; // blocked — leave where it is
-    }
+    const moved = this._sweepShove(e, ang, dist);
+    if (!moved) return; // hard against a wall — no shove, no chain
     // Billiards mutation: a knocked-back enemy collides with nearby foes and shoves them too.
     // The chain is NOT recursive (we don't re-check mutKnockbackChain on the secondary shove).
     if (this.player.mutations && this.player.mutations.knockback_chain) {
@@ -938,13 +941,32 @@ export default class GameScene extends Phaser.Scene {
         if (!nb.active || nb === e || nb.isBoss) continue;
         const dx = nb.x - e.x, dy = nb.y - e.y;
         if (dx * dx + dy * dy <= chainR2) {
-          const a2 = Math.atan2(dy, dx);
-          nb.x += Math.cos(a2) * dist * 0.45;
-          nb.y += Math.sin(a2) * dist * 0.45;
+          this._sweepShove(nb, Math.atan2(dy, dx), dist * 0.45); // wall-aware like the primary shove
           this.damageEnemy(nb, Math.round(dist * 0.3));
         }
       }
     }
+  }
+
+  // Wall-aware shove: advance in small steps along `ang`, stopping at the last walkable
+  // point. Checking only the DESTINATION let a big knockback vault clean OVER a thin wall
+  // onto walkable floor beyond it — stepping the PATH makes that impossible. Returns
+  // whether the entity moved at all. (Open world: no grid, full shove.)
+  _sweepShove(e, ang, dist) {
+    const cos = Math.cos(ang), sin = Math.sin(ang);
+    const fs = this.floorSys;
+    if (!this.dungeonMode || !fs) { e.x += cos * dist; e.y += sin * dist; return true; }
+    const STEP = 12;
+    let travelled = 0;
+    for (let d = STEP; d <= dist + 0.01; d += STEP) {
+      const step = Math.min(d, dist);
+      if (!fs.isWalkable(e.x + cos * step, e.y + sin * step)) break;
+      travelled = step;
+    }
+    if (travelled <= 0) return false;
+    e.x += cos * travelled;
+    e.y += sin * travelled;
+    return true;
   }
 
   // Shared by ranged enemies and bosses. Pooled, so scale/tint are reset here.
