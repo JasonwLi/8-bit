@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import { ENEMIES, SPAWN_TABLE, ELITE_MODIFIERS } from '../data/enemies.js';
 import { DUNGEON } from '../config.js';
 import { Audio } from './AudioManager.js';
+import { localEnemyName, generateEliteTitle } from '../data/civFlavour.js';
 
 // Spawns enemies in a ring just outside the camera. Difficulty (hp/damage/rate)
 // scales with elapsed run time. Occasionally promotes a spawn to an "elite"
@@ -103,6 +104,9 @@ export default class SpawnSystem {
     e.setDepth(5);
 
     e.typeId = typeId;
+    // ITEM A: per-civ localized name (falls back to the base name when unmapped)
+    const civId = this.scene.stageCiv || null;
+    e.localName = localEnemyName(civId, typeId, def.name);
     e.attack = def.attack;
     e.speed = def.speed;
     // XP scales sub-linearly with the same difficulty that drives enemy HP, so deeper/
@@ -224,6 +228,7 @@ export default class SpawnSystem {
     // reset elite-modifier state (pooled enemies are reused)
     e.isElite = forceElite;
     e.eliteMod = null;
+    e.eliteTitle = null; // cleared here; set below if forceElite
     e.ironclad = false;
     e.warlordEvery = 0;
     e.curseRadius = 0;
@@ -267,8 +272,12 @@ export default class SpawnSystem {
       if (mod.id === 'caster') { e.casterEvery = mod.castEvery; e.casterTimer = mod.castEvery; e.castDmg = mod.castDmg; e.castSpeed = mod.castSpeed; }
       if (mod.id === 'volatile') { e.volatile = true; e.blastRadius = mod.blastRadius; e.blastDmgElite = mod.blastDmg; }
       e.eliteTint = mod.tint;
+      // ITEM B: generate a flavoured name for this elite
+      e.eliteTitle = generateEliteTitle(civId, mod.name);
       e.setScale(1.5).setTint(mod.tint);
       Audio.sfx('elite'); // menacing low sting (internally throttled to ≤1/s)
+      // ITEM B: show a throttled banner for named elites (>=8s apart)
+      if (this.scene.showEliteBanner) this.scene.showEliteBanner(e.eliteTitle);
     } else {
       e.setScale(1).clearTint();
     }

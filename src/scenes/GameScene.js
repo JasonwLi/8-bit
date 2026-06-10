@@ -15,6 +15,7 @@ import FloorSystem from '../systems/FloorSystem.js';
 import FlowField from '../systems/FlowField.js';
 import { getArtifact } from '../data/artifacts.js';
 import { contractEffects } from '../data/contracts.js';
+import { CIV_AMBIENCE } from '../data/civFlavour.js';
 import { Save, Legacy } from '../systems/SaveSystem.js';
 import Fx from '../systems/Fx.js';
 import MapSystem from '../systems/MapSystem.js';
@@ -254,7 +255,7 @@ export default class GameScene extends Phaser.Scene {
     this.input.keyboard.on('keydown-DELETE', goBack);
 
     this.scene.launch('UIScene', { gameScene: this });
-    this.events.once('shutdown', () => this.scene.stop('UIScene'));
+    this.events.once('shutdown', () => { this._stopAmbienceEmitter(); this.scene.stop('UIScene'); });
 
     // ── Dungeon descent: build the first floor (FloorSystem provides the ground +
     // walls + stairs, so the open-world scrolling backdrop is hidden). ───────────
@@ -332,6 +333,8 @@ export default class GameScene extends Phaser.Scene {
       this._lowHpLineShown = false; // also reset per floor for the low-hp warning
     }
 
+    // ambient particle layer keyed to the civ theme
+    this._startAmbienceEmitter();
     this.captureRunState();
   }
 
@@ -353,6 +356,8 @@ export default class GameScene extends Phaser.Scene {
 
   // Deactivate all transient field entities between floors (enemies/projectiles/gems/allies).
   clearField() {
+    // ITEM D: tear down the ambient emitter before building the next floor
+    this._stopAmbienceEmitter();
     for (const e of this.enemies.getChildren()) if (e.active && !e.isBoss) this.deactivate(e);
     for (const p of this.projectiles.getChildren()) if (p.active) this.deactivate(p);
     for (const p of this.enemyProjectiles.getChildren()) if (p.active) this.deactivate(p);
@@ -1280,6 +1285,56 @@ export default class GameScene extends Phaser.Scene {
       targets: t, y: y - 22, alpha: 0, delay: 900, duration: 1600, ease: 'Quad.easeIn',
       onComplete: () => { this._banners = this._banners.filter((b) => b !== t); t.destroy(); },
     });
+  }
+
+  // ITEM D: create (or recreate) the per-civ ambient particle layer for this floor.
+  // ONE slow-drifting emitter using the 'spark' texture, tinted per civ.
+  // Depth -5 (above dungeon floor at -10 but below entities at 5).
+  // Skipped entirely during duel sequences.
+  _startAmbienceEmitter() {
+    this._stopAmbienceEmitter(); // destroy any previous
+    if (!this.dungeonMode || this.dueling) return;
+    const civId = this.isFinal ? 'final' : this.stageCiv;
+    const cfg = CIV_AMBIENCE[civId] || CIV_AMBIENCE.china;
+    const cam = this.cameras.main;
+    const W = cam.width, H = cam.height;
+    // Particles drift diagonally down-left at low speed; emitZone covers the screen.
+    // We follow the camera by emitting in world-space relative to the camera scroll.
+    this._ambienceEmitter = this.add.particles(0, 0, 'spark', {
+      tint: cfg.tint,
+      alpha: { start: 0.35, end: 0 },
+      scale: { start: 0.7, end: 0.3 },
+      lifespan: { min: 2400, max: 4000 },
+      speedX: { min: -22, max: -8 },
+      speedY: { min: 14, max: 28 },
+      quantity: 1,
+      frequency: 380,
+      maxParticles: 0, // unlimited (throttled by quantity+frequency)
+      gravityY: 0,
+      blendMode: 'NORMAL',
+      emitZone: {
+        type: 'random',
+        source: new Phaser.Geom.Rectangle(-W * 0.1, -H * 0.1, W * 1.2, H * 1.2),
+      },
+    }).setDepth(-5).setScrollFactor(0);
+  }
+
+  _stopAmbienceEmitter() {
+    if (this._ambienceEmitter) {
+      this._ambienceEmitter.stop();
+      this._ambienceEmitter.destroy();
+      this._ambienceEmitter = null;
+    }
+  }
+
+  // ITEM B: throttled elite-spawn banner (at least 8 s apart so the screen
+  // isn't flooded when a horde of elites spawns simultaneously).
+  showEliteBanner(title) {
+    if (!title) return;
+    const now = this.time.now;
+    if ((this._lastEliteBannerAt || 0) + 8000 > now) return;
+    this._lastEliteBannerAt = now;
+    this.showBanner(title, '#ffd54a');
   }
 
   // First time the player stands in a damaging zone (map hazard or boss flame
