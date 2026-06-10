@@ -296,6 +296,14 @@ export default class SpawnSystem {
     // drum buffing clear
     e._drumBuffed    = false;
     e._baseSpeed     = null; // set once when drum buff first applies
+    // Norse civ rage (applied at runtime, must clear on pool reuse)
+    e._norseRage     = false;
+    // Ashipu buff state (applied by ally ashipu aura, must clear on pool reuse)
+    e._ashipuBuffUntil    = 0;
+    e._ashipuDmgBoost     = 1;
+    e._ashipuSpeedBoost   = 1;
+    e._ashipuSpeedApplied = false;
+    e._preAshipuSpeed     = null;
 
     // reset elite-modifier state (pooled enemies are reused)
     e.isElite = forceElite;
