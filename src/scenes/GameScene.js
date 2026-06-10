@@ -379,7 +379,12 @@ export default class GameScene extends Phaser.Scene {
       if (this._chargeFx) { this._chargeFx.destroy(); this._chargeFx = null; }
       if (this._counterGlintFx) { this._counterGlintFx.destroy(); this._counterGlintFx = null; }
       if (this._focusAimArrow) { this._focusAimArrow.destroy(); this._focusAimArrow = null; }
+      // Safety: kill any stuck charge oscillator on scene teardown
+      Audio.stopChargeHum();
     });
+    // Also stop the charge hum whenever the scene is paused (e.g. opening the pause menu)
+    // so the oscillator can't play while the game is frozen.
+    this.events.on('pause', () => { Audio.stopChargeHum(); });
 
     // Tutorial: attach after UIScene is live so tut toasts can use showBanner.
     this.tutorial = new TutorialController();
@@ -1035,7 +1040,7 @@ export default class GameScene extends Phaser.Scene {
               this.player.heal(8);
               this.player.streak += 5;
               this.killEnemy(e);
-              Audio.sfx('parry');
+              Audio.sfx('execution');
               continue; // skip normal damageEnemy for this enemy
             }
 
@@ -2417,7 +2422,14 @@ export default class GameScene extends Phaser.Scene {
       const impactAng = Math.atan2(enemy.y - this.player.y, enemy.x - this.player.x);
       this.fx.impact(enemy.x, enemy.y, counterHit ? 0xffd700 : 0xffe08a, impactAng);
     }
-    Audio.sfx('hit');
+    // Layered SFX: counter gets its own clash sound; heavy hits get the heavier thud
+    if (counterHit) {
+      Audio.sfx('counter');
+    } else {
+      Audio.sfx(opts.isHeavy ? 'hit_heavy' : 'hit');
+    }
+    // Hit-rate ducking: track player hits to duck SFX in crowds
+    if (opts.fromPlayer && !counterHit) Audio._trackHitRate(performance.now());
     this.player.lifestealFrom(dmg);
     // Vampiric elite: heals back a fraction of the damage it just took
     if (enemy.active && enemy.vampiric && enemy.vampiricRate) {
@@ -2519,6 +2531,7 @@ export default class GameScene extends Phaser.Scene {
     if (this.player.mutations && this.player.mutations.speed_on_kill) {
       this.player.addBuff('speed', 1.4, 2000, this.time.now);
     }
+    Audio.sfx('kill'); // distinct kill SFX (sub-thud + saw descend)
     // juicyDeath: directional corpse-fling + debris tint + overkill variants
     this.juicyDeath(enemy, enemy._lastDmg || 0);
     // Volatile elite: detonate a telegraphed AoE where it died (back off when it's low!)
@@ -3039,10 +3052,14 @@ export default class GameScene extends Phaser.Scene {
           this._chargeFx = this.add.arc(
             this.player.x, this.player.y, 18, 0, 0, false, 0xffd700, 0.0,
           ).setDepth(11).setStrokeStyle(2, 0xffd700, 0.9);
+          // Start charge hum on the first frame the ring appears
+          Audio.startChargeHum();
         }
         this._chargeFx.setPosition(this.player.x, this.player.y);
         this._chargeFx.setStartAngle(270).setEndAngle(270 + 360 * frac);
         this._chargeFx.setAlpha(0.4 + frac * 0.55);
+        // Update charge hum pitch/volume with current fraction
+        Audio.updateChargeHum(frac);
 
         // Arm at full charge
         if (this._chargeMs >= CHARGE_FULL_MS && !this._chargeArmed) {
@@ -3051,6 +3068,7 @@ export default class GameScene extends Phaser.Scene {
         // Auto-release when armed (hold-to-full)
         if (this._chargeArmed) {
           if (this.tutorial) this.events.emit('tut', 'charge'); // tut: charge tip card
+          Audio.stopChargeHum(); // stop before fire so the heavy SFX is heard cleanly
           this._fireCharged('heavy');
           this._chargeArmed = false;
           // hold-compat: mark cycle done and zero the timer so the guard block
@@ -3064,6 +3082,7 @@ export default class GameScene extends Phaser.Scene {
 
       if (primaryJustUp || (!primaryDown && this._chargeMs > 0 && !this._chargeFired)) {
         // Key released — decide mode
+        Audio.stopChargeHum(); // release or cancel — always stop hum
         if (!this._chargeFired) {
           const frac = this._chargeMs / CHARGE_FULL_MS;
           if (this._tapFiredThisPress || this._chargeMs < CHARGE_TAP_MS) {
@@ -3084,7 +3103,8 @@ export default class GameScene extends Phaser.Scene {
       }
 
       if (!primaryDown && !primaryJustUp) {
-        // Key not held at all
+        // Key not held at all — also stop hum if it somehow didn't get cancelled
+        if (this._chargeMs > 0) Audio.stopChargeHum();
         this._chargeMs = 0;
         this._chargeFired = false;
         this._chargeArmed = false;
@@ -3457,6 +3477,7 @@ export default class GameScene extends Phaser.Scene {
     if (this.gameOver) return;
     this.gameOver = true;
     this.physics.pause();
+    Audio.stopChargeHum(); // safety: kill any stuck oscillator on death
     Audio.setIntensity(0);
     Audio.sfx('death');
     if (this.duelTest) { // test mode: back to the duel-test picker (real save untouched)

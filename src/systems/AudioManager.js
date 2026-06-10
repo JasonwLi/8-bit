@@ -71,8 +71,10 @@ class AudioManager {
     const osc = this.ctx.createOscillator();
     const g = this.ctx.createGain();
     osc.type = type;
-    osc.frequency.setValueAtTime(freq, t);
-    if (sweepTo) osc.frequency.exponentialRampToValueAtTime(Math.max(1, sweepTo), t + dur);
+    // Anti-fatigue pitch jitter: ±8% randomisation so repeated SFX sound varied
+    const jitter = 1 + (Math.random() * 0.16 - 0.08);
+    osc.frequency.setValueAtTime(freq * jitter, t);
+    if (sweepTo) osc.frequency.exponentialRampToValueAtTime(Math.max(1, sweepTo * jitter), t + dur);
     const d = decay == null ? dur : decay;
     g.gain.setValueAtTime(0.0001, t);
     g.gain.exponentialRampToValueAtTime(vol, t + attack);
@@ -80,6 +82,64 @@ class AudioManager {
     osc.connect(g).connect(this.sfxGain);
     osc.start(t);
     osc.stop(t + d + 0.02);
+  }
+
+  // Bandpass-filtered noise burst — adds a crisp "crack" layer to hits
+  _bpNoise(dur, { vol = 0.15, centerFreq = 2400, q = 2.5 } = {}) {
+    if (!this.ctx || this.muted) return;
+    const t = this.ctx.currentTime;
+    const n = Math.floor(this.ctx.sampleRate * dur);
+    const buf = this.ctx.createBuffer(1, n, this.ctx.sampleRate);
+    const data = buf.getChannelData(0);
+    for (let i = 0; i < n; i++) data[i] = Math.random() * 2 - 1;
+    const src = this.ctx.createBufferSource(); src.buffer = buf;
+    const filt = this.ctx.createBiquadFilter();
+    filt.type = 'bandpass'; filt.frequency.value = centerFreq; filt.Q.value = q;
+    const g = this.ctx.createGain();
+    g.gain.setValueAtTime(vol, t);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    src.connect(filt).connect(g).connect(this.sfxGain);
+    src.start(t); src.stop(t + dur);
+  }
+
+  // --- Charge hum: a persistent oscillator that tracks charge progress ---
+  startChargeHum() {
+    this.ensure();
+    if (!this.ctx || this.muted || this._chargeOsc) return;
+    this._chargeOsc = this.ctx.createOscillator();
+    this._chargeGain = this.ctx.createGain();
+    this._chargeOsc.type = 'sine';
+    this._chargeOsc.frequency.value = 180;
+    this._chargeGain.gain.value = 0.0001;
+    this._chargeOsc.connect(this._chargeGain).connect(this.sfxGain);
+    this._chargeOsc.start();
+  }
+
+  updateChargeHum(fraction) { // fraction 0..1
+    if (!this._chargeOsc || !this.ctx) return;
+    const t = this.ctx.currentTime;
+    this._chargeOsc.frequency.setTargetAtTime(180 + fraction * 240, t, 0.05);
+    this._chargeGain.gain.setTargetAtTime(fraction * 0.12, t, 0.04);
+  }
+
+  stopChargeHum() {
+    if (!this._chargeOsc || !this.ctx) return;
+    try {
+      this._chargeGain.gain.setTargetAtTime(0.0001, this.ctx.currentTime, 0.02);
+      this._chargeOsc.stop(this.ctx.currentTime + 0.06);
+    } catch (e) { /* already stopped */ }
+    this._chargeOsc = null; this._chargeGain = null;
+  }
+
+  // --- Hit-rate ducking: slide sfxGain down in crowd combat, recover when quiet ---
+  _trackHitRate(now) {
+    this._hitTimes = (this._hitTimes || []).filter(t => now - t < 1000);
+    this._hitTimes.push(now);
+    const rate = this._hitTimes.length;
+    if (this.sfxGain && this.ctx) {
+      const target = rate > 6 ? Math.max(0.5, 1 - (rate - 6) * 0.06) : 1.0;
+      this.sfxGain.gain.setTargetAtTime(target * this.vol.sfx, this.ctx.currentTime, 0.08);
+    }
   }
 
   _noise(dur, { vol = 0.2, lowpass = 2200 } = {}) {
@@ -120,12 +180,44 @@ class AudioManager {
         break;
       case 'melee':
         if (!this._ok('melee', 90)) return;
-        this._noise(0.1, { vol: 0.1, lowpass: 3200 });
-        this._tone(220, 0.1, { type: 'sawtooth', vol: 0.07, sweepTo: 120 });
+        // Swing whoosh + noise + impact thud
+        this._tone(1100, 0.09, { type: 'sine', vol: 0.09, sweepTo: 280, decay: 0.09 });
+        this._noise(0.08, { vol: 0.07, lowpass: 5000 });
+        this._tone(180, 0.08, { type: 'sawtooth', vol: 0.05, sweepTo: 100 });
         break;
       case 'hit':
         if (!this._ok('hit', 45)) return;
-        this._noise(0.05, { vol: 0.06, lowpass: 4000 });
+        // Layered: low thud + mid crack + occasional high tick (anti-fatigue)
+        this._tone(95, 0.06, { type: 'sine', vol: 0.14, sweepTo: 55, decay: 0.05, attack: 0.003 });
+        this._bpNoise(0.04, { vol: 0.12, centerFreq: 1800, q: 2 });
+        this._hitTickPhase = ((this._hitTickPhase || 0) + 1) % 3;
+        if (this._hitTickPhase === 0) {
+          this._tone(3200, 0.018, { type: 'square', vol: 0.04, decay: 0.015 });
+        }
+        break;
+      case 'hit_heavy':
+        if (!this._ok('hit_heavy', 60)) return;
+        // Heavier sub-thud + stronger crack + sub-drop for weight
+        this._tone(70, 0.10, { type: 'sine', vol: 0.22, sweepTo: 38, decay: 0.09, attack: 0.004 });
+        this._bpNoise(0.06, { vol: 0.20, centerFreq: 1400, q: 1.8 });
+        this._tone(42, 0.12, { type: 'sine', vol: 0.10, sweepTo: 28, decay: 0.12 });
+        break;
+      case 'kill':
+        if (!this._ok('kill', 30)) return;
+        this._tone(80, 0.08, { type: 'sine', vol: 0.16, sweepTo: 40, decay: 0.08 });
+        this._tone(520, 0.06, { type: 'sawtooth', vol: 0.08, sweepTo: 200, decay: 0.06 });
+        break;
+      case 'counter':
+        // Counter-hit clash ring — replaces the raw 'hit' that used to fire there
+        this._tone(1480, 0.07, { type: 'square', vol: 0.16, sweepTo: 880, decay: 0.16 });
+        this._noise(0.06, { vol: 0.09, lowpass: 5500 });
+        this._tone(340, 0.08, { type: 'triangle', vol: 0.10, sweepTo: 220, decay: 0.08 });
+        break;
+      case 'execution':
+        // Dash-execution finisher — replaces 'parry' on the execution path
+        this._tone(1200, 0.05, { type: 'square', vol: 0.18, sweepTo: 600, decay: 0.12 });
+        this._noise(0.07, { vol: 0.12, lowpass: 6000 });
+        this._tone(200, 0.14, { type: 'sine', vol: 0.14, sweepTo: 80, decay: 0.14 });
         break;
       case 'pickup':
         if (!this._ok('pickup', 40)) return;
