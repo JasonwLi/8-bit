@@ -24,6 +24,7 @@ import * as EnemyAI from '../systems/EnemyAI.js';
 import { Audio } from '../systems/AudioManager.js';
 import { Settings } from '../systems/Settings.js';
 import { GAME, DUNGEON } from '../config.js';
+import { HERO_DIALOGUE, BOSS_DIALOGUE, STAGE_INTROS, pickRandom } from '../data/dialogue.js';
 
 export default class GameScene extends Phaser.Scene {
   constructor() {
@@ -59,6 +60,8 @@ export default class GameScene extends Phaser.Scene {
     this.dueling = false; // set by DuelController; read across the loop
     this.challengePending = false;
     this._hazardWarned = false; // first-touch explainer for damage zones
+    this._lowHpLineShown = false; // show once per floor when hp first drops <25%
+    this._ultSpeechUntil = 0; // throttle ult speech (no spam)
 
     // secret duel-test mode (from the title-screen easter egg): fight one chosen
     // boss directly, then bounce back to the menu — no campaign progression.
@@ -305,6 +308,30 @@ export default class GameScene extends Phaser.Scene {
 
     this.showBanner(`Floor ${floor} / ${this.floorsTotal}${isBossFloor ? '   ⚔ boss' : ''}`, '#ffd700');
     Audio.setIntensity(isBossFloor ? 1 : 0);
+
+    // Hero stage-start flavour line on floor 1 (new stage or resume to floor 1)
+    if (floor === 1) {
+      this._lowHpLineShown = false;
+      const heroId = this.characterDef && this.characterDef.id;
+      const heroLines = heroId && HERO_DIALOGUE[heroId];
+      if (heroLines && heroLines.stageStart) {
+        const civId = this.stageCiv;
+        const pool = (heroLines.stageStart[civId] && heroLines.stageStart[civId].length)
+          ? heroLines.stageStart[civId]
+          : heroLines.stageStart.default;
+        const line = pickRandom(pool);
+        if (line) this.time.delayedCall(1100, () => { if (!this.gameOver) this.showBanner(`"${line}"`, '#d8d3ee'); });
+      }
+      // Stage intro card (Item B) — skip in duelTest mode
+      if (!this.duelTest) {
+        const civKey = this.isFinal ? 'final' : this.stageCiv;
+        const intro = STAGE_INTROS[civKey];
+        if (intro) this._showStageIntroCard(intro);
+      }
+    } else {
+      this._lowHpLineShown = false; // also reset per floor for the low-hp warning
+    }
+
     this.captureRunState();
   }
 
@@ -549,6 +576,18 @@ export default class GameScene extends Phaser.Scene {
     // Near-death heartbeat: slow low thump every ~1s while HP < 20% (throttled by Audio)
     if (this.player.active && this.player.hp > 0 && this.player.hp / this.player.maxHp < 0.20) {
       Audio.sfx('heartbeat');
+    }
+
+    // Low-HP flavour line: once per floor when HP first drops below 25%
+    if (!this._lowHpLineShown && this.player.active && this.player.hp > 0
+        && this.player.hp / this.player.maxHp < 0.25) {
+      this._lowHpLineShown = true;
+      const heroId = this.characterDef && this.characterDef.id;
+      const heroLines = heroId && HERO_DIALOGUE[heroId];
+      if (heroLines && heroLines.lowHp) {
+        const line = pickRandom(heroLines.lowHp);
+        if (line) this.showBanner(`"${line}"`, '#ff8c8c');
+      }
     }
   }
 
@@ -1041,6 +1080,13 @@ export default class GameScene extends Phaser.Scene {
     this.fx.explosion(boss.x, boss.y, this.theme.accent, 220); // big death blast
     Audio.sfx('bossdown');
 
+    // Boss dying line banner (before the fall banner below)
+    const bossDlg = boss.bossId && BOSS_DIALOGUE[boss.bossId];
+    if (bossDlg && bossDlg.death) {
+      const line = pickRandom(bossDlg.death);
+      if (line) this.showBanner(`"${line}"`, '#ff8c8c');
+    }
+
     if (wasDuel) {
       this.duel.finisher(boss); // freeze-frame zoom punch + slow-mo + shockwave
     } else {
@@ -1125,6 +1171,8 @@ export default class GameScene extends Phaser.Scene {
     r.floor = this.floor; // resume on the same floor (same floorSeed → same layout)
     r.spawnedThisFloor = this.spawner.spawnedThisFloor; // a cleared floor stays cleared on resume
     r.bossPhase = this.bossPhase;
+    // Accumulate total run time across stages for the WinScene recap display
+    r.runTimeTotal = (r._stageTimeBase || 0) + this.runTime;
     this.registry.set('run', r);
   }
 
@@ -1136,6 +1184,8 @@ export default class GameScene extends Phaser.Scene {
     this.showBanner(`${civName} Conquered!`, '#9ef58b');
     this.captureRunState();
     if (!this.isFinal) this.run.conquered.push(this.run.currentCiv);
+    // carry forward the total time so the next stage adds on top of it
+    this.run._stageTimeBase = this.run.runTimeTotal || 0;
     // clear stage-resume state so Continue routes to the next conquest, not a replay
     this.run.currentCiv = null;
     this.run.stageTime = 0;
@@ -1148,6 +1198,65 @@ export default class GameScene extends Phaser.Scene {
         this.scene.start('WinScene', { run: this.run });
       } else {
         this.scene.start('ArtifactScene');
+      }
+    });
+  }
+
+  // Short floating speech text above the player — used for ult-cast lines.
+  // Throttled: will not show if called less than 3s after the last speech.
+  showSpeechText(text) {
+    const now = this.time.now;
+    if (now < this._ultSpeechUntil) return;
+    this._ultSpeechUntil = now + 3000;
+    const t = this.add.text(this.player.x, this.player.y - 46, text, {
+      fontFamily: 'monospace', fontSize: '13px', color: '#ffffff', fontStyle: 'bold',
+      stroke: '#000000', strokeThickness: 3,
+    }).setOrigin(0.5).setDepth(52).setScrollFactor(1);
+    this.tweens.add({
+      targets: t,
+      y: t.y - 28,
+      alpha: 0,
+      duration: 1200,
+      ease: 'Quad.easeIn',
+      onComplete: () => t.destroy(),
+    });
+  }
+
+  // Item B: 2.5s cinematic title card overlay on stage entry. Letterbox bars, big
+  // civ name, tagline, year. Fades in + out; does NOT pause gameplay.
+  _showStageIntroCard(intro) {
+    const W = this.scale.width;
+    const H = this.scale.height;
+    const DEPTH = 80;
+    const FADE = 420;
+    const HOLD = 1660;
+    const TOTAL = FADE + HOLD + FADE;
+
+    const barH = Math.round(H * 0.18);
+    const topBar = this.add.rectangle(0, 0, W, barH, 0x000000, 1)
+      .setOrigin(0).setScrollFactor(0).setDepth(DEPTH).setAlpha(0);
+    const botBar = this.add.rectangle(0, H - barH, W, barH, 0x000000, 1)
+      .setOrigin(0).setScrollFactor(0).setDepth(DEPTH).setAlpha(0);
+
+    const titleTxt = this.add.text(W / 2, H / 2 - 22, intro.title, {
+      fontFamily: 'monospace', fontSize: '32px', color: '#ffd700', fontStyle: 'bold',
+    }).setOrigin(0.5).setScrollFactor(0).setDepth(DEPTH + 1).setAlpha(0);
+
+    const tagTxt = this.add.text(W / 2, H / 2 + 18, intro.tagline, {
+      fontFamily: 'monospace', fontSize: '13px', color: '#d8d3ee',
+    }).setOrigin(0.5).setScrollFactor(0).setDepth(DEPTH + 1).setAlpha(0);
+
+    const yearTxt = this.add.text(W / 2, H / 2 + 42, intro.year, {
+      fontFamily: 'monospace', fontSize: '11px', color: '#8a8a9a',
+    }).setOrigin(0.5).setScrollFactor(0).setDepth(DEPTH + 1).setAlpha(0);
+
+    const objs = [topBar, botBar, titleTxt, tagTxt, yearTxt];
+    // Fade in
+    for (const o of objs) this.tweens.add({ targets: o, alpha: (o === topBar || o === botBar) ? 0.92 : 1, duration: FADE });
+    // Fade out after hold
+    this.time.delayedCall(FADE + HOLD, () => {
+      for (const o of objs) {
+        this.tweens.add({ targets: o, alpha: 0, duration: FADE, onComplete: () => { if (o && o.active) o.destroy(); } });
       }
     });
   }
@@ -1503,7 +1612,17 @@ export default class GameScene extends Phaser.Scene {
     if (!this.canAct()) return;
     if (bk.primary.isDown) this.weapons.fireHeld();            // held manual primary (move-aimed)
     if (JustDown(bk.secondary) && this.secondary.ready()) this.secondary.castManual(this.aimDir); // along movement
-    if (JustDown(bk.ultimate)) this.ability.tryCast(this.time.now);
+    if (JustDown(bk.ultimate)) {
+      const fired = this.ability.tryCast(this.time.now);
+      if (fired) {
+        const heroId = this.characterDef && this.characterDef.id;
+        const heroLines = heroId && HERO_DIALOGUE[heroId];
+        if (heroLines && heroLines.ultCast) {
+          const line = pickRandom(heroLines.ultCast);
+          if (line) this.showSpeechText(line);
+        }
+      }
+    }
   }
 
   // Called once per encounter zone, the first time the player reaches it (proximity

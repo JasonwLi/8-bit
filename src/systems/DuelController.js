@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import { getBoss } from '../data/bosses.js';
 import { Audio } from './AudioManager.js';
 import BossArena, { ARENA_ORIGIN } from './BossArena.js';
+import { HERO_DIALOGUE, BOSS_DIALOGUE, pickRandom } from '../data/dialogue.js';
 
 // Owns the 1v1 boss-duel feature: the accept/decline challenge prompt, the
 // cinematic arena (camera zoom + ring + letterbox), the fighting-game combat,
@@ -63,8 +64,10 @@ export default class DuelController {
     const s = this.s;
     if (s.challengePending) {
       this.countdown -= delta;
-      if (this.challengeUI && this.challengeUI[3]) {
-        this.challengeUI[3].setText(`auto-accept in ${Math.max(0, Math.ceil(this.countdown / 1000))}...`);
+      // countdown text is always the last element of the challengeUI array
+      if (this.challengeUI && this.challengeUI.length > 0) {
+        const cdText = this.challengeUI[this.challengeUI.length - 1];
+        if (cdText) cdText.setText(`auto-accept in ${Math.max(0, Math.ceil(this.countdown / 1000))}...`);
       }
       if (this.countdown <= 0) this.accept();
     }
@@ -207,6 +210,13 @@ export default class DuelController {
       s.cameras.main.shake(140, 0.01);
       s.showBanner('⚡ ULTIMATE — GUARD BROKEN!', '#ffd700');
     }
+    // Ult speech floating text
+    const heroId = s.characterDef && s.characterDef.id;
+    const heroLines = heroId && HERO_DIALOGUE[heroId];
+    if (heroLines && heroLines.ultCast) {
+      const line = pickRandom(heroLines.ultCast);
+      if (line && s.showSpeechText) s.showSpeechText(line);
+    }
     this.chain = 0;
   }
 
@@ -254,19 +264,55 @@ export default class DuelController {
     const def = getBoss(s.bossSeq[s.bossPhase]);
     const W = s.scale.width;
     const H = s.scale.height;
+
+    // Boss taunt + hero reply dialogue
+    const bossDlg = BOSS_DIALOGUE[def.id];
+    const bossTaunt = bossDlg ? pickRandom(bossDlg.preDuel) : '';
+    const heroId = s.characterDef && s.characterDef.id;
+    const heroDlg = heroId && HERO_DIALOGUE[heroId];
+    const heroReply = heroDlg ? pickRandom(heroDlg.duelReply) : '';
+
+    // panel height: taller when dialogue lines are present
+    const panelH = (bossTaunt || heroReply) ? 180 : 120;
+    const panelY = H / 2 - (panelH / 2 - 16);
+
     this.challengeUI = [
-      s.add.rectangle(W / 2, H / 2 - 8, 560, 120, 0x05040a, 0.82).setScrollFactor(0).setDepth(59)
+      s.add.rectangle(W / 2, panelY + panelH / 2 - 16, 600, panelH, 0x05040a, 0.88).setScrollFactor(0).setDepth(59)
         .setStrokeStyle(2, 0xff5252, 0.9),
-      s.add.text(W / 2, H / 2 - 44, `⚔  ${def.name} challenges you to a duel!`, {
-        fontFamily: 'monospace', fontSize: '22px', color: '#ff5252', fontStyle: 'bold',
-      }).setOrigin(0.5).setScrollFactor(0).setDepth(60),
-      s.add.text(W / 2, H / 2 - 6, '[Y] Accept duel     [N] Decline — fight in the open', {
-        fontFamily: 'monospace', fontSize: '15px', color: '#ffffff',
-      }).setOrigin(0.5).setScrollFactor(0).setDepth(60),
-      s.add.text(W / 2, H / 2 + 24, 'auto-accept in 5...', {
-        fontFamily: 'monospace', fontSize: '12px', color: '#9a93c0',
+      s.add.text(W / 2, panelY - 8, `⚔  ${def.name} challenges you to a duel!`, {
+        fontFamily: 'monospace', fontSize: '20px', color: '#ff5252', fontStyle: 'bold',
       }).setOrigin(0.5).setScrollFactor(0).setDepth(60),
     ];
+
+    let dialogY = panelY + 24;
+    if (bossTaunt) {
+      this.challengeUI.push(s.add.text(W / 2, dialogY,
+        `"${bossTaunt}"`, {
+          fontFamily: 'monospace', fontSize: '12px', color: '#ffaa88',
+          wordWrap: { width: 560 }, align: 'center',
+        }).setOrigin(0.5).setScrollFactor(0).setDepth(60));
+      dialogY += 26;
+    }
+    if (heroReply) {
+      this.challengeUI.push(s.add.text(W / 2, dialogY,
+        `"${heroReply}"`, {
+          fontFamily: 'monospace', fontSize: '12px', color: '#aaddff',
+          wordWrap: { width: 560 }, align: 'center',
+        }).setOrigin(0.5).setScrollFactor(0).setDepth(60));
+      dialogY += 26;
+    }
+
+    this.challengeUI.push(
+      s.add.text(W / 2, dialogY + 4, '[Y] Accept duel     [N] Decline — fight in the open', {
+        fontFamily: 'monospace', fontSize: '14px', color: '#ffffff',
+      }).setOrigin(0.5).setScrollFactor(0).setDepth(60),
+    );
+    // countdown text — index tracked for update(); always last in the array
+    this.challengeUI.push(
+      s.add.text(W / 2, dialogY + 26, 'auto-accept in 5...', {
+        fontFamily: 'monospace', fontSize: '12px', color: '#9a93c0',
+      }).setOrigin(0.5).setScrollFactor(0).setDepth(60),
+    );
     Audio.sfx('boss');
   }
 

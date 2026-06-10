@@ -27,6 +27,7 @@ export default class Boss extends Phaser.Physics.Arcade.Sprite {
 
     this.def = def;
     this.isBoss = true;
+    this.bossId = def.id; // used by GameScene for dialogue lookup
     this.bossName = def.name;
     // Every attack's damage is scaled by BOSS_DMG (the global boss buff) AND dmgScale
     // (the campaign stage + the player's own offense), so a boss hits as hard as the
