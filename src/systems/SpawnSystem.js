@@ -33,10 +33,10 @@ export default class SpawnSystem {
 
   get spawnInterval() {
     const floor = this.scene.floor || 1;
-    // Depth-based pacing only. (The old `- dwell*0.4` accelerated spawns the longer you
-    // lingered — fine for an endless arena, but with a finite per-floor budget it just
-    // front-loaded the fight and left dead air while you explored to the stairs.)
-    return Math.max(200, 820 - floor * 22);
+    // Depth-based pacing only. Garrisons handle ~45% of the budget up-front, so the
+    // streaming spawn interval is ~25% longer — camping is rewarded less, exploring
+    // finds the pre-placed fights instead.
+    return Math.max(250, 1025 - floor * 27);
   }
 
   // reset per-floor spawn pacing + budget (called by GameScene on each descent)
@@ -46,6 +46,88 @@ export default class SpawnSystem {
     this.spawnedThisFloor = 0;
     // deeper floors field a larger horde before they run dry (bumped — game was too easy)
     this.floorBudget = Math.round(85 + (floor - 1) * 16);
+  }
+
+  // Pre-place ~45% of the floor budget as DORMANT GARRISON clusters spread across
+  // the cavern (not near the player start). Garrison enemies stand idle until the
+  // player comes within ~340px or has LOS at <500px, then aggro normally.
+  // Called by GameScene.enterFloor() after floorSys is ready.
+  // Strategy: call spawnOne with overridden spawn-point so each garrison member goes
+  // through the normal full init path (keeps DRY and safe for pool reuse).
+  placeGarrisons() {
+    if (!this.scene.dungeonMode) return; // open-world / duel-test: no garrisons
+    const fs = this.scene.floorSys;
+    if (!fs) return;
+
+    // On a resumed (cleared) floor spawnedThisFloor is already at or above budget — skip.
+    if (this.spawnedThisFloor >= this.floorBudget) return;
+
+    const garrisonBudget = Math.floor(this.floorBudget * 0.45);
+    const start = fs.startWorld();
+    const MIN_DIST_FROM_START = 420;
+
+    // Temporarily override spawnPointOnFloor to place at garrison positions.
+    const origSpawnPoint = this.spawnPointOnFloor.bind(this);
+    let garrisonPt = null;
+    this.spawnPointOnFloor = () => garrisonPt || origSpawnPoint();
+
+    let placed = 0;
+    const maxClusters = 5;
+    for (let c = 0; c < maxClusters && placed < garrisonBudget; c++) {
+      // Find a cluster anchor far from start
+      let anchor = null;
+      for (let attempt = 0; attempt < 20; attempt++) {
+        const candidate = fs.randomWalkableNear(start.x, start.y, 900);
+        const dx = candidate.x - start.x;
+        const dy = candidate.y - start.y;
+        if (dx * dx + dy * dy >= MIN_DIST_FROM_START * MIN_DIST_FROM_START) {
+          anchor = candidate;
+          break;
+        }
+      }
+      if (!anchor) continue;
+
+      // Cluster size: 4-8 enemies (capped by remaining garrison budget)
+      const clusterSize = Math.min(Phaser.Math.Between(4, 8), garrisonBudget - placed);
+      for (let i = 0; i < clusterSize; i++) {
+        // Scatter within 80px of the anchor
+        garrisonPt = anchor;
+        for (let j = 0; j < 8; j++) {
+          const a = Math.random() * Math.PI * 2;
+          const r = 20 + Math.random() * 80;
+          const cx = anchor.x + Math.cos(a) * r;
+          const cy = anchor.y + Math.sin(a) * r;
+          if (fs.isWalkable(cx, cy)) { garrisonPt = { x: cx, y: cy }; break; }
+        }
+
+        // spawnOne handles all stat/flag init; we mark dormant immediately after
+        const beforeCount = this.spawnedThisFloor;
+        this.spawnOne(false);
+        if (this.spawnedThisFloor > beforeCount) {
+          // The most-recently activated enemy is the one we just placed
+          const e = this._lastSpawned();
+          if (e) {
+            e._dormant = true;
+            e.setTint(0x557788); // cool blue-grey — visually "asleep"
+            e.setVelocity(0, 0);
+          }
+          placed++;
+        }
+      }
+    }
+
+    // Restore normal spawn point
+    this.spawnPointOnFloor = origSpawnPoint;
+    garrisonPt = null;
+  }
+
+  // Return the most recently activated enemy in the pool (used by placeGarrisons).
+  _lastSpawned() {
+    const ch = this.scene.enemies.getChildren();
+    for (let i = ch.length - 1; i >= 0; i--) {
+      if (ch[i].active) return ch[i];
+    }
+    return null;
   }
 
   // a walkable spawn point on the ring around the camera (reject wall tiles)
@@ -353,6 +435,7 @@ export default class SpawnSystem {
     e.slowUntil = 0; // clear any stale slow (Alexander's javelins)
     e.stunUntil = 0; // clear any stale stun (Genghis's Khan's Cleave)
     e.fearUntil = 0; // clear any stale fear
+    e._dormant = false; // garrison dormant flag — cleared on pool reuse (normal spawns are always active)
 
     // Damage scales with FLOOR depth + dwell AND the campaign stage AND (mildly) the
     // player's offense — so deeper floors / later stages / stronger builds hit back hard.

@@ -353,6 +353,7 @@ export default class GameScene extends Phaser.Scene {
     resetAttackTokens(this);                          // prevent token leaks across floors
     this.spawner.onFloorStart(floor);                 // sets floorBudget, resets spawnedThisFloor=0
     this.spawner.spawnedThisFloor = resumeSpawned;    // restore the saved budget (runs before captureRunState below)
+    this.spawner.placeGarrisons();                    // pre-place ~45% of budget as dormant clusters
     const clearedOnResume = resumeSpawned >= this.spawner.floorBudget;
     if (!clearedOnResume) {
       this.map.scatterInRooms(d.lootCells); // loot only on a fresh / uncleared floor

@@ -79,6 +79,27 @@ export function isTelegraphing(e) {
 }
 
 export function updateMob(scene, e, delta, dist, ang) {
+  // ── DORMANT GARRISON: stand idle until the player is close or has LOS ──────
+  // Aggro radius 340px unconditional; 500px when line-of-sight is clear.
+  // On aggro: clear the flag, restore tint, and fall through to normal AI.
+  if (e._dormant) {
+    const AGGRO_NEAR = 340;
+    const AGGRO_LOS  = 500;
+    let aggroed = dist <= AGGRO_NEAR;
+    if (!aggroed && dist <= AGGRO_LOS && scene.floorSys) {
+      aggroed = scene.floorSys.hasLOS(e.x, e.y, scene.player.x, scene.player.y);
+    }
+    if (aggroed) {
+      e._dormant = false;
+      // Restore tint (elite keeps its elite tint; normal clears to default)
+      if (e.isElite) e.setTint(e.eliteTint || 0xffd54a);
+      else e.clearTint();
+    } else {
+      e.setVelocity(0, 0);
+      return; // still dormant — no movement or attack
+    }
+  }
+
   if (e.attack === 'ranged') {
     updateRanged(scene, e, delta, dist, ang);
     return;
