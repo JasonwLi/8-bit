@@ -180,6 +180,19 @@ class AudioManager {
     return true;
   }
 
+  // Play the melee SFX with an ascending pitch for DW string steps (1.0–1.3).
+  // Falls back to a normal sfx('melee') call if the API is unavailable.
+  sfxPitch(pitchMult) {
+    this.ensure();
+    if (!this.ctx || this.muted) return;
+    if (!this._ok('melee', 90)) return;
+    const m = Math.max(0.5, pitchMult || 1.0);
+    // Swing whoosh pitched up + noise + impact thud (same layers as 'melee')
+    this._tone(1100 * m, 0.09, { type: 'sine', vol: 0.09, sweepTo: 280 * m, decay: 0.09 });
+    this._noise(0.08, { vol: 0.07, lowpass: 5000 });
+    this._tone(180 * m, 0.08, { type: 'sawtooth', vol: 0.05, sweepTo: 100 * m });
+  }
+
   sfx(name) {
     this.ensure();
     if (!this.ctx || this.muted) return;

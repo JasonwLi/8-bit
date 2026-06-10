@@ -363,6 +363,57 @@ export default class WeaponSystem {
     return s;
   }
 
+  // ── DW string-step fire helper ────────────────────────────────────────────────
+  // Builds a modified stats object from baseS + stepDef overrides, then dispatches
+  // to the appropriate fire-path method. Called by GameScene for each string step
+  // and for charge finishers. Returns the dispatched stats object (for caller use).
+  fireStringStep(stepDef, baseS) {
+    const s = Object.assign({}, baseS);
+
+    // Core stat overrides from the step definition
+    if (stepDef.dmgMult != null)       s.damage   = baseS.damage * stepDef.dmgMult;
+    if (stepDef.radiusMult != null)    s.radius   = (baseS.radius   || 95)  * stepDef.radiusMult;
+    if (stepDef.arcOverride != null)   s.arc      = stepDef.arcOverride;
+    if (stepDef.lengthMult != null)    s.length   = (baseS.length   || 150) * stepDef.lengthMult;
+    if (stepDef.widthMult != null)     s.width    = (baseS.width    || 46)  * stepDef.widthMult;
+    if (stepDef.countAdd != null)      s.count    = (baseS.count    || 1)   + stepDef.countAdd;
+    if (stepDef.spreadOverride != null) s.spread  = stepDef.spreadOverride;
+    if (stepDef.knockbackOverride != null) s.knockback = stepDef.knockbackOverride;
+    if (stepDef.pierceMod != null)     s.pierce   = (baseS.pierce   || 0)   + stepDef.pierceMod;
+    if (stepDef.durationMult != null)  s.duration = (baseS.duration || 1600) * stepDef.durationMult;
+
+    // Aim override: offsetAngle rotates relative to player facing
+    const aimBase = this._lastAimAngle != null ? this._lastAimAngle : (this.player.flipX ? Math.PI : 0);
+    this._aimOverride = aimBase + (stepDef.offsetAngle || 0);
+
+    // Tag launcher flag on stats so damageEnemy can pick it up
+    s._launcher = !!stepDef.launcher;
+
+    // Override def kind for dispatch only (do NOT mutate the real def)
+    const dispatchKind = stepDef.kind || s.def.kind;
+    const dispatchS = Object.assign({}, s, {
+      def: Object.assign({}, s.def, { kind: dispatchKind }),
+    });
+
+    // Per-step motion juice
+    const motionKind = stepDef.motionKind || dispatchKind;
+    if (this.scene.playerAttackMotion) this.scene.playerAttackMotion(motionKind, this._aimOverride);
+
+    // Dispatcher — reuses every existing fire path
+    switch (dispatchKind) {
+      case 'melee_arc':          this.fireMeleeArc(dispatchS);          break;
+      case 'line_thrust':        this.fireLineThrust(dispatchS);        break;
+      case 'projectile_aimed':   this.fireProjectileAimed(dispatchS);   break;
+      case 'projectile_radial':  this.fireProjectileRadial(dispatchS);  break;
+      case 'lob_aoe':            this.fireLobAoe(dispatchS);            break;
+      case 'boomerang':          this.fireBoomerang(dispatchS);         break;
+      default:                   this.fire(dispatchS);                  break;
+    }
+
+    this._aimOverride = null;
+    return dispatchS;
+  }
+
   // PRIMARY: auto-fire on the weapon's own cadence (open-world swarm mode).
   update(_time, delta) {
     const def = this.def();
