@@ -515,6 +515,32 @@ export function buildManifest() {
     push(key, 'background', { desc }, 96, 96);
   }
 
+  // ── ITEM 1: core pickup + projectile sprites ─────────────────────────────────
+  // XP gem — glowing cyan crystal diamond, 16×16. Should read as a desirable XP drop.
+  push('gem', 'effect', { desc: 'a single small glowing cyan XP crystal gem — a tiny bright diamond-shaped crystal with an inner cyan-white glow and light blue facets, transparent background, small pixel-art style icon' }, 16, 16);
+
+  // Health drop — classic pixel heart, 18×18 red.
+  push('pickup_heart', 'effect', { desc: 'a single classic pixel-art red heart shape — a bright red heart with a small white highlight dot at top-left, solid fully-filled red heart icon, transparent background' }, 18, 18);
+
+  // Enemy projectile orb — kept near-white/warm-white so enemy tinting colours show correctly.
+  // The code clears or sets tint per-projectile so a warm-white base ensures tint accuracy.
+  push('enemy_proj', 'effect', { desc: 'a single small glowing energy orb projectile — a round luminous sphere with a bright white-ivory core surrounded by a warm pale cream glow and a soft edge, mostly white with subtle warmth, transparent background, small game projectile icon' }, 16, 16);
+
+  // Power-up orb icons (48×48 emblem chips) — shown in HUD as active buff icons.
+  push('pu_atk', 'ability_icon', { desc: 'a red attack power emblem icon — a bold upward-pointing golden sword silhouette on a dark crimson background chip, glowing red power orb emblem, small 48x48 game icon' }, 48, 48);
+  push('pu_def', 'ability_icon', { desc: 'a blue defense emblem icon — a bold steel-blue shield silhouette on a dark navy background chip, glowing blue defense orb emblem, small 48x48 game icon' }, 48, 48);
+  push('pu_spd', 'ability_icon', { desc: 'a green speed emblem icon — a bold bright green lightning bolt silhouette on a dark green background chip, glowing green speed orb emblem, small 48x48 game icon' }, 48, 48);
+  push('pu_invuln', 'ability_icon', { desc: 'a yellow invulnerability emblem icon — a bold bright golden 5-pointed star silhouette on a dark amber background chip, glowing gold star orb emblem, small 48x48 game icon' }, 48, 48);
+
+  // Missing primary-weapon projectile sprites — BLADE/POINT TO THE RIGHT (rotated at runtime).
+  push('proj_matchlock_volley', 'prop', { desc: 'a single small elongated musket ball or bullet — a slim grey-silver metallic oval/cylinder, dull grey lead colour, solid opaque shape, tiny projectile icon, no gun, no fire, no human' }, 16, 16);
+  push('proj_scattershot', 'prop', { desc: 'a single small lead musket ball — a solid round grey metallic bullet, flat matte grey-silver colour, COMPLETELY SOLID OPAQUE filled disc, NOT hollow, NOT outlined, fully filled grey sphere, tiny game projectile' }, 16, 16);
+
+  // Secondary-weapon projectile sprites:
+  push('proj_gate_spear', 'prop', { desc: 'ONLY a single SOLID FILLED golden magical spear head — a SOLID FILLED bright gold diamond-shaped arrowhead or spearpoint, fully gold-filled, warm yellow-gold metallic colour, NO hollow outline or lineart, just the solid golden spearhead shape, no handle, no hand' }, 16, 16);
+  push('proj_fireburst', 'prop', { desc: 'ONLY a single blazing orange fire bolt pointing RIGHT — a tear-shaped bright orange fireball with a flame tail streaming to the left, vivid hot orange and yellow glow, just the fire bolt, no hand, 16x16 pixel art' }, 16, 16);
+  push('proj_greek_fire', 'prop', { desc: 'ONLY a single round ceramic flask/pot of greek fire — a small round orange clay pot with flames bursting from the top, an incendiary projectile, just the flask by itself, no hand, 16x16 pixel art' }, 16, 16);
+
   return items;
 }
 

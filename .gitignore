@@ -6,3 +6,4 @@ dist
 # AI sprite regeneration sources (not needed at runtime)
 public/sprites/.raw/
 public/sprites/.approved/
+.claude/worktrees/

@@ -7,6 +7,7 @@ export const CONTRACTS = [
     name: 'Bloodlust',
     penalty: 'Enemies deal +25% damage',
     reward: '+1 artifact choice',
+    icon: 'axis_damage',
     enemyDmgMult: 1.25,
   },
   {
@@ -14,6 +15,7 @@ export const CONTRACTS = [
     name: 'Endless Horde',
     penalty: 'Enemies have +35% HP',
     reward: '+1 artifact choice',
+    icon: 'axis_amount',
     enemyHpMult: 1.35,
   },
   {
@@ -21,6 +23,7 @@ export const CONTRACTS = [
     name: 'Siege',
     penalty: 'Boss HP +40%',
     reward: '+1 artifact choice',
+    icon: 'axis_power',
     bossHpMult: 1.4,
   },
   {
@@ -28,6 +31,7 @@ export const CONTRACTS = [
     name: 'Scorched Earth',
     penalty: 'No shrines this stage',
     reward: '+1 artifact choice',
+    icon: 'flame_pool',
     noShrines: true,
   },
   {
@@ -35,6 +39,7 @@ export const CONTRACTS = [
     name: 'Frailty',
     penalty: 'Your max HP −20%',
     reward: '+1 artifact choice & +25% XP',
+    icon: 'axis_area',
     playerHpMult: 0.8,
     xpBonus: 0.25,
   },

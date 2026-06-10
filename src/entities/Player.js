@@ -189,8 +189,10 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
     this.scene.tweens.add({ targets: t, y: t.y - 18, alpha: 0, duration: 500, onComplete: () => t.destroy() });
   }
 
+  // Heal the player. overCap=true lets shrines/pickups push HP up to maxHp*1.25 as a
+  // temporary overheal. The excess decays back to maxHp at ~2 HP/s via applyRegen.
   heal(amount, { overCap = false } = {}) {
-    const ceiling = overCap ? this.maxHp : this.maxHp;
+    const ceiling = overCap ? this.maxHp * 1.25 : this.maxHp;
     this.hp = Math.min(ceiling, this.hp + amount);
   }
 
@@ -214,7 +216,13 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
   }
 
   // Slow passive regen, capped so it can't refill to full (unless gear raises cap).
+  // Also drains any temporary overheal (hp > maxHp) back down at 2 HP/s.
   applyRegen(dtSeconds) {
+    // Overheal drain: excess above maxHp bleeds off at 2 HP/s (regardless of regen stat).
+    if (this.hp > this.maxHp) {
+      this.hp = Math.max(this.maxHp, this.hp - 2 * dtSeconds);
+      return; // don't also apply forward-regen while overhealed
+    }
     if (this.regen <= 0 || this.hp <= 0) return;
     const cap = this.maxHp * this.regenCap;
     if (this.hp >= cap) return;

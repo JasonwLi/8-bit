@@ -754,11 +754,11 @@ export default class GameScene extends Phaser.Scene {
       tex = 'acid_pool'; warnTint = 0x44ff44; poolTint = undefined;
     }
     const scale = (radius * 2) / 64; // all hazard textures are ~64px source
-    const warn = this.add.image(x, y, tex).setDepth(2).setScale(scale).setAlpha(0.25).setTint(warnTint);
+    const warn = this.add.image(x, y, tex).setDepth(3).setScale(scale).setAlpha(0.25).setTint(warnTint);
     this.tweens.add({ targets: warn, alpha: 0.55, duration: delay / 2, yoyo: true, repeat: 1 });
     this.time.delayedCall(delay, () => {
       warn.destroy();
-      const pool = this.add.image(x, y, tex).setDepth(2).setScale(scale).setAlpha(0.9);
+      const pool = this.add.image(x, y, tex).setDepth(3).setScale(scale).setAlpha(0.9);
       if (poolTint !== undefined) pool.setTint(poolTint);
       const ticks = Math.max(1, Math.floor(linger / tick));
       let done = 0;
@@ -1197,7 +1197,7 @@ export default class GameScene extends Phaser.Scene {
     dmg = Math.round(dmg);
     enemy.hp -= dmg;
     this.fx.damageNumber(enemy.x, enemy.y - enemy.displayHeight * 0.4, dmg,
-      enemy.isBoss ? { color: this.theme.accentCss, big: true } : {});
+      enemy.isBoss ? { color: this.theme.accentCss, big: true, fromPlayer: true } : { fromPlayer: true });
     this.fx.impact(enemy.x, enemy.y);
     Audio.sfx('hit');
     this.player.lifestealFrom(dmg);
@@ -1364,7 +1364,7 @@ export default class GameScene extends Phaser.Scene {
   // it for `duration`, then fades. Shared by Genghis's primary trail AND his ultimate.
   spawnCaltropField(x, y, radius, damage, duration, tick) {
     const key = this.textures.exists('caltrops') ? 'caltrops' : 'acid_pool';
-    const field = this.add.image(x, y, key).setDepth(2).setScale((radius * 2) / 48).setAlpha(0.95);
+    const field = this.add.image(x, y, key).setDepth(3).setScale((radius * 2) / 48).setAlpha(0.95);
     // a soft, NON-glowing brown dust puff as the volley thunks in — matches the dirt/steel
     // caltrop palette (the old additive flash read as a bright out-of-place circle).
     const dust = this.add.circle(x, y, radius * 0.5, 0x8a7048, 0.4).setDepth(3);
@@ -1606,7 +1606,7 @@ export default class GameScene extends Phaser.Scene {
       }
     };
     if (telegraph) {
-      const warn = this.add.image(x, y, 'soft_circle').setScale(scale).setTint(color).setAlpha(0.25).setDepth(2);
+      const warn = this.add.image(x, y, 'soft_circle').setScale(scale).setTint(color).setAlpha(0.25).setDepth(3);
       this.tweens.add({ targets: warn, alpha: 0.5, duration: Math.max(80, delay / 2), yoyo: true, repeat: 1 });
       this.time.delayedCall(delay, () => { warn.destroy(); explode(); });
     } else {

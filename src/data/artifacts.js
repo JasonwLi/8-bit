@@ -9,6 +9,7 @@ export const ARTIFACTS = [
     name: 'Imperial Mandate',
     desc: '+30% Attack, +20% Effect Power — the decree of a conquering emperor.',
     color: 0xd4af37,
+    icon: 'axis_damage',
     mods: { damageMult: 0.30, effectMult: 0.20 },
   },
   {
@@ -16,6 +17,7 @@ export const ARTIFACTS = [
     name: 'Jade Seal of Heaven',
     desc: '+45% Max HP, +10% Defense — the sacred seal that legitimizes rule.',
     color: 0x2ecc71,
+    icon: 'icon_pendant_legendary',
     mods: { maxHpMult: 0.45, defense: 0.10 },
   },
   {
@@ -23,6 +25,7 @@ export const ARTIFACTS = [
     name: 'Vanguard Banner',
     desc: '+22% Move Speed, +25% Pickup Range, -8% Attack Speed — the battle standard that leads the charge.',
     color: 0xe74c3c,
+    icon: 'axis_haste',
     mods: { speedMult: 0.22, pickupMult: 0.25, cooldownMult: -0.08 },
   },
   {
@@ -30,6 +33,7 @@ export const ARTIFACTS = [
     name: "Conqueror's Pauldron",
     desc: '+18% Defense, +15% Ranged Defense, +20% Max HP — shoulder-plate stripped from a hundred fallen warlords.',
     color: 0x7f8c8d,
+    icon: 'icon_armor_epic',
     mods: { defense: 0.18, rangedDefense: 0.15, maxHpMult: 0.20 },
   },
   {
@@ -37,6 +41,7 @@ export const ARTIFACTS = [
     name: 'Bloodpact Ring',
     desc: '+35% Attack, +8% Lifesteal, -5% Max HP — forged in an oath sealed with blood.',
     color: 0x8e1a2e,
+    icon: 'icon_ring_epic',
     mods: { damageMult: 0.35, lifesteal: 0.08, maxHpMult: -0.05 },
   },
   {
@@ -44,6 +49,7 @@ export const ARTIFACTS = [
     name: 'Silk Road Compass',
     desc: '+45% XP, +40% Pickup Range — a navigator\'s relic that draws distant treasures near.',
     color: 0x3498db,
+    icon: 'axis_amount',
     mods: { xpMult: 0.45, pickupMult: 0.40 },
   },
   {
@@ -51,6 +57,7 @@ export const ARTIFACTS = [
     name: 'Shadow Wraith Cloak',
     desc: '+14% Dodge, +20% Move Speed, +12% Ranged Defense — worn by the empire\'s phantom assassins.',
     color: 0x1a1a2e,
+    icon: 'icon_cape_rare',
     mods: { dodge: 0.14, speedMult: 0.20, rangedDefense: 0.12 },
   },
   {
@@ -58,6 +65,7 @@ export const ARTIFACTS = [
     name: 'Battle Drum of the Warlord',
     desc: '+25% Attack Speed, +25% Weapon Reach — its rhythm drives warriors beyond mortal limits.',
     color: 0xe67e22,
+    icon: 'axis_speed',
     mods: { cooldownMult: -0.25, reachMult: 0.25 },
   },
   {
@@ -65,6 +73,7 @@ export const ARTIFACTS = [
     name: 'Ancient Relic Core',
     desc: '+0.8 HP/s Regen, +35% Regen Cap, +60 Max HP — enables a true sustain build amid scarce healing.',
     color: 0x9b59b6,
+    icon: 'axis_effect',
     mods: { regen: 0.8, regenCapBonus: 0.35, maxHpFlat: 60 },
   },
   {
@@ -72,6 +81,7 @@ export const ARTIFACTS = [
     name: "Philosopher's Crown",
     desc: '+30% Effect Power, +35% Weapon Reach, -10% Attack — power of mind over matter, at a cost.',
     color: 0x5dade2,
+    icon: 'icon_hat_legendary',
     mods: { effectMult: 0.30, reachMult: 0.35, damageMult: -0.10 },
   },
   {
@@ -79,6 +89,7 @@ export const ARTIFACTS = [
     name: 'Eternal Legionary Plate',
     desc: '+12% Damage Reduction, +15% Defense, +30 Max HP — forged for the soldiers who never came home.',
     color: 0xb8860b,
+    icon: 'icon_armor_legendary',
     mods: { damageReduction: 0.12, defense: 0.15, maxHpFlat: 30 },
   },
 ];
