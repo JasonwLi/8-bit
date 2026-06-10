@@ -280,6 +280,7 @@ export default class WeaponSystem {
     }
     if (s.duration == null && b.duration) s.duration = b.duration;
     if (s.tick == null && b.tick) s.tick = b.tick;
+    if (s.burstDelay == null && b.burstDelay) s.burstDelay = b.burstDelay; // burst_aimed weapons (scattershot/companion_javelin)
 
     // universal, scalable on-hit effects (default-on via base, upgraded by their axis)
     s.knockback = (b.knockback || 0) + P('knockback') * M('knockback', 16);
