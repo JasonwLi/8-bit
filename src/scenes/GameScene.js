@@ -299,6 +299,12 @@ export default class GameScene extends Phaser.Scene {
     this.cameras.main.centerOn(start.x, start.y);
     this._lastRevealX = -1e9; this._lastRevealY = -1e9; // re-reveal fog from the new spawn
 
+    // FLAWLESS FLOOR: assume we arrive undamaged; any real hit clears the flag.
+    // The _haadEnemy flag gates the bonus so empty / cleared-resume floors don't hand
+    // out free chests — it's set true once the first spawn is placed on this floor.
+    this._flawlessFloor = true;
+    this._floorHadEnemies = false;
+
     const d = this.floorSys.data;
     this.nav = new FlowField(d.cols, d.rows, d.grid);
     this._navAcc = 0;
@@ -351,6 +357,17 @@ export default class GameScene extends Phaser.Scene {
   // floor's champion ends the stage via conquerStage instead of a descent.
   descendFloor() {
     if (this.floor >= this.floorsTotal) return;
+
+    // FLAWLESS FLOOR: if the player cleared the floor without taking a real hit
+    // (and the floor actually had enemies), spawn a bonus chest + play a banner.
+    if (this._flawlessFloor && this._floorHadEnemies) {
+      // Place the bonus chest at the stairs so the player sees it immediately
+      const st = this.floorSys.stairs;
+      if (st) this.drops.spawnChest(st.x, st.y);
+      this.showBanner('Flawless floor — the spoils are yours', '#ffd700');
+      Audio.sfx('levelup');
+    }
+
     this.clearField();
     Audio.sfx('descend'); // low stone-grind sweep (item 5)
 
@@ -476,12 +493,44 @@ export default class GameScene extends Phaser.Scene {
       }
     }
     this.updateAllies(time, delta); // Caesar's legionaries seek + fight
-    // enemy projectile lifespans (+ trail)
+    // enemy projectile lifespans (+ trail) + GRAZE detection
+    // A graze fires when an enemy projectile passes within ~30px of the player
+    // WITHOUT hitting (the overlap handler above consumed it on a real hit). Each
+    // graze shaves 150ms off the ultimate's remaining cooldown and sparks a tiny
+    // cyan flash at the player edge. Rate-capped to ~5/sec to prevent farm exploits.
+    // No graze while dash-invulnerable (no double-dipping on the perfect-dodge window).
+    const _now = this.time.now;
+    const GRAZE_RADIUS2 = 30 * 30; // squared — avoids sqrt in the hot path
+    const GRAZE_CD_MS = 200;       // minimum 200ms between any two grazes (~5/sec)
+    const GRAZE_CD_REDUCE = 150;   // ms shaved from ult cooldown per graze
+    if (!this._grazeLastAt) this._grazeLastAt = 0;
+    const _grazeDashInvuln = this.player.isDashInvuln(_now);
     for (const p of this.enemyProjectiles.getChildren()) {
       if (!p.active) continue;
       this.fx.trail(p.x, p.y, p.trailColor || 0xff6b6b);
       p.lifespan -= delta;
-      if (p.lifespan <= 0) this.deactivate(p);
+      if (p.lifespan <= 0) { this.deactivate(p); continue; }
+
+      // Graze check: projectile alive, player not dash-invuln, hasn't been counted yet
+      if (!p._grazed && !_grazeDashInvuln && _now - this._grazeLastAt >= GRAZE_CD_MS) {
+        const gdx = p.x - this.player.x;
+        const gdy = p.y - this.player.y;
+        if (gdx * gdx + gdy * gdy <= GRAZE_RADIUS2) {
+          p._grazed = true;
+          this._grazeLastAt = _now;
+          // Shave cooldown — never below 0
+          if (this.ability.cdRemaining > 0) {
+            this.ability.cdRemaining = Math.max(0, this.ability.cdRemaining - GRAZE_CD_REDUCE);
+          }
+          // Tiny cyan spark at the player's edge toward the bullet
+          const ga = Math.atan2(gdy, gdx); // angle from player toward bullet
+          const sx = this.player.x + Math.cos(ga) * 14;
+          const sy = this.player.y + Math.sin(ga) * 14;
+          this.fx._flash(sx, sy, 5, 0x00e5ff, 0.85, 130);
+          this.fx._tint(this.fx.spark, 0x00e5ff);
+          this.fx.spark.emitParticleAt(sx, sy, 3);
+        }
+      }
     }
 
     if (this.dungeonMode) {
@@ -1675,6 +1724,7 @@ export default class GameScene extends Phaser.Scene {
       return;
     }
     this.player.kills += 1;
+    this.player.streak += 1; // MOMENTUM: one more kill without taking damage
     this.player.addMomentum(); // builds/extends the musou window if active
     // Deathburst mutation: release an energy nova on each kill.
     if (this.player.mutations && this.player.mutations.kill_nova) {
@@ -1740,6 +1790,8 @@ export default class GameScene extends Phaser.Scene {
     else if (result === 'perfect_dodge') this.triggerPerfectDodge();
     else if (result === 'hit') {
       Audio.sfx('hurt');
+      // FLAWLESS FLOOR: a real hit breaks the untouched run on this floor
+      this._flawlessFloor = false;
       // Searing Wounds mutation: drop a fire patch at the player's feet on each hit.
       // A brief delay prevents it registering before the player moves off (80ms).
       if (this.player.mutations && this.player.mutations.fire_on_hit) {

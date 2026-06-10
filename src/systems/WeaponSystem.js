@@ -119,7 +119,8 @@ export default class WeaponSystem {
     const empFx = emp ? 1 : 0;
 
     const damage =
-      b.damage * (1 + pt.damage * pp.damage) * this.player.damageMult * this.player.buffDamageMult * empDmg;
+      b.damage * (1 + pt.damage * pp.damage) * this.player.damageMult * this.player.buffDamageMult
+      * (1 + this.player.streakDamageMult) * empDmg; // MOMENTUM bonus
     const cooldown =
       b.cooldown * this.player.cooldownMult * Math.pow(1 - pp.speed, pt.speed) * empCd;
     const reachMult = (1 + pt.reach * pp.reach) * this.player.reachMult;
@@ -236,7 +237,8 @@ export default class WeaponSystem {
 
     const sizePts = P('size');
     const reachMult = (1 + sizePts * M('size', 0.12)) * p.reachMult;
-    const damage = b.damage * (1 + P('dmg') * M('dmg', 0.16)) * p.damageMult * p.buffDamageMult * empDmg;
+    const damage = b.damage * (1 + P('dmg') * M('dmg', 0.16)) * p.damageMult * p.buffDamageMult
+      * (1 + p.streakDamageMult) * empDmg; // MOMENTUM bonus
     const cooldown = b.cooldown * p.cooldownMult * Math.pow(1 - M('cadence', 0.07), P('cadence')) * empCd;
     const bonusProj = p.bonusProjectiles || 0;
     const s = { def, damage, cooldown, reachMult };

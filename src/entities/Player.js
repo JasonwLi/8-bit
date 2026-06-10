@@ -42,6 +42,12 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
     this._regenCarry = 0;
     this.rooted = false; // duel: set true during attack-commitment / stun so move() can't walk you out of it
 
+    // MOMENTUM: kills since the player last took real damage. Resets on any hit
+    // that lands (not blocked by i-frames or invuln). A computed getter turns this
+    // into damageMult / speedMult bonuses in the combat pipeline — NOT saved to
+    // persistent state (it's a session-only reward for sustained aggression).
+    this.streak = 0;
+
     // dash: 2 independent charges, each recharges in 1.8s
     this.dashCharges = 2;
     this.dashChargeMax = 2;
@@ -166,12 +172,18 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
     this.xpToNext = xpForLevel(level);
   }
 
+  // MOMENTUM bonus multipliers — computed live from this.streak so they stay out
+  // of the save state.  Applied in move() and the weapon damage pipeline.
+  get streakDamageMult() { return Math.min(0.30, this.streak * 0.01); }
+  get streakSpeedMult()  { return Math.min(0.10, this.streak * 0.004); }
+
   move(dirX, dirY) {
     if (this.rooted) { this.setVelocity(0, 0); return; } // committed to an attack / stunned: input can't move you
     // During a dash the velocity is owned by the dash burst — don't let normal move() overwrite it.
     if (this.dashing) return;
     const len = Math.hypot(dirX, dirY) || 1;
-    const sp = this.speed * this.buffSpeedMult * this.terrainSpeedMult * this.curseSlow;
+    // streakSpeedMult adds onto the base speed (additive with other speed buffs)
+    const sp = this.speed * (this.buffSpeedMult + this.streakSpeedMult) * this.terrainSpeedMult * this.curseSlow;
     this.setVelocity((dirX / len) * sp, (dirY / len) * sp);
     if (dirX < 0) this.setFlipX(true);
     else if (dirX > 0) this.setFlipX(false);
@@ -264,6 +276,9 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
       this.showDodge();
       return 'dodge';
     }
+    // Real hit landed — reset the momentum streak (blocked/invuln hits returned early
+    // above, so we only reach this path when damage is actually applied).
+    this.streak = 0;
     const dr = ranged ? this.rangedDR : this.meleeDR;
     this.hp -= amount * (1 - dr) * this.buffDamageTakenMult;
     if (!bypassIframes) this.invuln = time + 450;

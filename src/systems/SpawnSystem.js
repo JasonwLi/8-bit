@@ -98,6 +98,7 @@ export default class SpawnSystem {
     const e = this.scene.enemies.get(x, y, `enemy_${def.id}`);
     if (!e) return;
     this.spawnedThisFloor++; // counts against this floor's spawn budget
+    this.scene._floorHadEnemies = true; // FLAWLESS FLOOR: floor is no longer empty
     e.setActive(true).setVisible(true);
     e.body.reset(x, y);
     e.body.enable = true;

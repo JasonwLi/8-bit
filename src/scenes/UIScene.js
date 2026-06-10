@@ -63,6 +63,14 @@ export default class UIScene extends Phaser.Scene {
     this.resonanceText = this.add
       .text(12, 146, '', { fontFamily: 'monospace', fontSize: '10px', color: '#8fe6ff', lineSpacing: 2 }).setDepth(101);
 
+    // MOMENTUM streak counter — sits just right of the HP number, below the dash pips.
+    // Shown only when streak > 0; pulses gold at milestones (10/20/30+), gold at cap (30).
+    this.streakText = this.add
+      .text(0, 0, '', { fontFamily: 'monospace', fontSize: '13px', color: '#ffd700', fontStyle: 'bold' })
+      .setDepth(101).setVisible(false);
+    this.streakText.setShadow(1, 1, '#000000', 3, true, true);
+    this._streakLast = 0; // previous value — used to detect milestone transitions
+
     // --- CENTER: boss name (above its bar; bar drawn in update) ---
     this.bossNameText = this.add
       .text(width / 2, 42, '', { fontFamily: 'monospace', fontSize: '15px', color: '#ff8a8a', fontStyle: 'bold' })
@@ -194,6 +202,36 @@ export default class UIScene extends Phaser.Scene {
         g.fillStyle(filled ? 0x00e5ff : 0x112222, filled ? 0.92 : 0.7).fillRect(cx, py0, pipW, pipH);
       }
     }
+    // MOMENTUM streak counter — just below the dash pips, right-aligned to the HP bar
+    {
+      const streak = p.streak || 0;
+      const CAP = 30; // streak * 0.01 cap at 0.30 = 30 kills
+      if (streak > 0) {
+        const atCap = streak >= CAP;
+        const color = atCap ? '#ffd700' : '#ffe08a';
+        this.streakText
+          .setVisible(true)
+          .setText(`x${streak}`)
+          .setColor(color)
+          .setPosition(hx + hw + 8, hy + hh + 16);
+        // Pulse: scale pop on milestone transitions (10, 20, 30)
+        const wasMilestone = (this._streakLast < 10 && streak >= 10)
+          || (this._streakLast < 20 && streak >= 20)
+          || (this._streakLast < CAP && streak >= CAP);
+        if (wasMilestone) {
+          this.tweens.killTweensOf(this.streakText);
+          this.tweens.add({
+            targets: this.streakText,
+            scaleX: 1.6, scaleY: 1.6, duration: 80, yoyo: true, ease: 'Quad.easeOut',
+            onComplete: () => { if (this.streakText) this.streakText.setScale(1); },
+          });
+        }
+      } else {
+        this.streakText.setVisible(false);
+      }
+      this._streakLast = streak;
+    }
+
     const extra = [];
     if (p.meleeDR > 0) extra.push(`DEF ${Math.round(p.meleeDR * 100)}`);
     if (p.rangedDR > 0) extra.push(`RDEF ${Math.round(p.rangedDR * 100)}`);
