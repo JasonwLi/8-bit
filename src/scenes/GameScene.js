@@ -2501,6 +2501,13 @@ export default class GameScene extends Phaser.Scene {
       const primaryDown = bk.primary.isDown;
       const primaryJustUp = Phaser.Input.Keyboard.JustUp(bk.primary);
 
+      // hold-compat: _chargeFired is cleared here (not just on key-up) so that
+      // a player who keeps holding after an auto-release immediately starts a new
+      // charge cycle rather than stalling until they physically release the key.
+      if (primaryDown && this._chargeFired && this._chargeMs === 0) {
+        this._chargeFired = false; // new cycle begins on the next branch below
+      }
+
       if (primaryDown && !this._chargeFired) {
         // Key held: accumulate charge time
         this._chargeMs += delta;
@@ -2524,7 +2531,12 @@ export default class GameScene extends Phaser.Scene {
         if (this._chargeArmed) {
           this._fireCharged('heavy');
           this._chargeArmed = false;
+          // hold-compat: mark cycle done and zero the timer so the guard block
+          // above clears _chargeFired on the very next frame (key still held →
+          // new cycle) while the key-up path stays a no-op (_chargeFired=true).
           this._chargeFired = true;
+          this._chargeMs = 0;
+          if (this._chargeFx) { this._chargeFx.destroy(); this._chargeFx = null; }
         }
       }
 
