@@ -323,6 +323,8 @@ export default class DuelController {
     }
     s.player.body.reset(this.center.x, this.center.y + this.radius * 0.55); // stand at the near edge
 
+    // ITEM D: suppress ambient particles during the duel
+    if (s._stopAmbienceEmitter) s._stopAmbienceEmitter();
     // build the themed arena (floor, walls, dressing, cover, hazards)
     this.arena.build(this.center.x, this.center.y, this.radius);
 
@@ -392,6 +394,8 @@ export default class DuelController {
     if (this.comboText) { this.comboText.destroy(); this.comboText = null; }
     if (this.stunText) { this.stunText.destroy(); this.stunText = null; }
     if (this.flawlessText) { this.flawlessText.destroy(); this.flawlessText = null; }
+    // ITEM D: restore ambient particles now that the duel arena has been torn down
+    if (s._startAmbienceEmitter) s._startAmbienceEmitter();
   }
 
   // Dramatic kill flourish (called from GameScene.defeatBoss when wasDuel).

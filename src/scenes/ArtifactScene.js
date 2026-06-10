@@ -25,7 +25,9 @@ export default class ArtifactScene extends Phaser.Scene {
 
     // one reroll per presentation
     this._rerolled = false;
-    this._choices = rollArtifacts(3 + (this._run.artifactBonus || 0), this._run.artifacts);
+    // ITEM C: pass the just-conquered civ so its relic is always offered
+    this._civId = this._run.currentCiv; // null if this is reached from somewhere else
+    this._choices = rollArtifacts(3 + (this._run.artifactBonus || 0), this._run.artifacts, this._civId);
     this._cardObjs = [];
     this._buildCards(width, height);
 
@@ -66,12 +68,13 @@ export default class ArtifactScene extends Phaser.Scene {
   _doReroll(width, height) {
     if (this._rerolled) return;
     this._rerolled = true;
-    this._choices = rollArtifacts(3 + (this._run.artifactBonus || 0), this._run.artifacts);
+    this._choices = rollArtifacts(3 + (this._run.artifactBonus || 0), this._run.artifacts, this._civId);
     this._buildCards(width, height);
   }
 
   buildCard(cx, cy, w, a, num, reg = (o) => o) {
-    const h = 230;
+    const hasLore = !!a.lore;
+    const h = hasLore ? 260 : 230; // taller cards for relics with lore
     const top = cy - h / 2;
     const g = reg(this.add.graphics());
     drawPanel(g, cx - w / 2, top, w, h, a.color || 0xffd700, { radius: 12, header: 32 });
@@ -84,10 +87,18 @@ export default class ArtifactScene extends Phaser.Scene {
     if (a.icon && this.textures.exists(a.icon)) {
       reg(this.add.image(cx, top + 100, a.icon).setScale(0.9));
     }
-    reg(this.add.text(cx, cy + 50, a.desc, {
+    reg(this.add.text(cx, cy + 46, a.desc, {
       fontFamily: 'monospace', fontSize: '13px', color: '#ffd27a',
       align: 'center', wordWrap: { width: w - 30 },
     }).setOrigin(0.5, 0));
+
+    // ITEM C: lore line in italic-grey under the description (champion relics only)
+    if (hasLore) {
+      reg(this.add.text(cx, cy + 92, a.lore, {
+        fontFamily: 'monospace', fontSize: '11px', color: '#9a9aaa', fontStyle: 'italic',
+        align: 'center', wordWrap: { width: w - 30 },
+      }).setOrigin(0.5, 0));
+    }
 
     const zone = reg(this.add.zone(cx, cy, w, h).setInteractive({ useHandCursor: true }));
     zone.on('pointerover', () => g.setAlpha(0.82));
