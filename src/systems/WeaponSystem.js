@@ -383,9 +383,18 @@ export default class WeaponSystem {
     if (stepDef.rangeMultAdd != null)  s.range    = (baseS.range    || 230) * (1 + stepDef.rangeMultAdd); // boomerang throw distance
     if (stepDef.durationMult != null)  s.duration = (baseS.duration || 1600) * stepDef.durationMult;
 
-    // Aim override: offsetAngle rotates relative to player facing
-    const aimBase = this._lastAimAngle != null ? this._lastAimAngle : (this.player.flipX ? Math.PI : 0);
+    // Aim override: compute FRESH aim every step (nearest enemy → flipX), exactly like
+    // fire(). Basing it on _lastAimAngle made strings keep firing along the PREVIOUS
+    // shot's heading — after the player turned, narrow projectiles (Nobunaga) visibly
+    // shot the wrong way until the string reset. offsetAngle rotates relative to aim.
+    const target = this.nearestEnemy();
+    const aimBase = this._aimOverride != null
+      ? this._aimOverride
+      : target
+      ? Math.atan2(target.y - this.player.y, target.x - this.player.x)
+      : (this.player.flipX ? Math.PI : 0);
     this._aimOverride = aimBase + (stepDef.offsetAngle || 0);
+    this._lastAimAngle = this._aimOverride;
 
     // Tag launcher flag on stats so damageEnemy can pick it up
     s._launcher = !!stepDef.launcher;
