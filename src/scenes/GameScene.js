@@ -966,6 +966,7 @@ export default class GameScene extends Phaser.Scene {
     p.damage = damage;
     p.lifespan = opts.lifespan || 4000;
     p.trailColor = opts.tint || 0xff6b6b; // red-ish glow trail by default
+    p._grazed = false; // reset graze flag so recycled projectiles can trigger graze again
     return p;
   }
 
