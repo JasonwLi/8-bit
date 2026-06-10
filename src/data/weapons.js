@@ -84,17 +84,18 @@ export const WEAPONS = {
       { id: 'ap',    kind: 'armorpierce',label: 'Armor-Piercing', desc: 'Shots ignore enemy armor' },
       { id: 'hail',  kind: 'count',      label: 'Hailfire',       desc: '+1 shot every ~3 points', per: 0.34 },
     ],
-    // DW string: S1 single, S2 double volley, S3 fan volley, S4 piercing rail
+    // DW string: S1 single rail; S2 tight double; S3 disciplined 3-shot line burst (no spread);
+    // S4 deep piercing rail. No fan spread — Nobunaga is a precision marksman, not an area suppressor.
     string: [
       { stepId: 'S1', kind: 'projectile_aimed', dmgMult: 0.65, countAdd: 0,  spreadOverride: 0,    pierceMod: 0,  motionKind: 'charge_tap',   sfxPitchMult: 1.00 },
       { stepId: 'S2', kind: 'projectile_aimed', dmgMult: 0.55, countAdd: 1,  spreadOverride: 8,    pierceMod: 0,  motionKind: 'charge_tap',   sfxPitchMult: 1.10 },
-      { stepId: 'S3', kind: 'projectile_aimed', dmgMult: 0.45, countAdd: 2,  spreadOverride: 22,   pierceMod: 0,  motionKind: 'charge_tap',   sfxPitchMult: 1.20 },
+      { stepId: 'S3', kind: 'burst_line_volley', dmgMult: 0.50, countAdd: 2,  spreadOverride: 0,   pierceMod: 0,  burstDelay: 70, motionKind: 'charge_tap',   sfxPitchMult: 1.20 },
       { stepId: 'S4', kind: 'projectile_aimed', dmgMult: 0.85, countAdd: 0,  spreadOverride: 0,    pierceMod: 4,  motionKind: 'charge_heavy', sfxPitchMult: 1.30 },
     ],
     chargeFinishers: {
-      C2: { kind: 'projectile_aimed',  dmgMult: 1.5, countAdd: 0,  spreadOverride: 0,  pierceMod: 2, launcher: true,  motionKind: 'charge_heavy', ringColor: 0x00ccff, label: 'CONCUSSIVE ROUND' },
-      C3: { kind: 'projectile_aimed',  dmgMult: 1.2, countAdd: 3,  spreadOverride: 35, knockbackOverride: 40,          motionKind: 'charge_heavy', ringColor: 0xff8800, label: 'DEMOLITION BARRAGE' },
-      C4: { kind: 'projectile_radial', dmgMult: 2.0, countAdd: 8,  grandFinisher: true, motionKind: 'charge_heavy',    ringColor: 0xff2222, label: 'DEMON KING CANNONADE' },
+      C2: { kind: 'projectile_aimed',   dmgMult: 1.5, countAdd: 0,  spreadOverride: 0,  pierceMod: 2, launcher: true,  motionKind: 'charge_heavy', ringColor: 0x00ccff, label: 'CONCUSSIVE ROUND' },
+      C3: { kind: 'projectile_aimed',   dmgMult: 1.2, countAdd: 3,  spreadOverride: 35, knockbackOverride: 40,          motionKind: 'charge_heavy', ringColor: 0xff8800, label: 'DEMOLITION BARRAGE' },
+      C4: { kind: 'kings_fusillade',    dmgMult: 2.2, countAdd: 4,  spreadOverride: 0,  pierceMod: 6, knockbackOverride: 50, grandFinisher: true, motionKind: 'charge_heavy', ringColor: 0xff2222, label: "KING'S FUSILLADE" },
     },
     // EVOLVE — Demon King's Fusillade: each shot detonates a fire zone at impact.
     // Rewarded for long-range placement — the shell pierces everything AND leaves
@@ -129,11 +130,13 @@ export const WEAPONS = {
       { id: 'sticky', kind: 'burnpatch',label: 'Sticky Fire',    desc: 'Pools last longer and scorch the ground' },
       { id: 'conf',   kind: 'size',     label: 'Conflagration',  desc: '+12% pool radius' },
     ],
-    // DW string: S1 aimed pot, S2 double lob, S3 fire spread, S4 conflagration
+    // DW string: S1 aimed pot, S2 double lob, S3 triangular 3-pot scatter (distinct silhouette
+    // from any straight volley — one forward, one left, one right in a triangle pattern),
+    // S4 conflagration mega-pot.
     string: [
       { stepId: 'S1', kind: 'lob_aoe', dmgMult: 0.65, countAdd: 0,  radiusMult: 0.85, motionKind: 'charge_tap',   sfxPitchMult: 1.00 },
       { stepId: 'S2', kind: 'lob_aoe', dmgMult: 0.60, countAdd: 1,  radiusMult: 0.90, motionKind: 'charge_tap',   sfxPitchMult: 1.10 },
-      { stepId: 'S3', kind: 'lob_aoe', dmgMult: 0.55, countAdd: 2,  radiusMult: 1.00, motionKind: 'charge_tap',   sfxPitchMult: 1.20 },
+      { stepId: 'S3', kind: 'lob_triangle', dmgMult: 0.55, countAdd: 2,  radiusMult: 1.00, motionKind: 'charge_tap',   sfxPitchMult: 1.20 },
       { stepId: 'S4', kind: 'lob_aoe', dmgMult: 0.70, countAdd: 1,  radiusMult: 1.25, durationMult: 1.3, motionKind: 'charge_heavy', sfxPitchMult: 1.30 },
     ],
     chargeFinishers: {

@@ -338,6 +338,49 @@ class AudioManager {
     }
   }
 
+  // ── Nobunaga: sharper crack layer for precision rail shots ─────────────────
+  // Higher-frequency bandpass noise + a tight square-wave transient layered over
+  // the normal 'shoot' envelope — gives the Tanegashima a rifle-like snap that
+  // reads as heavier and more precise than a generic projectile.
+  sfxSharp() {
+    this.ensure();
+    if (!this.ctx || this.muted) return;
+    if (!this._ok('shoot', 55)) return; // slightly tighter throttle for the burst cadence
+    // Crisp high-frequency crack (bandpass noise burst)
+    this._bpNoise(0.05, { vol: 0.18, centerFreq: 3800, q: 3.0 });
+    // Sharp square transient — higher pitch than the generic shoot tone
+    this._tone(1100, 0.06, { type: 'square', vol: 0.10, sweepTo: 480, decay: 0.06 });
+    // Short sub-thud for physical weight
+    this._tone(95, 0.04, { type: 'sine', vol: 0.07, sweepTo: 55, decay: 0.04 });
+  }
+
+  // ── Belisarius: rising whoosh on lob throw ─────────────────────────────────
+  // An ascending sine sweep that reads as something arcing through the air — the
+  // pot gaining height. Throttled so multiple simultaneous throws don't stack.
+  lobWhoosh() {
+    this.ensure();
+    if (!this.ctx || this.muted) return;
+    if (!this._ok('lob_whoosh', 120)) return;
+    // Rising air whoosh sweep — low → high over the throw duration
+    this._tone(220, 0.28, { type: 'sine', vol: 0.09, sweepTo: 820, decay: 0.28 });
+    this._noise(0.20, { vol: 0.05, lowpass: 3800 });
+  }
+
+  // ── Belisarius: glassy shatter-crackle on lob impact ──────────────────────
+  // A short noise burst tuned to sound like a clay pot shattering + a brief
+  // low-frequency thud for the fire igniting on contact.
+  lobImpact() {
+    this.ensure();
+    if (!this.ctx || this.muted) return;
+    if (!this._ok('lob_impact', 80)) return;
+    // Glass-shatter bandpass noise — short and bright
+    this._bpNoise(0.06, { vol: 0.22, centerFreq: 4200, q: 1.8 });
+    // Secondary crackle layer (lower band for fire hiss)
+    this._bpNoise(0.12, { vol: 0.14, centerFreq: 1600, q: 1.5 });
+    // Low thud — the pot hitting the ground and the fire igniting
+    this._tone(80, 0.09, { type: 'sine', vol: 0.12, sweepTo: 45, decay: 0.09 });
+  }
+
   // --- music: data-driven chiptune loop ---
 
   // Precompute a playable arrangement (frequency arrays + voicing) from a theme.

@@ -382,6 +382,7 @@ export default class WeaponSystem {
     if (stepDef.pierceMod != null)     s.pierce   = (baseS.pierce   || 0)   + stepDef.pierceMod;
     if (stepDef.rangeMultAdd != null)  s.range    = (baseS.range    || 230) * (1 + stepDef.rangeMultAdd); // boomerang throw distance
     if (stepDef.durationMult != null)  s.duration = (baseS.duration || 1600) * stepDef.durationMult;
+    if (stepDef.burstDelay   != null)  s.burstDelay = stepDef.burstDelay; // burst cadence for burst_line_volley / burst_aimed
 
     // Aim override: compute FRESH aim every step (nearest enemy → flipX), exactly like
     // fire(). Basing it on _lastAimAngle made strings keep firing along the PREVIOUS
@@ -417,6 +418,12 @@ export default class WeaponSystem {
       case 'projectile_radial':  this.fireProjectileRadial(dispatchS);  break;
       case 'lob_aoe':            this.fireLobAoe(dispatchS);            break;
       case 'boomerang':          this.fireBoomerang(dispatchS);         break;
+      // Nobunaga S3: 3-shot disciplined line volley (burst, no spread, staggered ~70ms apart)
+      case 'burst_line_volley':  this.fireBurstLineVolley(dispatchS);   break;
+      // Nobunaga C4: King's Fusillade — 5-shot armor-piercing rail burst with heavy knockback
+      case 'kings_fusillade':    this.fireKingsFusillade(dispatchS);    break;
+      // Belisarius S3: triangular 3-pot scatter
+      case 'lob_triangle':       this.fireLobTriangle(dispatchS);       break;
       default:                   this.fire(dispatchS);                  break;
     }
 
@@ -767,6 +774,8 @@ export default class WeaponSystem {
     p.armorPierce = !!s.armorPierce; // ignore enemy armor
     // reset signature flags so a recycled sprite doesn't keep a prior weapon's behaviour
     p.ricochet = false; p.boomerang = false; p.spin = 0;
+    // lob-arc visual flags (Belisarius arcing pot) — reset on recycle
+    p._lobArc = false; p._lobShadow = null;
     p._isHeavy = !!this._isHeavyShot; // CRUMPLE: tag heavy shots so damageEnemy can detect them
     if (s.homing) { p.homing = true; p.homingRange = s.homing.range || 360; p.homingTurn = s.homing.turn || 0.13; }
     else p.homing = false;
@@ -1058,15 +1067,30 @@ export default class WeaponSystem {
     const aimed = this._aimOverride != null
       ? { x: this.player.x + Math.cos(this._aimOverride) * 200, y: this.player.y + Math.sin(this._aimOverride) * 200 }
       : null;
+    // Player greek_fire pots get the full arcing visual treatment; other lob_aoe users don't.
+    const isGreekFire = s.def.id === 'greek_fire';
+    if (isGreekFire) Audio.lobWhoosh(); // rising whoosh on throw
     for (let i = 0; i < s.count; i++) {
       const tx = aimed ? aimed.x + Phaser.Math.Between(-30, 30) : target ? target.x + Phaser.Math.Between(-40, 40) : this.player.x + Phaser.Math.Between(-120, 120);
       const ty = aimed ? aimed.y + Phaser.Math.Between(-30, 30) : target ? target.y + Phaser.Math.Between(-40, 40) : this.player.y + Phaser.Math.Between(-120, 120);
       // Arc trail shows the lob trajectory immediately so the throw reads clearly
       this.scene.fx.lobArcTrail(this.player.x, this.player.y, tx, ty, s.def.color);
+      const baseScale = (s.def.projScale || 1) * 1.15; // slightly larger pot for Belisarius
       const proj = this.scene.add
         .image(this.player.x, this.player.y, `proj_${s.def.id}`)
-        .setDepth(8);
+        .setDepth(8)
+        .setScale(isGreekFire ? baseScale : (s.def.projScale || 1));
       const dur = (Phaser.Math.Distance.Between(this.player.x, this.player.y, tx, ty) / s.speed) * 1000;
+
+      // Belisarius arcing pot: a drop-shadow ellipse that tracks below the pot in flight.
+      // Created as a separate image so it lives beneath the pot (depth 7) and is destroyed
+      // on the same onComplete callback — cleanup-safe.
+      let shadow = null;
+      if (isGreekFire) {
+        shadow = this.scene.add.ellipse(this.player.x, this.player.y + 6, 14, 6, 0x000000, 0.35)
+          .setDepth(7);
+      }
+
       // Simulate a parabolic arc: move the projectile along x linearly but y follows a sine arc
       // We do this by tweening both x/y with different eases — easeIn on y = sinks like gravity
       // fire-trail embers behind the lob projectile
@@ -1075,6 +1099,21 @@ export default class WeaponSystem {
         repeat: Math.floor(dur / 40),
         callback: () => {
           if (proj.active) {
+            // Arcing scale: peaks at 1.4× base at mid-flight, returns to base at landing.
+            // t is estimated from the tween's current x position relative to start/end.
+            if (isGreekFire && shadow && shadow.active) {
+              const dx = proj.x - this.player.x;
+              const totalDx = tx - this.player.x;
+              const t = totalDx !== 0 ? Math.abs(dx / totalDx) : 0;
+              const arcFrac = Math.sin(t * Math.PI); // 0→peak→0 over the arc
+              proj.setScale(baseScale * (1 + 0.4 * arcFrac));
+              // Shadow grows when pot is high, shrinks as it nears the ground
+              const shadowAlpha = 0.18 + 0.22 * (1 - arcFrac);
+              const shadowW = 14 + 8 * (1 - arcFrac);
+              shadow.setPosition(proj.x, ty - (ty - this.player.y) * (1 - t) + 8);
+              shadow.setSize(shadowW, 6 * (1 - arcFrac * 0.5));
+              shadow.setAlpha(shadowAlpha);
+            }
             this.scene.fx._tint(this.scene.fx.embers, 0xff7b1c);
             this.scene.fx.embers.emitParticleAt(proj.x, proj.y, 1);
             // small orange fire wisps rising off the pot as it flies
@@ -1091,14 +1130,183 @@ export default class WeaponSystem {
         ease: 'Quad.easeIn', // sinks heavier toward end — feels thrown
         onComplete: () => {
           proj.destroy();
+          if (shadow && shadow.active) shadow.destroy();
           trailTimer.remove(false);
+          if (isGreekFire) Audio.lobImpact(); // glassy shatter-crackle on landing
           // Big flame splash on landing: flameBurst + extra fire ring + fireEmitter burst
           this.scene.fx.flameBurst(tx, ty, s.radius);
-          this.scene.fx._ring(tx, ty, s.radius * 0.9, 0xff4500, 300, 3);
+          // Belisarius gets a wider splash ring to sell the pot shattering
+          if (isGreekFire) {
+            this.scene.fx._ring(tx, ty, s.radius * 1.1, 0xff4500, 220, 4);
+            this.scene.fx._ring(tx, ty, s.radius * 0.5, 0xffaa00, 180, 3);
+          } else {
+            this.scene.fx._ring(tx, ty, s.radius * 0.9, 0xff4500, 300, 3);
+          }
           this.scene.fx._tint(this.scene.fx.fireEmitter, 0xff4500);
           this.scene.fx.fireEmitter.emitParticleAt(tx, ty, 8);
           this.spawnFlamePool(s, tx, ty);
         },
+      });
+    }
+  }
+
+  // ── Nobunaga S3: disciplined 3-shot LINE VOLLEY ────────────────────────────
+  // All three shots travel in exactly the same heading (zero spread), fired in
+  // rapid burst cadence (~70ms apart) — a burst_aimed-style stagger. This reads
+  // clearly as precision auto-fire rather than a fan, differentiating it from
+  // Belisarius's area-scatter and Genghis's wide volley.
+  fireBurstLineVolley(s) {
+    const target = this.nearestEnemy();
+    const baseAngle = this._aimOverride != null
+      ? this._aimOverride
+      : target
+      ? Math.atan2(target.y - this.player.y, target.x - this.player.x)
+      : this.player.flipX ? Math.PI : 0;
+    this._lastAimAngle = baseAngle;
+    const count = Math.max(1, s.count);
+    const delay = s.burstDelay || 70;
+    for (let i = 0; i < count; i++) {
+      if (i === 0) {
+        this.spawnProjectile(s, this.player.x, this.player.y, baseAngle);
+        this.scene.fx.sniperMuzzle(this.player.x, this.player.y, baseAngle);
+        Audio.sfxSharp();
+      } else {
+        this.scene.time.delayedCall(i * delay, () => {
+          if (!this.player.active) return;
+          this.spawnProjectile(s, this.player.x, this.player.y, baseAngle);
+          this.scene.fx.gunTracer(this.player.x, this.player.y, baseAngle, s.speed * 1.4 * 0.001);
+          Audio.sfxSharp();
+        });
+      }
+    }
+  }
+
+  // ── Nobunaga C4: King's Fusillade ──────────────────────────────────────────
+  // 5 armor-piercing rail shots fired in rapid succession along the same heading.
+  // Each hits with strong knockback. Tracer muzzle visuals (sniperMuzzle/gunTracer)
+  // on every shot + a screen kick for impact. NO fire zones — fire belongs to Belisarius.
+  fireKingsFusillade(s) {
+    const target = this.nearestEnemy();
+    const baseAngle = this._aimOverride != null
+      ? this._aimOverride
+      : target
+      ? Math.atan2(target.y - this.player.y, target.x - this.player.x)
+      : this.player.flipX ? Math.PI : 0;
+    this._lastAimAngle = baseAngle;
+
+    const shotS = Object.assign({}, s, {
+      def: Object.assign({}, s.def, { kind: 'projectile_aimed' }),
+      count: 1, spread: 0,
+      armorPierce: true,
+      knockback: s.knockback || 50,
+      leaveBurn: null, // explicitly no fire zones on base C4 (evolution may restore)
+    });
+
+    const burstDelay = 80; // ms between each rail shot
+    const shotCount = Math.max(1, 1 + (s.countAdd || 4)); // base 5 shots (1 + countAdd=4)
+    for (let i = 0; i < shotCount; i++) {
+      const fireShot = () => {
+        if (!this.player.active) return;
+        this.spawnProjectile(shotS, this.player.x, this.player.y, baseAngle);
+        if (i === 0) {
+          this.scene.fx.sniperMuzzle(this.player.x, this.player.y, baseAngle);
+        } else {
+          this.scene.fx.gunTracer(this.player.x, this.player.y, baseAngle, shotS.speed * 1.4 * 0.001);
+          // bright muzzle flash on every subsequent shot
+          this.scene.fx._flash(this.player.x, this.player.y, 10, 0xffe8a0, 0.7, 80);
+        }
+        Audio.sfxSharp();
+      };
+      if (i === 0) {
+        fireShot();
+      } else {
+        this.scene.time.delayedCall(i * burstDelay, fireShot);
+      }
+    }
+    // Single screen kick after the last shot resolves
+    this.scene.time.delayedCall(shotCount * burstDelay, () => {
+      if (!this.scene || !this.scene.screenKick) return;
+      this.scene.screenKick(baseAngle, 2.5);
+    });
+  }
+
+  // ── Belisarius S3: triangular 3-pot scatter ─────────────────────────────────
+  // Fires 3 pots in a triangle pattern: one toward target (apex), one left-flank,
+  // one right-flank. This gives a distinct silhouette from any straight volley — the
+  // triangle shape is immediately readable and different from Nobunaga's lines.
+  fireLobTriangle(s) {
+    const target = this.nearestEnemy();
+    const baseAngle = this._aimOverride != null
+      ? this._aimOverride
+      : target
+      ? Math.atan2(target.y - this.player.y, target.x - this.player.x)
+      : this.player.flipX ? Math.PI : 0;
+
+    const range = 180; // base throw range for triangle offset calculation
+    const sideAngle = 0.55; // ~31° flank offset
+    const sideRangeMult = 0.80; // flanking pots land a bit shorter
+
+    // Triangle: apex (straight), left flank, right flank
+    const offsets = [
+      { ang: baseAngle,            r: range },
+      { ang: baseAngle - sideAngle, r: range * sideRangeMult },
+      { ang: baseAngle + sideAngle, r: range * sideRangeMult },
+    ];
+
+    Audio.lobWhoosh(); // single throw whoosh for the cluster
+    for (let i = 0; i < offsets.length; i++) {
+      const { ang, r } = offsets[i];
+      const tx = this.player.x + Math.cos(ang) * r + Phaser.Math.Between(-18, 18);
+      const ty = this.player.y + Math.sin(ang) * r + Phaser.Math.Between(-18, 18);
+      this.scene.fx.lobArcTrail(this.player.x, this.player.y, tx, ty, s.def.color);
+      const baseScale = (s.def.projScale || 1) * 1.1;
+      const proj = this.scene.add
+        .image(this.player.x, this.player.y, `proj_${s.def.id}`)
+        .setDepth(8)
+        .setScale(baseScale);
+      const dur = (Phaser.Math.Distance.Between(this.player.x, this.player.y, tx, ty) / s.speed) * 1000;
+      const shadow = this.scene.add.ellipse(this.player.x, this.player.y + 6, 14, 6, 0x000000, 0.30)
+        .setDepth(7);
+      // Stagger subsequent pots very slightly so the pattern reads as intentional
+      const staggerDelay = i * 40;
+      this.scene.time.delayedCall(staggerDelay, () => {
+        if (!this.player.active) { proj.destroy(); shadow.destroy(); return; }
+        const trailTimer = this.scene.time.addEvent({
+          delay: 40,
+          repeat: Math.floor(dur / 40),
+          callback: () => {
+            if (proj.active) {
+              const dx = proj.x - this.player.x;
+              const totalDx = tx - this.player.x;
+              const t2 = totalDx !== 0 ? Math.abs(dx / totalDx) : 0;
+              const arcFrac = Math.sin(t2 * Math.PI);
+              proj.setScale(baseScale * (1 + 0.4 * arcFrac));
+              if (shadow.active) {
+                shadow.setPosition(proj.x, ty - (ty - this.player.y) * (1 - t2) + 8);
+                shadow.setAlpha(0.18 + 0.22 * (1 - arcFrac));
+              }
+              this.scene.fx._tint(this.scene.fx.embers, 0xff7b1c);
+              this.scene.fx.embers.emitParticleAt(proj.x, proj.y, 1);
+            }
+          },
+        });
+        this.scene.tweens.add({
+          targets: proj,
+          x: tx, y: ty,
+          duration: dur,
+          ease: 'Quad.easeIn',
+          onComplete: () => {
+            proj.destroy();
+            if (shadow.active) shadow.destroy();
+            trailTimer.remove(false);
+            Audio.lobImpact();
+            this.scene.fx.flameBurst(tx, ty, s.radius);
+            this.scene.fx._ring(tx, ty, s.radius * 1.0, 0xff4500, 220, 3);
+            this.scene.fx._tint(this.scene.fx.fireEmitter, 0xff4500);
+            this.scene.fx.fireEmitter.emitParticleAt(tx, ty, 6);
+            this.spawnFlamePool(s, tx, ty);
+          },
+        });
       });
     }
   }
