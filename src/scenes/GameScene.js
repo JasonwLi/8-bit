@@ -2692,9 +2692,10 @@ export default class GameScene extends Phaser.Scene {
     else if (result === 'perfect_dodge') this.triggerPerfectDodge();
     else if (result === 'hit') {
       Audio.sfx('hurt');
-      // DW string: a real hit resets the string depth
-      this._stringDepth    = 0;
-      this._stringWindowMs = 0;
+      // NOTE: getting hit does NOT reset the combo string — in a horde game chip damage
+      // is constant exactly where strings matter most, and resetting on every graze made
+      // strings unbuildable in crowds (playtest). Momentum already punishes getting hit;
+      // the string resets on window timeout, finisher fire, and duel entry only.
       // FLAWLESS FLOOR: a real hit breaks the untouched run on this floor
       this._flawlessFloor = false;
       // Searing Wounds mutation: drop a fire patch at the player's feet on each hit.
@@ -3637,7 +3638,8 @@ export default class GameScene extends Phaser.Scene {
   // Called from both: K-press instant-branch AND hold-J auto-release fallback.
   // MUSOU empowered: depth upgraded one step (C2→C3, C3→C4, C4 stays C4).
   _fireFinisher(rawDepth) {
-    if (!this.weapons.ready()) return;
+    // NOT gated by the primary's tap cooldown: a DW charge attack branches out of the
+    // string INSTANTLY (J,K with no pause) — the finisher's own 1.2s CD prevents spam.
     if (rawDepth < 1) return;
 
     // Musou empowerment: bump finisher one step deeper + shorten next chain window
