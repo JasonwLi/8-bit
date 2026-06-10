@@ -704,6 +704,7 @@ export default class WeaponSystem {
     p.armorPierce = !!s.armorPierce; // ignore enemy armor
     // reset signature flags so a recycled sprite doesn't keep a prior weapon's behaviour
     p.ricochet = false; p.boomerang = false; p.spin = 0;
+    p._isHeavy = !!this._isHeavyShot; // CRUMPLE: tag heavy shots so damageEnemy can detect them
     if (s.homing) { p.homing = true; p.homingRange = s.homing.range || 360; p.homingTurn = s.homing.turn || 0.13; }
     else p.homing = false;
     // Seeking mutation: apply a gentle homing curve to all projectiles that don't
@@ -766,9 +767,9 @@ export default class WeaponSystem {
       const ang = Math.atan2(dy, dx);
       const diff = Math.abs(Phaser.Math.Angle.Wrap(ang - facing));
       if (s.arc >= 360 || diff <= halfArc) {
-        this.scene.damageEnemy(e, damage, { armorPierce: s.armorPierce, fromPlayer: true });
+        this.scene.damageEnemy(e, damage, { armorPierce: s.armorPierce, fromPlayer: true, isHeavy: !!this._isHeavyShot });
         const kb = (s.knockback != null) ? s.knockback : (s.def.knockback || 0);
-        if (kb && e.active && !e.isBoss) this.scene.knockbackEnemy(e, ang, kb);
+        if (kb && e.active && !e.isBoss) this.scene.knockbackEnemy(e, ang, kb, { _sourceDmg: damage });
         const stun = (s.stunMs != null) ? s.stunMs : (s.def.stun || 0);
         if (stun && e.active && !e.isBoss) { // lock the foe in place (Khan's Cleave / Stagger)
           e.stunUntil = this.scene.time.now + stun;

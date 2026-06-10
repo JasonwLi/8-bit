@@ -29,6 +29,27 @@ import { GAME, DUNGEON } from '../config.js';
 import TutorialController from '../systems/TutorialController.js';
 import { HERO_DIALOGUE, BOSS_DIALOGUE, STAGE_INTROS, pickRandom } from '../data/dialogue.js';
 
+// ── New tier-3 combat mechanics ───────────────────────────────────────────────
+const WALL_CRUNCH_DMG_FRAC  = 0.35;   // bonus damage as fraction of the shove's source hit
+const WALL_CRUNCH_DMG_MIN   = 8;      // floor so a tiny shove still hurts
+const WALL_CRUNCH_STUN_MS   = 400;
+const BURN_TAG_DURATION     = 1500;   // ms _burnTag stays active after leaving a fire zone
+const PANIC_FIRE_INTERVAL   = 400;    // ms between dropped fire patches while PANIC FIRE is active
+const CRUMPLE_STUN_EXTEND   = 600;    // ms stun extension on a heavy hit vs. a stunned foe
+const CRUMPLE_DMG_BONUS     = 1.25;   // +25% damage multiplier
+const HEMORRHAGE_BURST_AT   = 5;      // stack count that detonates the burst
+const HEMORRHAGE_RESET_TO   = 2;      // stacks after burst
+const EXECUTION_HP_THRESH   = 0.18;
+const DEFLECT_RADIUS        = 90;
+const DEFLECT_SPEED_MULT    = 1.5;
+const DEFLECT_MAX_REFLECT   = 8;
+const SLAM_WINDOW_MS        = 180;    // ms after dash ends to trigger slam
+const SLAM_RADIUS           = 90;
+const SLAM_DMG_MULT         = 1.2;
+const SLAM_COOLDOWN_MS      = 1000;
+const OVERKILL_CARRY_FRAC   = 0.60;
+const OVERKILL_CARRY_RANGE  = 120;
+
 // ── Charge attack constants ────────────────────────────────────────────────────
 const CHARGE_FULL_MS   = 650;   // ms to reach heavy shot (was 900 — snappier hold cadence)
 const CHARGE_TAP_MS    = 120;   // release under this = tap (quick shot); fires INSTANTLY on press
@@ -115,6 +136,11 @@ export default class GameScene extends Phaser.Scene {
 
     // ── Dash-strike hit tracking ──────────────────────────────────────────────
     this._dashStrikeHit = new Set(); // enemies already hit this dash
+
+    // ── Slam combo state ──────────────────────────────────────────────────────
+    this._slamWindowUntil = 0;   // when slam-combo window closes
+    this._slamCdUntil     = 0;   // internal slam cooldown
+    this._lastDashing     = false; // edge-detect dash->stop transition
   }
 
   // CONTINUOUS progress across the WHOLE 7/7 conquest: total floors descended so far
@@ -771,6 +797,16 @@ export default class GameScene extends Phaser.Scene {
 
     // Dash tick: advance burst/recharge state; spawn cyan afterimage ghosts during dash.
     this.player.tickDash(time);
+
+    // SLAM COMBO: edge-detect dash end to open a 180ms attack window
+    {
+      const nowDashing = this.player.dashing;
+      if (this._lastDashing && !nowDashing) {
+        this._slamWindowUntil = time + SLAM_WINDOW_MS;
+      }
+      this._lastDashing = nowDashing;
+    }
+
     if (this.player.dashing) {
       this._dashAfterimageAcc = (this._dashAfterimageAcc || 0) + delta;
       // Spawn a ghost every ~55ms during the burst window (matches the swift-elite pattern).
@@ -801,6 +837,23 @@ export default class GameScene extends Phaser.Scene {
           const ddy = e.y - this.player.y;
           if (ddx * ddx + ddy * ddy <= pr2) {
             this._dashStrikeHit.add(e);
+
+            // ELITE EXECUTION: dash-strike a marked (low-HP) elite → instant kill
+            if (e.isElite && !e.isBoss && e._executionMarked) {
+              this.fx._flash(this.player.x, this.player.y, 120, 0xffffff, 0.75, 160);
+              this.fx._flash(e.x, e.y, 32, 0xff4444, 0.95, 240);
+              this.fx._ring(e.x, e.y, 80, 0xff4444, 380, 6);
+              this.fx.spark.emitParticleAt(e.x, e.y, 12);
+              const ws = this.physics.world.timeScale;
+              this.physics.world.timeScale = 80;
+              this.time.delayedCall(80, () => { this.physics.world.timeScale = ws; });
+              this.player.heal(8);
+              this.player.streak += 5;
+              this.killEnemy(e);
+              Audio.sfx('parry');
+              continue; // skip normal damageEnemy for this enemy
+            }
+
             this.damageEnemy(e, dashDmg, { fromPlayer: true }); // can trigger counter-hit!
             // Small cyan spark impact at the point of contact
             const ang = Math.atan2(ddy, ddx);
@@ -1141,6 +1194,21 @@ export default class GameScene extends Phaser.Scene {
 
       // Fear (Lü Bu's War Cry "Dread", etc.): the foe flees AWAY from the player.
       if (e.fearUntil && now < e.fearUntil) {
+        // PANIC FIRE: feared + burning → drop a small fire patch every 400ms
+        if (e._burnTag && now < e._burnTag && !e.isBoss) {
+          e._panicFireAcc = (e._panicFireAcc || 0) + delta;
+          if (e._panicFireAcc >= PANIC_FIRE_INTERVAL) {
+            e._panicFireAcc = 0;
+            this.spawnHazardZone(e.x, e.y, 28, 3, 300, 400, 1200, 'fire', 'enemies');
+            this.fx._flash(e.x, e.y, 8, 0xff6a00, 0.65, 180);
+            if (this.tutorial && !this._panicFireTutShown) {
+              this._panicFireTutShown = true;
+              this.events.emit('tut', 'panic_fire');
+            }
+          }
+        } else {
+          e._panicFireAcc = 0;
+        }
         e.setVelocity(-Math.cos(ang) * e.speed, -Math.sin(ang) * e.speed);
         e.setFlipX(ang < 0 ? false : true);
         continue;
@@ -1198,11 +1266,31 @@ export default class GameScene extends Phaser.Scene {
   // Shove an enemy `dist` px along `ang` — but NEVER into a wall. Knockback teleports the
   // body directly (it bypasses the collider), so on dungeon floors we push only as far as
   // the destination stays walkable (stepping back to the furthest clear fraction).
-  knockbackEnemy(e, ang, dist) {
+  // opts._sourceDmg: the damage of the attack that triggered the shove (for wall-crunch calc).
+  knockbackEnemy(e, ang, dist, opts) {
     // Gravitic Pull mutation: flip the angle 180° so the shove pulls toward the player.
     if (this.player.mutations && this.player.mutations.reverse_knockback) ang = ang + Math.PI;
-    const moved = this._sweepShove(e, ang, dist);
-    if (!moved) return; // hard against a wall — no shove, no chain
+    const travelled = this._sweepShove(e, ang, dist);
+    if (travelled <= 0) return; // hard against a wall — no shove, no chain
+
+    // WALL CRUNCH: truncated shove = enemy hit the wall; bonus dmg + stun
+    if (this.dungeonMode && !e.isBoss && travelled > 0 && travelled < dist - 4) {
+      const sourceDmg = (opts && opts._sourceDmg != null) ? opts._sourceDmg : dist;
+      const crunchDmg = Math.max(WALL_CRUNCH_DMG_MIN, Math.round(sourceDmg * WALL_CRUNCH_DMG_FRAC));
+      e.stunUntil = Math.max(e.stunUntil || 0, this.time.now + WALL_CRUNCH_STUN_MS);
+      this.damageEnemy(e, crunchDmg); // no fromPlayer — avoids double counter-hit/crumple proc
+      if (e.active) {
+        const wallX = e.x; const wallY = e.y;
+        this.fx._flash(wallX, wallY, 12, 0xc8c0b0, 0.8, 200);
+        this.fx.dustEmitter.emitParticleAt(wallX, wallY, 8);
+        this.fx._ring(wallX, wallY, 28, 0xffffff, 220, 3);
+        if (this.tutorial && !this._wallCrunchTutShown) {
+          this._wallCrunchTutShown = true;
+          this.events.emit('tut', 'wall_crunch');
+        }
+      }
+    }
+
     // Billiards mutation: a knocked-back enemy collides with nearby foes and shoves them too.
     // The chain is NOT recursive (we don't re-check mutKnockbackChain on the secondary shove).
     if (this.player.mutations && this.player.mutations.knockback_chain) {
@@ -1221,11 +1309,11 @@ export default class GameScene extends Phaser.Scene {
   // Wall-aware shove: advance in small steps along `ang`, stopping at the last walkable
   // point. Checking only the DESTINATION let a big knockback vault clean OVER a thin wall
   // onto walkable floor beyond it — stepping the PATH makes that impossible. Returns
-  // whether the entity moved at all. (Open world: no grid, full shove.)
+  // how far the entity actually moved (0 = stuck). (Open world: no grid, full shove.)
   _sweepShove(e, ang, dist) {
     const cos = Math.cos(ang), sin = Math.sin(ang);
     const fs = this.floorSys;
-    if (!this.dungeonMode || !fs) { e.x += cos * dist; e.y += sin * dist; return true; }
+    if (!this.dungeonMode || !fs) { e.x += cos * dist; e.y += sin * dist; return dist; }
     const STEP = 12;
     let travelled = 0;
     for (let d = STEP; d <= dist + 0.01; d += STEP) {
@@ -1233,10 +1321,10 @@ export default class GameScene extends Phaser.Scene {
       if (!fs.isWalkable(e.x + cos * step, e.y + sin * step)) break;
       travelled = step;
     }
-    if (travelled <= 0) return false;
+    if (travelled <= 0) return 0;
     e.x += cos * travelled;
     e.y += sin * travelled;
-    return true;
+    return travelled;
   }
 
   // Shared by ranged enemies and bosses. Pooled, so scale/tint are reset here.
@@ -1303,7 +1391,11 @@ export default class GameScene extends Phaser.Scene {
             for (const e of this.enemies.getChildren()) {
               if (!e.active) continue;
               const dx = e.x - x, dy = e.y - y;
-              if (dx * dx + dy * dy <= radius * radius) this.damageEnemy(e, damage);
+              if (dx * dx + dy * dy <= radius * radius) {
+                this.damageEnemy(e, damage);
+                // PANIC FIRE: mark enemy as burning when standing in a fire zone
+                if (style === 'fire') e._burnTag = this.time.now + BURN_TAG_DURATION;
+              }
             }
           } else if (this.player.active) {
             const dx = this.player.x - x;
@@ -1870,6 +1962,27 @@ export default class GameScene extends Phaser.Scene {
         plate._bar.fillRect(-17, 2, barW, 4);
       }
     }
+
+    // ELITE EXECUTION: show skull marker when elite drops below threshold
+    const shouldMark = !e.isBoss && e.hp > 0 && e.hp / e.maxHp <= EXECUTION_HP_THRESH;
+    if (shouldMark && !e._executionMarked) {
+      e._executionMarked = true;
+      const skull = this.add.text(0, -20, '☠', {
+        fontFamily: 'monospace', fontSize: '11px', color: '#ff4444',
+        stroke: '#000000', strokeThickness: 2,
+      }).setOrigin(0.5, 1);
+      skull.setName('skull');
+      plate.add(skull);
+      this.tweens.add({ targets: skull, alpha: 0.3, duration: 400, yoyo: true, repeat: -1 });
+      if (this.tutorial && !this._executionTutShown) {
+        this._executionTutShown = true;
+        this.events.emit('tut', 'execution');
+      }
+    } else if (!shouldMark && e._executionMarked) {
+      e._executionMarked = false;
+      const skullObj = plate.getByName('skull');
+      if (skullObj) skullObj.destroy();
+    }
   }
 
   // Tear down and null a stale elite plate (called on deactivate + reuse).
@@ -2034,8 +2147,53 @@ export default class GameScene extends Phaser.Scene {
     // its own attacks (recorded as a multiplier on the enemy, not here — the ashipu buff
     // actually boosts outgoing damage; for incoming damage on the buffed enemy there's no
     // additional change, the DR only comes from phalanx solidarity above).
+    // CRUMPLE: landing a HEAVY shot on a stunned enemy extends stun + bonus damage.
+    // Runs BEFORE dmg is rounded so the multiplier applies to the pre-rounded value.
+    // Only player-sourced hits, not on the same hit as a counter, not on bosses.
+    if (opts.fromPlayer && !counterHit && !enemy.isBoss
+        && enemy.stunUntil && this.time.now < enemy.stunUntil
+        && opts.isHeavy) {
+      dmg = Math.round(dmg * CRUMPLE_DMG_BONUS);
+      enemy.stunUntil = Math.max(enemy.stunUntil, this.time.now + CRUMPLE_STUN_EXTEND);
+      // Purple flash — distinct from counter-hit gold
+      this.fx._flash(enemy.x, enemy.y, 16, 0xcc44ff, 0.85, 240);
+      this.fx._ring(enemy.x, enemy.y, 44, 0xcc44ff, 300, 4);
+      this.fx._tint(this.fx.spark, 0xcc44ff);
+      this.fx.spark.emitParticleAt(enemy.x, enemy.y, 6);
+      if (this.tutorial && !this._crumpleTutShown) {
+        this._crumpleTutShown = true;
+        this.events.emit('tut', 'crumple');
+      }
+    }
+
     dmg = Math.round(dmg);
     enemy.hp -= dmg;
+
+    // OVERKILL CARRY: excess damage from a lethal player hit carries to the nearest enemy.
+    // Fires AFTER hp is decremented (so we know the overshoot), BEFORE death is processed.
+    if (opts.fromPlayer && !opts._overkill && enemy.hp < 0 && !enemy.isBoss) {
+      const excess = -enemy.hp;
+      const carry  = Math.round(excess * OVERKILL_CARRY_FRAC);
+      if (carry >= 1) {
+        let oTarget = null, oBestD = OVERKILL_CARRY_RANGE * OVERKILL_CARRY_RANGE;
+        for (const oe of this.enemies.getChildren()) {
+          if (!oe.active || oe === enemy || oe.isBoss) continue;
+          const odx = oe.x - enemy.x, ody = oe.y - enemy.y;
+          const od = odx * odx + ody * ody;
+          if (od < oBestD) { oBestD = od; oTarget = oe; }
+        }
+        if (oTarget) {
+          this.fx.chainArc(enemy.x, enemy.y, oTarget.x, oTarget.y, 0xffd700);
+          this.fx._flash(oTarget.x, oTarget.y, 10, 0xffd700, 0.75, 180);
+          this.damageEnemy(oTarget, carry, { fromPlayer: true, _overkill: true });
+          if (this.tutorial && !this._overkillTutShown) {
+            this._overkillTutShown = true;
+            this.events.emit('tut', 'overkill');
+          }
+        }
+      }
+    }
+
     this.fx.damageNumber(enemy.x, enemy.y - enemy.displayHeight * 0.4, dmg,
       enemy.isBoss ? { color: this.theme.accentCss, big: true, fromPlayer: true }
                    : { color: counterHit ? '#ffd700' : '#ffffff', fromPlayer: true });
@@ -2141,6 +2299,13 @@ export default class GameScene extends Phaser.Scene {
         }
       }
     }
+    // Tier-3 mechanic state reset on pool recycle
+    obj._burnTag         = 0;
+    obj._panicFireAcc    = 0;
+    obj._executionMarked = false;
+    obj.bleedStacks      = 0;
+    obj.bleedDps         = 0;
+    obj.bleedUntil       = 0;
   }
 
   // delegators so external systems keep their stable `scene.X` entry points
@@ -2232,16 +2397,59 @@ export default class GameScene extends Phaser.Scene {
 
     Audio.sfx('parry'); // the existing 'parry' sfx is a sharp metallic clash — fits perfectly
     if (this.tutorial) this.events.emit('tut', 'perfect'); // tut: step (e)
+
+    // DEFLECT: reflect nearby enemy projectiles back as player projectiles
+    {
+      const s = this.weapons.computeStats();
+      const reflectDmg = Math.round(s.damage);
+      let reflected = 0;
+      for (const p of this.enemyProjectiles.getChildren()) {
+        if (!p.active || reflected >= DEFLECT_MAX_REFLECT) break;
+        const dx = p.x - this.player.x, dy = p.y - this.player.y;
+        if (dx * dx + dy * dy > DEFLECT_RADIUS * DEFLECT_RADIUS) continue;
+        // Reverse heading
+        const spd = Math.hypot(p.body.velocity.x, p.body.velocity.y) || 200;
+        const revAng = Math.atan2(-p.body.velocity.y, -p.body.velocity.x);
+        // Save position before deactivate moves it
+        const px = p.x, py = p.y;
+        this.deactivate(p);
+        // Spawn a player-side projectile from the same position travelling the reversed heading
+        const fp = this.projectiles.get(px, py, `proj_${s.def.id}`);
+        if (!fp) continue;
+        fp.setActive(true).setVisible(true);
+        fp.body.reset(px, py);
+        fp.body.enable = true;
+        fp.setRotation(revAng).setDepth(8).clearTint().setTint(0x00e5ff); // cyan tint = deflected
+        this.physics.velocityFromRotation(revAng, spd * DEFLECT_SPEED_MULT, fp.body.velocity);
+        fp.damage = reflectDmg;
+        fp.pierceLeft = 1;
+        fp.hitSet = new Set();
+        fp.lifespan = 1800;
+        fp.trailColor = 0x00e5ff;
+        fp.bleed = null; fp.knockback = 0; fp.slow = null; fp.stunMs = 0;
+        fp.ricochet = false; fp.homing = false; fp.boomerang = false;
+        fp.armorPierce = false; fp.fearMs = 0; fp.weaponLifesteal = 0;
+        fp.leaveBurn = null; fp.leaveTramp = null; fp.spin = 0;
+        reflected++;
+      }
+      if (reflected > 0) {
+        this.fx._flash(this.player.x, this.player.y, 22, 0x00e5ff, 0.85, 200);
+        this.fx._ring(this.player.x, this.player.y, 52, 0x00e5ff, 320, 4);
+        this.fx._tint(this.fx.spark, 0x00e5ff);
+        this.fx.spark.emitParticleAt(this.player.x, this.player.y, reflected * 2);
+        if (this.tutorial) this.events.emit('tut', 'deflect');
+      }
+    }
   }
 
   onProjectileHit(projectile, enemy) {
     if (!projectile.active || !enemy.active) return;
     if (projectile.hitSet && projectile.hitSet.has(enemy)) return;
-    this.damageEnemy(enemy, projectile.damage, { armorPierce: projectile.armorPierce, fromPlayer: true });
+    this.damageEnemy(enemy, projectile.damage, { armorPierce: projectile.armorPierce, fromPlayer: true, isHeavy: !!projectile._isHeavy });
     if (projectile.bleed) this.applyBleed(enemy, projectile.bleed);
     if (projectile.knockback && enemy.active && !enemy.isBoss) { // shove-on-hit
       const ka = Math.atan2(enemy.y - projectile.y, enemy.x - projectile.x);
-      this.knockbackEnemy(enemy, ka, projectile.knockback);
+      this.knockbackEnemy(enemy, ka, projectile.knockback, { _sourceDmg: projectile.damage });
     }
     if (projectile.slow) { // slow-on-hit (Pinning javelins, etc.)
       enemy.slowUntil = this.time.now + projectile.slow.dur;
@@ -2537,12 +2745,22 @@ export default class GameScene extends Phaser.Scene {
       // TAP: fire INSTANTLY on the press frame (no perceptible lockout).
       // Only fires if the weapon is ready — otherwise fall through to normal charge.
       if (primaryJustDown && this.weapons.ready()) {
-        // Pre-arm for tap: if the weapon is ready we fire on press. The key-up path
-        // sees _chargeMs==0 + _chargeFired==true and skips the second fire.
-        this._chargeMs = 0;
-        this._tapFiredThisPress = true;
-        this._fireCharged('tap');
-        // Don't return — still need to start the charge ring for a hold
+        // SLAM COMBO: primary pressed within 180ms of dash end → ground slam instead of shot
+        const _slamNow = this.time.now;
+        if (_slamNow < this._slamWindowUntil && _slamNow >= this._slamCdUntil && !this.player.dashing) {
+          this._slamWindowUntil = 0; // consume the window
+          this._slamCdUntil = _slamNow + SLAM_COOLDOWN_MS;
+          this._triggerSlamCombo();
+          this._tapFiredThisPress = true; // prevent a second shot on key-up
+          // Note: do NOT call _fireCharged — slam replaces the shot entirely
+        } else {
+          // Pre-arm for tap: if the weapon is ready we fire on press. The key-up path
+          // sees _chargeMs==0 + _chargeFired==true and skips the second fire.
+          this._chargeMs = 0;
+          this._tapFiredThisPress = true;
+          this._fireCharged('tap');
+          // Don't return — still need to start the charge ring for a hold
+        }
       } else {
         this._tapFiredThisPress = false;
       }
@@ -2712,6 +2930,26 @@ export default class GameScene extends Phaser.Scene {
     e.bleedDps = e.bleedStacks * (b.dps || 1);
     e.bleedUntil = this.time.now + b.duration;
     if (e.bleedAcc === undefined) e.bleedAcc = 0;
+
+    // HEMORRHAGE BURST: 5th stack detonates all bleed for instant damage, resets to 2
+    if (e.bleedStacks >= HEMORRHAGE_BURST_AT && !e.isBoss) {
+      const burstDmg = Math.round(e.bleedDps * 3); // 3s worth of bleed DPS at current rate
+      e.bleedStacks = HEMORRHAGE_RESET_TO;
+      e.bleedDps    = e.bleedStacks * (b.dps || 1);
+      e.bleedUntil  = this.time.now + b.duration;
+      this.damageEnemy(e, burstDmg, { fromPlayer: true });
+      if (e.active) {
+        this.fx._flash(e.x, e.y, 20, 0xcc1830, 0.95, 280);
+        this.fx._ring(e.x, e.y, 52, 0xcc1830, 380, 5);
+        this.fx._ring(e.x, e.y, 30, 0xff4466, 220, 2);
+        this.fx._tint(this.fx.spark, 0xcc1830);
+        this.fx.spark.emitParticleAt(e.x, e.y, 10);
+        if (this.tutorial && !this._hemorrhageTutShown) {
+          this._hemorrhageTutShown = true;
+          this.events.emit('tut', 'hemorrhage');
+        }
+      }
+    }
   }
 
   // --- secondary ability casts (called by AbilitySystem) ---
@@ -2726,7 +2964,7 @@ export default class GameScene extends Phaser.Scene {
       if (dx * dx + dy * dy > radius * radius) continue;
       this.damageEnemy(e, damage, { fromPlayer: true });
       if (knockback && e.active && !e.isBoss) {
-        this.knockbackEnemy(e, Math.atan2(dy, dx), knockback);
+        this.knockbackEnemy(e, Math.atan2(dy, dx), knockback, { _sourceDmg: damage });
       }
     }
   }
@@ -2774,6 +3012,40 @@ export default class GameScene extends Phaser.Scene {
 
   // ── CHARGE ATTACK helpers ─────────────────────────────────────────────────
 
+  // SLAM COMBO: AoE ground slam triggered within 180ms of a dash landing.
+  _triggerSlamCombo() {
+    const s    = this.weapons.computeStats();
+    const dmg  = Math.round(s.damage * SLAM_DMG_MULT);
+    const r    = SLAM_RADIUS;
+    const r2   = r * r;
+    const px   = this.player.x, py = this.player.y;
+    // Visual: ground shockwave + dust
+    this.fx.explosion(px, py, 0xffe08a, r * 0.8);
+    this.fx.shockwave(px, py, 0xffd700, r);
+    this.fx.dustEmitter.emitParticleAt(px, py, 12);
+    Audio.sfx('hit');
+    // Camera kick downward (slam feel)
+    const cam = this.cameras.main;
+    cam.setScroll(cam.scrollX, cam.scrollY + 3);
+    this.time.delayedCall(60, () => { cam.setScroll(cam.scrollX, cam.scrollY - 3); });
+    // Hit all enemies in radius
+    for (const e of this.enemies.getChildren()) {
+      if (!e.active || e.isBoss) continue;
+      const dx = e.x - px, dy = e.y - py;
+      if (dx * dx + dy * dy > r2) continue;
+      this.damageEnemy(e, dmg, { fromPlayer: true });
+      if (e.active) {
+        // Knockback radially outward — synergizes with WALL CRUNCH
+        this.knockbackEnemy(e, Math.atan2(dy, dx), 60, { _sourceDmg: dmg });
+      }
+    }
+    this.weapons.timer = s.cooldown; // normal cooldown after slam
+    if (this.tutorial && !this._slamTutShown) {
+      this._slamTutShown = true;
+      this.events.emit('tut', 'slam');
+    }
+  }
+
   // Fire the primary weapon with the given charge mode ('tap' | 'normal' | 'heavy').
   // Reads the weapon's ready state, computes stats with charge mods, then fires.
   _fireCharged(mode) {
@@ -2805,7 +3077,11 @@ export default class GameScene extends Phaser.Scene {
 
     const chargedS = this._applyChargeToStats(s, mode);
 
+    // Tag as heavy so CRUMPLE can fire: set BEFORE fire(), clear after
+    const isHeavyShot = (mode === 'heavy' || mode === 'heavy_manual');
+    this.weapons._isHeavyShot = isHeavyShot;
     this.weapons.fire(chargedS);
+    this.weapons._isHeavyShot = false;
 
     // Set the cooldown: tap fires faster, heavy fires at normal cadence.
     let cdMult = 1.0;

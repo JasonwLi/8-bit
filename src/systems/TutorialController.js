@@ -30,7 +30,11 @@ const STORAGE_KEY = '8bit_dynasties_tutorial_v1';
 const STEP_ORDER = ['move', 'attack', 'dash', 'counter', 'perfect'];
 
 // One-time toast ids.
-const TOAST_IDS = ['momentum', 'graze', 'flawless', 'evolve', 'mutation', 'draftHint'];
+const TOAST_IDS = [
+  'momentum', 'graze', 'flawless', 'evolve', 'mutation', 'draftHint',
+  // Tier-3 combat mechanics
+  'wall_crunch', 'panic_fire', 'crumple', 'hemorrhage', 'execution', 'deflect', 'slam', 'overkill',
+];
 
 function load() {
   try {
@@ -195,6 +199,22 @@ export default class TutorialController {
         return { text: 'Mutation: rare purple cards permanently change your playstyle', color: '#cc88ff' };
       case 'draftHint':
         return { text: 'Draft: R reroll · B banish · L lock a card for next time', color: '#9a93c0' };
+      case 'wall_crunch':
+        return { text: 'Wall Crunch: shove enemies into walls for bonus damage + stun', color: '#c8c0b0' };
+      case 'panic_fire':
+        return { text: 'Panic Fire: feared enemies that are burning drop fire patches as they flee', color: '#ff6a00' };
+      case 'crumple':
+        return { text: 'Crumple: a charged shot on a stunned enemy extends the stun and hits harder', color: '#cc44ff' };
+      case 'hemorrhage':
+        return { text: 'Hemorrhage: 5 bleed stacks detonate for massive instant damage', color: '#cc1830' };
+      case 'execution':
+        return { text: 'Execution: dash-strike an elite below 18% HP (☠) to instantly finish it', color: '#ff4444' };
+      case 'deflect':
+        return { text: 'Deflect: Perfect Dodge reflects nearby enemy projectiles back at 1.5\xd7 speed', color: '#00e5ff' };
+      case 'slam':
+        return { text: 'Slam Combo: press attack within 0.18 s of a dash landing for a ground slam AoE', color: '#ffe08a' };
+      case 'overkill':
+        return { text: 'Overkill: excess damage from a kill bleeds 60% into the nearest enemy', color: '#ffd700' };
       default: return null;
     }
   }
