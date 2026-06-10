@@ -89,6 +89,7 @@ export default class GameScene extends Phaser.Scene {
     this.pendingLevels = 0;
     this.levelingUp = false;
     this.lootOpen = false;
+    this.tipOpen = false;
     this.gameOver = false;
     this.stageCleared = false;
     this.dueling = false; // set by DuelController; read across the loop
@@ -1586,7 +1587,7 @@ export default class GameScene extends Phaser.Scene {
   }
 
   canAct() {
-    return !this.gameOver && !this.levelingUp && !this.lootOpen && !this.stageCleared;
+    return !this.gameOver && !this.levelingUp && !this.lootOpen && !this.tipOpen && !this.stageCleared;
   }
 
   // Weapon/ability cross-track synergies: matching 4+ point investments unlock
@@ -2806,6 +2807,7 @@ export default class GameScene extends Phaser.Scene {
         }
         // Auto-release when armed (hold-to-full)
         if (this._chargeArmed) {
+          if (this.tutorial) this.events.emit('tut', 'charge'); // tut: charge tip card
           this._fireCharged('heavy');
           this._chargeArmed = false;
           // hold-compat: mark cycle done and zero the timer so the guard block

@@ -15,6 +15,7 @@ import SettingsScene from './scenes/SettingsScene.js';
 import WinScene from './scenes/WinScene.js';
 import GameOverScene from './scenes/GameOverScene.js';
 import CombatManualScene from './scenes/CombatManualScene.js';
+import TipScene from './scenes/TipScene.js';
 
 const config = {
   type: Phaser.AUTO,
@@ -35,7 +36,7 @@ const config = {
     default: 'arcade',
     arcade: { gravity: { x: 0, y: 0 }, debug: false },
   },
-  scene: [BootScene, MenuScene, ConquestScene, ContractScene, GameScene, UIScene, UpgradeScene, LootScene, ArtifactScene, PauseScene, SettingsScene, WinScene, GameOverScene, CombatManualScene],
+  scene: [BootScene, MenuScene, ConquestScene, ContractScene, GameScene, UIScene, UpgradeScene, LootScene, ArtifactScene, PauseScene, SettingsScene, WinScene, GameOverScene, CombatManualScene, TipScene],
 };
 
 window.__bootErrors = [];
