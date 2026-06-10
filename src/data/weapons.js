@@ -351,7 +351,7 @@ export const WEAPONS = {
       { stepId: 'S1', kind: 'boomerang', dmgMult: 0.65, countAdd: 0, motionKind: 'charge_tap',   sfxPitchMult: 1.00 },
       { stepId: 'S2', kind: 'boomerang', dmgMult: 0.55, countAdd: 1, motionKind: 'charge_tap',   sfxPitchMult: 1.10 },
       { stepId: 'S3', kind: 'melee_arc', dmgMult: 0.70, arcOverride: 280, radiusMult: 1.00, offsetAngle: 0, motionKind: 'charge_tap',   sfxPitchMult: 1.20 },
-      { stepId: 'S4', kind: 'boomerang', dmgMult: 0.85, countAdd: 0, motionKind: 'charge_heavy', sfxPitchMult: 1.30 },
+      { stepId: 'S4', kind: 'boomerang', dmgMult: 0.85, countAdd: 0, rangeMultAdd: 0.25, motionKind: 'charge_heavy', sfxPitchMult: 1.30 }, // Berserker Hurl — longer throw
     ],
     chargeFinishers: {
       C2: { kind: 'boomerang', dmgMult: 1.4, countAdd: 0, launcher: true,  motionKind: 'charge_heavy', ringColor: 0x00ccff, label: 'HAMMER THROW' },

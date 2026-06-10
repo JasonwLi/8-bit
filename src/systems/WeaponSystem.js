@@ -380,6 +380,7 @@ export default class WeaponSystem {
     if (stepDef.spreadOverride != null) s.spread  = stepDef.spreadOverride;
     if (stepDef.knockbackOverride != null) s.knockback = stepDef.knockbackOverride;
     if (stepDef.pierceMod != null)     s.pierce   = (baseS.pierce   || 0)   + stepDef.pierceMod;
+    if (stepDef.rangeMultAdd != null)  s.range    = (baseS.range    || 230) * (1 + stepDef.rangeMultAdd); // boomerang throw distance
     if (stepDef.durationMult != null)  s.duration = (baseS.duration || 1600) * stepDef.durationMult;
 
     // Aim override: offsetAngle rotates relative to player facing
