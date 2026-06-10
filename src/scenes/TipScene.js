@@ -79,18 +79,30 @@ function makeActor(scene, x, y, color, opts = {}) {
   const g = scene.add.graphics().setDepth(opts.depth || 91);
   const s = opts.scale || 1;
   const bw = 10 * s, bh = 14 * s, hr = 5 * s;
-  g.fillStyle(color, 1);
-  g.fillRect(-bw / 2, -bh / 2, bw, bh); // body
-  g.fillCircle(0, -bh / 2 - hr, hr);     // head
+  const draw = (c) => {
+    g.clear();
+    g.fillStyle(c, 1);
+    g.fillRect(-bw / 2, -bh / 2, bw, bh); // body
+    g.fillCircle(0, -bh / 2 - hr, hr);     // head
+  };
+  draw(color);
   g.x = x; g.y = y;
+  // Graphics objects have no setTint — the demos call it like on sprites, which threw
+  // 'setTint is not a function' EVERY demo loop, killing the scene's frame processing
+  // (and with it the press-any-key close handler). Shim it as a redraw.
+  g.setTint = (c) => { draw(c); return g; };
+  g.clearTint = () => { draw(color); return g; };
   return g;
 }
 
 /** Small filled circle (projectile / ring). */
 function makeCircle(scene, x, y, r, color, alpha = 1, depth = 90) {
   const g = scene.add.graphics().setDepth(depth);
-  g.fillStyle(color, alpha).fillCircle(0, 0, r);
+  const draw = (c) => { g.clear(); g.fillStyle(c, alpha).fillCircle(0, 0, r); };
+  draw(color);
   g.x = x; g.y = y;
+  g.setTint = (c) => { draw(c); return g; };   // see makeActor — Graphics lack setTint
+  g.clearTint = () => { draw(color); return g; };
   return g;
 }
 
