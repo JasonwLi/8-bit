@@ -68,11 +68,15 @@ export default class ContractScene extends Phaser.Scene {
     const ref = { c, g, cx, cy, w, h };
     this.cards.push(ref);
     // Small icon on the left side of the header
+    // Use the dedicated contract icon if generated; fall back to the legacy key.
     const iconX = cx - w / 2 + 24;
-    if (c.icon && this.textures.exists(c.icon)) {
-      this.add.image(iconX, top + 20, c.icon).setScale(0.5);
+    const contractIconKey = (c.icon && this.textures.exists(c.icon)) ? c.icon
+      : (c.iconFallback && this.textures.exists(c.iconFallback)) ? c.iconFallback
+      : null;
+    if (contractIconKey) {
+      this.add.image(iconX, top + 20, contractIconKey).setScale(0.5);
     }
-    this.add.text(cx + (c.icon ? 12 : 0), top + 12, `${i + 1}. ${c.name}`, {
+    this.add.text(cx + (contractIconKey ? 12 : 0), top + 12, `${i + 1}. ${c.name}`, {
       fontFamily: 'monospace', fontSize: '15px', color: '#ffffff', fontStyle: 'bold',
     }).setOrigin(0.5, 0);
     this.add.text(cx, top + 42, `− ${c.penalty}`, {
