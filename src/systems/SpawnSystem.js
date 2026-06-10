@@ -103,9 +103,20 @@ export default class SpawnSystem {
     e.body.enable = true;
     e.setDepth(5);
 
+    // Per-civ skin: use enemy_<type>_<civ> if that texture has been generated,
+    // else fall back to the base enemy_<type>. Also called on pooled-reuse so
+    // recycled sprites always swap to the right skin for the current stage.
+    const civId = this.scene.stageCiv || null;
+    const civTexKey = civId ? `enemy_${def.id}_${civId}` : null;
+    if (civTexKey && this.scene.textures.exists(civTexKey)) {
+      e.setTexture(civTexKey);
+    } else {
+      e.setTexture(`enemy_${def.id}`);
+    }
+
     e.typeId = typeId;
     // ITEM A: per-civ localized name (falls back to the base name when unmapped)
-    const civId = this.scene.stageCiv || null;
+    // civId already declared above for texture selection
     e.localName = localEnemyName(civId, typeId, def.name);
     e.attack = def.attack;
     e.speed = def.speed;

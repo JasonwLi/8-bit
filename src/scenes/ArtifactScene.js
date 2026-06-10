@@ -84,8 +84,12 @@ export default class ArtifactScene extends Phaser.Scene {
       align: 'center', wordWrap: { width: w - 24 },
     }).setOrigin(0.5, 0));
     // Artifact icon centred in the card body (reg'd so a reroll cleans it up)
-    if (a.icon && this.textures.exists(a.icon)) {
-      reg(this.add.image(cx, top + 100, a.icon).setScale(0.9));
+    // Use the dedicated artifact icon if generated; fall back to the legacy key.
+    const iconKey = (a.icon && this.textures.exists(a.icon)) ? a.icon
+      : (a.iconFallback && this.textures.exists(a.iconFallback)) ? a.iconFallback
+      : null;
+    if (iconKey) {
+      reg(this.add.image(cx, top + 100, iconKey).setScale(0.9));
     }
     reg(this.add.text(cx, cy + 46, a.desc, {
       fontFamily: 'monospace', fontSize: '13px', color: '#ffd27a',

@@ -200,6 +200,115 @@ export function buildManifest() {
   for (const e of Object.values(ENEMIES)) {
     push(`enemy_${e.id}`, 'enemy', { desc: ENEMY_DESC[e.id] || e.name }, e.size || 40, e.size || 40);
   }
+  // ── Per-civ enemy skins: 7 common types × 8 civs ────────────────────────────
+  // Prompts combine the type's combat role with era-appropriate gear and palette.
+  // Sizes match the base type (soldier:36, archer:34, weaver:30, circler:34,
+  // charger:42, lunger:36, brute:48).
+  const CIV_ENEMY = {
+    // soldier — armoured foot-soldier with sword
+    enemy_soldier_china:    { desc: 'a Three Kingdoms Chinese levy soldier in dark brown-and-bronze lamellar armour and a bronze dou helmet, wielding a jian straight-sword', colors: 'dark brown, bronze and red' },
+    enemy_soldier_japan:    { desc: 'a Sengoku ashigaru foot-soldier in simple dark iron lamellar armour and a flat jingasa hat, gripping a yari spear', colors: 'dark grey, red and black' },
+    enemy_soldier_byzantium:{ desc: 'a Byzantine Roman foot-soldier in steel lamellar armour and a crested iron helmet, holding a sword and a round shield', colors: 'steel-blue, gold and red' },
+    enemy_soldier_sumer:    { desc: 'a Sumerian levy soldier in a copper-scale cuirass and a bronze war helmet, bearing a short bronze sword', colors: 'copper, tan and dark brown' },
+    enemy_soldier_rome:     { desc: 'a Roman legionary in lorica segmentata plate armour and an imperial-Gallic helmet, holding a gladius sword', colors: 'red, silver-steel and gold' },
+    enemy_soldier_macedon:  { desc: 'a Macedonian foot-soldier in bronze linothorax armour and a Boeotian helmet, holding a short kopis sword', colors: 'bronze, blue and tan' },
+    enemy_soldier_mongolia: { desc: 'a Mongol warrior in leather lamellar armour and a pointed iron steppe helmet, wielding a curved saber', colors: 'dark brown, bronze and cream' },
+    enemy_soldier_norse:    { desc: 'a Viking huscarl in chainmail hauberk and an iron nasal helmet, holding a battle axe and a round wooden shield', colors: 'iron-grey, dark brown and red' },
+    // archer — light skirmisher archer
+    enemy_archer_china:     { desc: 'a Three Kingdoms Chinese archer in padded green-and-brown cloth armour and a bamboo hat, drawing a bamboo recurve bow', colors: 'green, brown and tan' },
+    enemy_archer_japan:     { desc: 'a Sengoku Japanese ashigaru archer in light leather armour and a jingasa hat, drawing a traditional yumi longbow', colors: 'dark brown, tan and black' },
+    enemy_archer_byzantium: { desc: 'a Byzantine skirmisher archer in light quilted-linen armour and a leather cap, drawing a composite bow', colors: 'dark green, gold and tan' },
+    enemy_archer_sumer:     { desc: 'a Sumerian archer in a simple linen kilt and a leather cap, drawing a short horn bow', colors: 'sandy tan, copper and dark brown' },
+    enemy_archer_rome:      { desc: 'a Roman auxiliary archer in scale armour and a Phrygian cap, drawing an eastern composite bow', colors: 'tan, green and dark red' },
+    enemy_archer_macedon:   { desc: 'a Macedonian skirmisher archer in a light leather cuirass and a broad-brimmed petasos hat, drawing a short recurve bow', colors: 'tan, bronze and blue' },
+    enemy_archer_mongolia:  { desc: 'a Mongol steppe horse-archer on foot in light lamellar leather armour and a pointed steppe cap, drawing a recurve composite bow', colors: 'brown, cream and dark leather' },
+    enemy_archer_norse:     { desc: 'a Viking archer in a short tunic and a leather skullcap, drawing a plain wooden longbow', colors: 'dark brown, tan and grey' },
+    // weaver — swift assassin with two daggers
+    enemy_weaver_china:     { desc: 'a swift Three Kingdoms Chinese assassin in dark silk clothing and a black hood, wielding two jade-hilted butterfly daggers', colors: 'black, jade-green and gold' },
+    enemy_weaver_japan:     { desc: 'a swift Sengoku ninja shinobi in a dark grey cloth uniform and a face wrap, wielding two short ninjato blades', colors: 'dark grey and black' },
+    enemy_weaver_byzantium: { desc: 'a swift Byzantine court assassin in dark blue tunic with light lamellar shoulder guards, wielding two curved paramerion daggers', colors: 'dark blue, silver and gold' },
+    enemy_weaver_sumer:     { desc: 'a swift Sumerian cut-throat in a leather kilt and a plain leather cap, wielding two bronze sickle daggers', colors: 'tan, copper and dark brown' },
+    enemy_weaver_rome:      { desc: 'a swift Roman sicarius blade-for-hire in a hooded dark cloak, wielding two pugio daggers', colors: 'dark grey, rust-red and silver' },
+    enemy_weaver_macedon:   { desc: 'a swift Macedonian peltast skirmisher in a light linen tunic and a Thracian cap, wielding two kopis short blades', colors: 'tan, bronze and dark blue' },
+    enemy_weaver_mongolia:  { desc: 'a swift Mongol blade scout in light leather armour and a dark cloth headwrap, wielding two curved daggers', colors: 'dark leather, bronze and cream' },
+    enemy_weaver_norse:     { desc: 'a swift Viking berserker in a plain short tunic with no armour, wielding two hand seax daggers in a frenzy', colors: 'dark brown, tan and blood-red' },
+    // circler — cloaked orbiting skirmisher
+    enemy_circler_china:    { desc: 'a cloaked Three Kingdoms Chinese cavalry scout in a brown horse-fur cloak and an iron cap, circling with a dao sabre', colors: 'brown, dark red and iron' },
+    enemy_circler_japan:    { desc: 'a cloaked Sengoku ronin in a tattered dark grey haori coat, circling with a katana held low', colors: 'dark grey, brown and black' },
+    enemy_circler_byzantium:{ desc: 'a cloaked Byzantine skoutatoi skirmisher in a hooded dark cloak and light mail, circling with a short sword', colors: 'dark purple, silver and gold' },
+    enemy_circler_sumer:    { desc: 'a cloaked Sumerian scout in a tan linen wrap and a hooded headdress, circling with a bronze khopesh', colors: 'sandy tan, copper and dark brown' },
+    enemy_circler_rome:     { desc: 'a cloaked Roman velites skirmisher in a light tunic and a wolf-pelt headdress, circling with a short sword', colors: 'dark grey, tan and red' },
+    enemy_circler_macedon:  { desc: 'a cloaked Macedonian hypaspist in a short linen tunic and a leather cap, circling with a short xiphos sword', colors: 'tan, bronze and dark blue' },
+    enemy_circler_mongolia: { desc: 'a cloaked Mongol skirmisher in a fur-lined coat and a dark cloth mask, circling with a curved saber', colors: 'dark brown, cream and bronze' },
+    enemy_circler_norse:    { desc: 'a cloaked Viking skald-warrior in a long dark cloak and an iron cap, circling with a seax blade', colors: 'dark grey, dark brown and silver' },
+    // charger — heavy shield-bearing charging brute
+    enemy_charger_china:    { desc: 'a heavy Three Kingdoms Chinese shield-bearer in red lacquered heavy lamellar armour and a great dou helmet, charging forward with a large wooden tower-shield and a heavy mace', colors: 'red, bronze and dark brown' },
+    enemy_charger_japan:    { desc: 'a heavy Sengoku ashigaru in thick iron chest plate and a somen full-face mask kabuto, charging with a large rectangular tate shield and a kanabō iron club', colors: 'black, dark iron and dark brown' },
+    enemy_charger_byzantium:{ desc: 'a heavy Byzantine skutatos in full iron lamellar armour and a crested ridge helmet, charging with a great oval shield and a heavy kontarion lance', colors: 'steel-blue, dark iron and gold' },
+    enemy_charger_sumer:    { desc: 'a heavy Sumerian heavy-spearman in a copper-scale cuirass and a great bronze plumed helmet, charging with a large rectangular wicker-and-copper shield', colors: 'copper, tan and dark brown' },
+    enemy_charger_rome:     { desc: 'a heavy Roman praetorian in full lorica segmentata and a Attic crested officer helmet, charging with a large curved scutum shield and a pilum javelin', colors: 'red, silver-steel and gold' },
+    enemy_charger_macedon:  { desc: 'a heavy Macedonian hoplite in bronze linothorax with a Corinthian full-face helmet, charging with a large bronze-rimmed hoplon shield', colors: 'bronze, dark blue and tan' },
+    enemy_charger_mongolia: { desc: 'a heavy Mongol heavy cavalry trooper on foot in full lamellar iron armour and a face-guard helmet, charging with a large round iron shield', colors: 'dark iron, bronze and dark brown' },
+    enemy_charger_norse:    { desc: 'a heavy Viking shieldman in thick chainmail and a padded iron nasal helmet, charging with a huge iron-bossed wooden shield and a heavy war-axe', colors: 'iron-grey, dark brown and blood-red' },
+    // lunger — lean agile warrior leaping forward with a long spear
+    enemy_lunger_china:     { desc: 'a lean Three Kingdoms Chinese spearman in light tan-and-green leather armour and a bamboo lamellar chest piece, leaping forward with a long qiang spear', colors: 'tan, green and dark brown' },
+    enemy_lunger_japan:     { desc: 'a lean Sengoku ashigaru spearman in light bamboo-splint armour and a conical jingasa hat, lunging forward with a long naginata polearm', colors: 'dark brown, tan and red' },
+    enemy_lunger_byzantium: { desc: 'a lean Byzantine kontaratoi spearman in light lamellar shoulder plates and a leather cap, lunging forward with a long thrusting lance', colors: 'steel-blue, tan and gold' },
+    enemy_lunger_sumer:     { desc: 'a lean Sumerian long-spearman in a simple linen kilt and a leather headband, lunging forward with a long bronze-tipped reed spear', colors: 'tan, copper and dark brown' },
+    enemy_lunger_rome:      { desc: 'a lean Roman hastati in light lorica hamata chainmail and a legionary helmet, lunging forward with a long hasta spear', colors: 'red, silver and dark iron' },
+    enemy_lunger_macedon:   { desc: 'a lean Macedonian sarissophoros phalangite in light bronze armour and a Phrygian helmet, lunging forward with the tip of a six-metre sarissa pike', colors: 'bronze, blue and tan' },
+    enemy_lunger_mongolia:  { desc: 'a lean Mongol light cavalry trooper on foot in a light leather coat and a round leather helmet, lunging forward with a long bamboo cavalry lance', colors: 'dark brown, cream and bronze' },
+    enemy_lunger_norse:     { desc: 'a lean Viking hersir warrior in a short tunic and a round iron helm, lunging forward with a long ash-wood spear', colors: 'dark grey, tan and blood-red' },
+    // brute — huge hulking heavily-muscled brute with a massive spiked club
+    enemy_brute_china:      { desc: 'a huge hulking Three Kingdoms Chinese war-monk in heavy dark iron armour and a horned dou helmet, swinging a massive iron-spiked iron rod (wolf-tooth mace)', colors: 'dark iron, blood-red and gold' },
+    enemy_brute_japan:      { desc: 'a huge hulking Sengoku sumo-armoured foot-soldier in black heavy lamellar armour and a horned oni kabuto, swinging a massive iron kanabō spiked club', colors: 'black, dark iron and crimson' },
+    enemy_brute_byzantium:  { desc: 'a huge hulking Byzantine heavy tagma warrior in thick full lamellar armour and a great crested ridge helmet, swinging a massive iron-headed war mace', colors: 'dark iron, gold and purple' },
+    enemy_brute_sumer:      { desc: 'a huge hulking Sumerian temple guard in thick copper-and-bronze scale armour and a horned bronze helmet, swinging a massive stone-and-bronze spiked mace', colors: 'bronze, copper and dark brown' },
+    enemy_brute_rome:       { desc: 'a huge hulking Roman gladiator secutor in heavy lorica plumata armour and a full-visor iron helmet, swinging a massive iron ball-and-chain flail', colors: 'dark iron, crimson and gold' },
+    enemy_brute_macedon:    { desc: 'a huge hulking Macedonian war-champion in thick bronze muscle cuirass and a crested Attic helmet, swinging a massive iron-tipped kophinos club', colors: 'bronze, dark blue and gold' },
+    enemy_brute_mongolia:   { desc: 'a huge hulking Mongol heavy cavalry champion in full iron lamellar armour and a face-guard helmet with a fur collar, swinging a massive spiked iron mace', colors: 'dark iron, bronze and dark fur' },
+    enemy_brute_norse:      { desc: 'a huge hulking Viking berserker jarl in thick iron-ringed chainmail hauberk and a horned great helmet, swinging a massive two-handed double-bit war axe', colors: 'dark iron, dark fur and blood-red' },
+  };
+  for (const [key, traits] of Object.entries(CIV_ENEMY)) {
+    // Size lookup: match base type
+    const baseType = key.replace(/^enemy_/, '').replace(/_[a-z]+$/, '');
+    const baseDef = Object.values(ENEMIES).find((e) => e.id === baseType);
+    const sz = baseDef?.size || 40;
+    push(key, 'enemy', traits, sz, sz);
+  }
+
+  // ── Artifact icons — one per artifact (ability_icon category, 48×48) ─────────
+  const ARTIFACT_ICONS = [
+    // Champion relics (8 civ relics)
+    ['artifact_heros_sword_china',    'a glowing jade-green Chinese jian straight-sword crossed with a red scroll, Three Kingdoms imperial emblem'],
+    ['artifact_heros_sword_japan',    'a gleaming steel Japanese katana in an ornate lacquer scabbard with a golden mon clan crest, Sengoku era relic'],
+    ['artifact_heros_sword_byzantium','a jewelled golden Byzantine labarum war standard topped with a Chi-Rho cross emblem, imperial purple and gold'],
+    ['artifact_heros_sword_sumer',    'a glowing Sumerian clay tablet with golden cuneiform script, a lapis-lazuli seal stamp beside it, destiny relic'],
+    ['artifact_heros_sword_rome',     'a laurel wreath crown of golden leaves with a small SPQR banner, Caesar\'s eternal crown'],
+    ['artifact_heros_sword_macedon',  'a long Macedonian sarissa pike with a bronze spearhead on a blue sunburst Vergina star background'],
+    ['artifact_heros_sword_mongolia', 'a Mongol composite recurve bow strung with a golden string, Genghis Khan\'s legendary bow emblem'],
+    ['artifact_heros_sword_norse',    'a glowing broken golden spear shard — a fragment of Gungnir — with Norse runes and lightning sparks'],
+    // General artifacts (11 originals)
+    ['artifact_imperial_mandate',     'a golden imperial decree scroll tied with a crimson ribbon and stamped with a red dragon seal, a conqueror\'s decree'],
+    ['artifact_jade_seal',            'a jade-green carved seal stone of heaven with a coiled dragon on top, the sacred seal of imperial legitimacy'],
+    ['artifact_vanguard_banner',      'a bold red war battle standard banner on a pole with a golden sun emblem, the flag that leads the charge'],
+    ['artifact_conquerors_pauldron',  'a single ornate shoulder pauldron armour piece covered in scratched tally marks, a trophy of fallen warlords'],
+    ['artifact_bloodpact_ring',       'a dark crimson iron ring with a blood-red gem, a warlord\'s oath ring forged in a dark bloodpact ritual'],
+    ['artifact_silk_road_compass',    'a golden bronze navigator\'s compass pointing east, with a glowing gemstone core and fine filigree engravings'],
+    ['artifact_shadow_wraith_cloak',  'a dark navy-blue hooded phantom cloak with glowing silver trim and ghostly wisps trailing from its hem'],
+    ['artifact_battle_drum',          'a round war drum with taut animal-skin head and two crossed bone drumsticks, a warlord\'s battle rhythm drum'],
+    ['artifact_ancient_relic_core',   'a glowing ancient crystalline orb core — a round pulsating violet gem with golden rune filaments inside'],
+    ['artifact_philosophers_crown',   'a tall ornate golden philosopher\'s crown with a glowing blue gem, draped with chains of thought and wisdom'],
+    ['artifact_eternal_legionary_plate', 'a gleaming breastplate cuirass with Roman SPQR eagle carvings and a golden laurel trim, the eternal armour'],
+    // Contract icons (5 contracts)
+    ['contract_bloodlust',  'a dripping crimson sword blade with droplets of blood, a pact of carnage and bloodlust'],
+    ['contract_horde',      'a cluster of five silhouetted enemy figures pressing forward in a horde, a menacing crowd emblem'],
+    ['contract_siege',      'a dark silhouette of a towering fortress gate with thick iron chains barring it, a siege warfare emblem'],
+    ['contract_scorched',   'a scorched blackened field of earth with orange flames and ash, a scorched-earth war emblem'],
+    ['contract_frailty',    'a cracked dark heart split down the middle with glowing cracks of red, a frailty and weakness emblem'],
+  ];
+  for (const [key, desc] of ARTIFACT_ICONS) push(key, 'ability_icon', { desc }, 48, 48);
+
   for (const b of Object.values(BOSSES)) {
     push(`boss_${b.id}`, 'character', BOSS_TRAITS[b.id] || { archetype: `${b.name}, champion of ${b.civ}`, colors: '', hat: 'a crown-helm', clothing: 'ornate armour', weapon: 'a weapon' }, b.size || 80, b.size || 80);
   }
