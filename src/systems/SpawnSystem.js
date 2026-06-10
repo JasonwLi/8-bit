@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { ENEMIES, SPAWN_TABLE, ELITE_MODIFIERS } from '../data/enemies.js';
 import { DUNGEON } from '../config.js';
+import { Audio } from './AudioManager.js';
 
 // Spawns enemies in a ring just outside the camera. Difficulty (hp/damage/rate)
 // scales with elapsed run time. Occasionally promotes a spawn to an "elite"
@@ -267,6 +268,7 @@ export default class SpawnSystem {
       if (mod.id === 'volatile') { e.volatile = true; e.blastRadius = mod.blastRadius; e.blastDmgElite = mod.blastDmg; }
       e.eliteTint = mod.tint;
       e.setScale(1.5).setTint(mod.tint);
+      Audio.sfx('elite'); // menacing low sting (internally throttled to ≤1/s)
     } else {
       e.setScale(1).clearTint();
     }

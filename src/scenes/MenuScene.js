@@ -10,7 +10,7 @@ import { newRun, CIV_BOSS, CIV_ORDER, CIV_NAME } from '../data/campaign.js';
 import { BOSSES, CIV_LIEUTENANTS } from '../data/bosses.js';
 import { DROP_SLOTS, rollItem } from '../data/equipment.js';
 import { getCharacter } from '../data/characters.js';
-import { Save } from '../systems/SaveSystem.js';
+import { Save, Legacy } from '../systems/SaveSystem.js';
 import { Audio } from '../systems/AudioManager.js';
 import { Settings, keyLabel } from '../systems/Settings.js';
 
@@ -109,6 +109,9 @@ export default class MenuScene extends Phaser.Scene {
         `Move: WASD / Arrows  ·  attacks fire where you move  •  ${kP} attack · ${kS} secondary · ${kU} ultimate`,
         { fontFamily: 'monospace', fontSize: '13px', color: '#7d7896' })
       .setOrigin(0.5);
+
+    // Legacy meta-progression: coin count + one purchasable boon (bottom-left, unobtrusive)
+    this._buildLegacyUI(width, height);
 
     // sprite gallery link (opens the standalone inspector in a new tab)
     const gallery = this.add.text(width - 14, 12, '⊞ Sprite Gallery', {
@@ -263,6 +266,43 @@ export default class MenuScene extends Phaser.Scene {
     zone.on('pointerout', () => { g.setAlpha(1); portrait.setScale(2.1); });
     zone.on('pointerdown', () => this.start(c));
     return objs;
+  }
+
+  // Display legacy coins and the Veteran's Edge boon purchase button.
+  // Placed bottom-left so it never overlaps the character cards.
+  _buildLegacyUI(width, height) {
+    const legacy = Legacy.load();
+    const coins = legacy.coins || 0;
+    const owned = !!(legacy.boons && legacy.boons.veteransEdge);
+    const BOON_COST = 30;
+
+    this.add.text(14, height - 54, `Legacy: ${coins}⛁`, {
+      fontFamily: 'monospace', fontSize: '12px', color: '#ffd27a',
+    }).setDepth(5);
+
+    // Show the boon button: greyed out if owned, greyed if can't afford, clickable otherwise
+    let boonColor, boonLabel;
+    if (owned) {
+      boonColor = '#66dd88'; boonLabel = `✔ Veteran's Edge  (owned — next run +10% dmg)`;
+    } else if (coins >= BOON_COST) {
+      boonColor = '#ffd27a'; boonLabel = `⚔ Veteran's Edge  [${BOON_COST}⛁] — next run +10% dmg`;
+    } else {
+      boonColor = '#555566'; boonLabel = `⚔ Veteran's Edge  [${BOON_COST}⛁] — next run +10% dmg`;
+    }
+    const boonBtn = this.add.text(14, height - 40, boonLabel, {
+      fontFamily: 'monospace', fontSize: '11px', color: boonColor,
+    }).setDepth(5);
+    if (!owned && coins >= BOON_COST) {
+      boonBtn.setInteractive({ useHandCursor: true });
+      boonBtn.on('pointerover', () => boonBtn.setColor('#ffffff'));
+      boonBtn.on('pointerout', () => boonBtn.setColor(boonColor));
+      boonBtn.on('pointerdown', () => {
+        if (Legacy.buy('veteransEdge', BOON_COST)) {
+          // Refresh the display immediately so the player sees the update
+          this.scene.restart();
+        }
+      });
+    }
   }
 
   start(character) {

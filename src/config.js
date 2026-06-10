@@ -74,8 +74,8 @@ export function xpForLevel(level) {
   // Faster early levels so weapon customization kicks in quickly...
   const base = [0, 4, 7, 11, 16, 22, 29, 37, 46, 56];
   if (level < base.length) return base[level];
-  // ...then an EXPONENTIAL late curve so the second-half XP flood (huge swarms) can't
-  // runaway-level the player to 70+ with stacking damage points. Lands ~lv 30-40 by
-  // the end of a stage instead of ~71. (Balance pass: steepen leveling.)
-  return Math.floor(56 * Math.pow(1.15, level - 9));
+  // ...then a gentler exponential so late floors still yield upgrade choices at a
+  // good cadence. Was 1.15 — flattened to 1.10 to avoid an XP dead zone on deep floors
+  // where kills barely dent the bar. Lands ~lv 35-50 by the end of a full stage.
+  return Math.floor(56 * Math.pow(1.10, level - 9));
 }

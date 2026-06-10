@@ -253,6 +253,8 @@ export default class UIScene extends Phaser.Scene {
   // Render the explored portion of the cavern into the bottom-right minimap box.
   // Explored FLOOR tiles are drawn as a dot grid (so the cave shape emerges as you
   // explore); the stairs are gold (once seen) and the player is a white dot.
+  // When the floor's spawn budget is exhausted, the stairs pulse gold even if unexplored
+  // and a screen-edge compass arrow points toward them.
   drawMinimap(gs, p) {
     const mmg = this.mmg;
     mmg.clear();
@@ -288,12 +290,17 @@ export default class UIScene extends Phaser.Scene {
       }
     }
 
-    // Stairs (gold) once its tile has been explored
+    // Stairs: shown gold once explored, OR always pulsing gold when the floor budget is
+    // exhausted so the player always knows where to go next.
+    const budgetDone = gs.spawner && gs.spawner.spawnedThisFloor >= gs.spawner.floorBudget;
     if (fs.stairs && fs.stairs.x !== undefined) {
       const st = fs.worldToTile(fs.stairs.x, fs.stairs.y);
-      if (fs.isExplored(st.col, st.row)) {
+      const seen = fs.isExplored(st.col, st.row);
+      if (seen || budgetDone) {
         const { mx, my } = toMM(st.col, st.row);
-        mmg.fillStyle(0xffd700, 1).fillCircle(mx + sx * 0.5, my + sy * 0.5, Math.max(2.5, cell));
+        // pulse alpha when always-shown (budget done but not yet explored)
+        const pulse = budgetDone && !seen ? 0.55 + 0.45 * Math.sin(this.time.now / 220) : 1;
+        mmg.fillStyle(0xffd700, pulse).fillCircle(mx + sx * 0.5, my + sy * 0.5, Math.max(2.5, cell * 1.4));
       }
     }
 
@@ -301,5 +308,38 @@ export default class UIScene extends Phaser.Scene {
     const pt = fs.worldToTile(p.x, p.y);
     const { mx: pdx, my: pdy } = toMM(pt.col, pt.row);
     mmg.fillStyle(0xffffff, 1).fillCircle(pdx + sx * 0.5, pdy + sy * 0.5, 2.5);
+
+    // Screen-edge compass arrow when floor budget is exhausted: points from the player
+    // toward the stairs world-position, clamped to the screen border with a small margin.
+    if (budgetDone && fs.stairs && fs.stairs.x !== undefined && !gs.dueling && !gs.stageCleared) {
+      const cam = gs.cameras.main;
+      // stairs world position → screen position
+      const stSX = fs.stairs.x - cam.scrollX;
+      const stSY = fs.stairs.y - cam.scrollY;
+      // if stairs are on-screen, skip the arrow (player can see them)
+      const onScreen = stSX > 0 && stSX < sw && stSY > 0 && stSY < sh;
+      if (!onScreen) {
+        const ang = Math.atan2(stSY - sh / 2, stSX - sw / 2);
+        const EDGE_MARGIN = 28;
+        // find the intersection of the ray with the screen rect border
+        const cos = Math.cos(ang), sin = Math.sin(ang);
+        let t = Infinity;
+        if (cos > 0)  t = Math.min(t, (sw - EDGE_MARGIN - sw / 2) / cos);
+        if (cos < 0)  t = Math.min(t, (EDGE_MARGIN - sw / 2) / cos);
+        if (sin > 0)  t = Math.min(t, (sh - EDGE_MARGIN - sh / 2) / sin);
+        if (sin < 0)  t = Math.min(t, (EDGE_MARGIN - sh / 2) / sin);
+        const ax = sw / 2 + cos * t;
+        const ay = sh / 2 + sin * t;
+        // draw a small gold triangle (arrowhead) pointing in `ang`
+        const S = 8; // half-size of the arrowhead
+        const pulse = 0.7 + 0.3 * Math.sin(this.time.now / 300);
+        mmg.fillStyle(0xffd700, pulse);
+        mmg.fillTriangle(
+          ax + cos * S * 1.6, ay + sin * S * 1.6,
+          ax + (-sin) * S - cos * S, ay + cos * S - sin * S,
+          ax - (-sin) * S - cos * S, ay - cos * S - sin * S,
+        );
+      }
+    }
   }
 }
