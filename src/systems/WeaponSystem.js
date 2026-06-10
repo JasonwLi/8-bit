@@ -1063,9 +1063,14 @@ export default class WeaponSystem {
 
   fireLobAoe(s) {
     const target = this.nearestEnemy();
-    // duel/aimed: lob toward the aim direction; else onto the nearest enemy
+    // duel/aimed: lob ALONG the aim heading but land at the TARGET'S distance — the old
+    // fixed 200px landing overshot close enemies and undershot far ones on every string
+    // step (steps always set an aim override now). No target: fall back to 200px.
+    const aimDist = target
+      ? Phaser.Math.Clamp(Phaser.Math.Distance.Between(this.player.x, this.player.y, target.x, target.y), 70, 380)
+      : 200;
     const aimed = this._aimOverride != null
-      ? { x: this.player.x + Math.cos(this._aimOverride) * 200, y: this.player.y + Math.sin(this._aimOverride) * 200 }
+      ? { x: this.player.x + Math.cos(this._aimOverride) * aimDist, y: this.player.y + Math.sin(this._aimOverride) * aimDist }
       : null;
     // Player greek_fire pots get the full arcing visual treatment; other lob_aoe users don't.
     const isGreekFire = s.def.id === 'greek_fire';
