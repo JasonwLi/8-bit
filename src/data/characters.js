@@ -102,7 +102,7 @@ export const CHARACTERS = [
     civId: 'macedon',
     blurb: 'Undefeated conqueror, hailed son of Amun-Ra in Egypt. Long sarissa reach and the sweeping Wrath of Ra.',
     startingWeapon: 'sarissa',
-    secondary: 'companion_javelin',
+    secondary: 'phalanx_wall',
     ultimate: 'wrath_of_ra',
     stats: { maxHp: 110, speed: 220, attack: 1.08, defense: 0.06, rangedDefense: 0.05, lifesteal: 0.03, regen: 0.027, pickup: 110, luck: 1 },
     palette: {
