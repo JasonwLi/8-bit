@@ -185,15 +185,15 @@ export const SECONDARIES = {
     kind: 'pike_wall',
     color: 0x4a90d9,
     base: {
-      damage: 22,        // per pike per tick — mid damage, stacks across multiple pikes
+      damage: 27,        // per pike per tick — stacks across multiple pikes
       cooldown: 2600,
       count: 5,          // pikes in the wall
       span: 160,         // total wall width in px
       offset: 90,        // px ahead of player along aim direction
       duration: 2500,    // ms the wall persists
-      tick: 300,         // ms between damage ticks per pike zone
-      pikeRadius: 18,    // hit-radius per pike zone
-      slow: { factor: 0.28, dur: 800 }, // heavy pin
+      tick: 270,         // ms between damage ticks per pike zone
+      pikeRadius: 26,    // hit-radius per pike — bands overlap, no gaps to slip through
+      slow: { factor: 0.28, dur: 1100 }, // heavy pin
     },
     axes: [
       { id: 'dmg',      kind: 'dmg',      label: 'Sarissa Tips',   desc: '+16% damage per point' },
@@ -207,7 +207,7 @@ export const SECONDARIES = {
       name: 'Anvil of Chaeronea',
       desc: 'Wall length ×2 (span 320px). Every pike applies bleed (3 dps, 8s). ×1.6 damage.',
       overlay: {
-        damage: 35,       // ×1.6 vs base
+        damage: 43,       // ×1.6 vs base
         span: 320,        // ×2 width
         // anvilBleed flag: firePikeWall applies bleed to each ticked enemy
         anvilBleed: { dps: 3, duration: 8000, stackMax: 6 },

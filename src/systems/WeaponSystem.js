@@ -1108,8 +1108,22 @@ export default class WeaponSystem {
       : this.player.flipX ? Math.PI : 0;
     this._lastAimAngle = facing;
 
+    // A thrust is a physical pole — it stops at the first WALL along the lane instead of
+    // skewering enemies through rock. Step the lane and clip at the first blocked point.
+    // (Duels: the arena lives off the floor grid where isWalkable is false — skip there.)
+    const clipLen = (ang, len) => {
+      const fs = this.scene.floorSys;
+      if (!this.scene.dungeonMode || !fs || this.scene.dueling) return len;
+      const cos = Math.cos(ang), sin = Math.sin(ang);
+      for (let d = 16; d <= len; d += 16) {
+        if (!fs.isWalkable(this.player.x + cos * d, this.player.y + sin * d)) return Math.max(28, d - 16);
+      }
+      return len;
+    };
+
     // Helper: hit-check + FX for a single thrust lane
     const doLane = (ang, len) => {
+      len = clipLen(ang, len);
       const damage = Math.round(s.damage);
       const halfW = s.width / 2;
       const px = this.player.x;
@@ -1288,10 +1302,13 @@ export default class WeaponSystem {
     // shockwave at the centre to sell the impact
     this.scene.fx._flash(cx, cy, 14, 0xd4af37, 0.65, 180);
 
+    const fs = this.scene.floorSys;
     for (let i = 0; i < count; i++) {
       const t = count === 1 ? 0 : i / (count - 1) - 0.5;
       const wx = cx + perpX * t * span;
       const wy = cy + perpY * t * span;
+      // pikes can't be planted inside the rock (arena is off-grid — skip the check in duels)
+      if (this.scene.dungeonMode && fs && !this.scene.dueling && !fs.isWalkable(wx, wy)) continue;
 
       // Small stagger per pike for organic feel
       const stagger = i * 35;
@@ -1323,29 +1340,29 @@ export default class WeaponSystem {
       // Tick-zone: damages + slows enemies in the pike's radius for `dur` ms
       this.scene.time.delayedCall(stagger, () => {
         if (!this.player.active) return;
+        const strike = () => {
+          const now = this.scene.time.now;
+          for (const e of this.scene.enemies.getChildren()) {
+            if (!e.active) continue;
+            const dx = e.x - wx;
+            const dy = e.y - wy;
+            if (dx * dx + dy * dy > pikR * pikR) continue;
+            this.scene.damageEnemy(e, damage, { fromPlayer: true });
+            // Apply heavy slow (pin)
+            if (slow) {
+              e.slowUntil  = now + slow.dur;
+              e.slowFactor = slow.factor;
+            }
+            // Anvil of Chaeronea: bleed
+            if (bleed) this.scene.applyBleed(e, bleed);
+          }
+        };
+        strike(); // the wall SLAMS in — first hit lands on plant, not a tick later
         const ticks = Math.max(1, Math.floor(dur / tick));
-        let done = 0;
         const ev = this.scene.time.addEvent({
           delay: tick,
           repeat: ticks - 1,
-          callback: () => {
-            const now = this.scene.time.now;
-            for (const e of this.scene.enemies.getChildren()) {
-              if (!e.active) continue;
-              const dx = e.x - wx;
-              const dy = e.y - wy;
-              if (dx * dx + dy * dy > pikR * pikR) continue;
-              this.scene.damageEnemy(e, damage, { fromPlayer: true });
-              // Apply heavy slow (pin)
-              if (slow) {
-                e.slowUntil  = now + slow.dur;
-                e.slowFactor = slow.factor;
-              }
-              // Anvil of Chaeronea: bleed
-              if (bleed) this.scene.applyBleed(e, bleed);
-            }
-            done++;
-          },
+          callback: strike,
         });
         // clean up timer if the scene is torn down
         this.scene.events.once('shutdown', () => ev.remove(false));
