@@ -104,7 +104,8 @@ export default class GameScene extends Phaser.Scene {
     // ── Deliberate counter-arm state ─────────────────────────────────────────
     this._lastPrimaryFireAt = 0;  // timestamp of the last primary shot
     this._counterArmed = false;   // gold glint appears while true
-    this._counterGlintFx = null;  // subtle gold arc on the player
+    this._counterGlintFx = null;  // pulsing gold ring around the player
+    this._counterReadyShown = 0;  // how many times 'COUNTER READY' text has shown this session
 
     // ── Focus aim state (mechanic 4 — included here for completeness) ────────
     this._focusLockedDir = null;  // snapshot of aimDir when focus was first pressed
@@ -492,23 +493,40 @@ export default class GameScene extends Phaser.Scene {
       if (this._focusAimArrow) this._focusAimArrow.setVisible(false);
     }
 
-    // ── Counter-arm logic: counter fires only when player hasn't shot for ≥400ms ──
+    // ── Counter-arm logic: counter fires when the player hasn't shot for ≥400ms,
+    //    OR when the charge ring reaches ≥50% (so hold-players pass through armed
+    //    windows every cycle instead of never seeing counters). ──────────────────
     {
       const COUNTER_ARM_DELAY = 400;
       const counterNow = this.time.now;
       const wasArmedPrev = this._counterArmed;
-      this._counterArmed = !this.dueling && (counterNow - (this._lastPrimaryFireAt || 0)) >= COUNTER_ARM_DELAY;
+      // Arm by idle time OR by charge progress (50%+ charge counts as "not firing")
+      const idleArmed = !this.dueling && (counterNow - (this._lastPrimaryFireAt || 0)) >= COUNTER_ARM_DELAY;
+      const chargeArmed = !this.dueling && this._chargeMs >= CHARGE_FULL_MS * 0.50 && !this._chargeFired;
+      this._counterArmed = idleArmed || chargeArmed;
       if (this._counterArmed && !wasArmedPrev) {
-        // Just became armed: spawn a barely-visible gold pulse ring
-        const g = this.add.arc(this.player.x, this.player.y, 16, 0, 360, false, 0xffd700, 0)
-          .setDepth(11).setStrokeStyle(1, 0xffd700, 0.5);
+        // Just became armed: destroy any stale glint and create an unmissable pulsing
+        // gold ring around the player (larger + brighter than the old barely-visible arc).
+        if (this._counterGlintFx) { this._counterGlintFx.destroy(); this._counterGlintFx = null; }
+        const g = this.add.arc(this.player.x, this.player.y, 22, 0, 360, false, 0xffd700, 0)
+          .setDepth(11).setStrokeStyle(3, 0xffd700, 0.9);
         this._counterGlintFx = g;
+        // Show 'COUNTER READY' micro-text the first 3 times per session
+        if (this._counterReadyShown < 3) {
+          this._counterReadyShown++;
+          const ct = this.add.text(this.player.x, this.player.y - 36, 'COUNTER READY', {
+            fontFamily: 'monospace', fontSize: '11px', color: '#ffd700', fontStyle: 'bold',
+            stroke: '#000000', strokeThickness: 2,
+          }).setOrigin(0.5).setDepth(52).setScrollFactor(1);
+          this.tweens.add({ targets: ct, y: ct.y - 18, alpha: 0, duration: 900, ease: 'Quad.easeIn', onComplete: () => ct.destroy() });
+        }
       } else if (!this._counterArmed && wasArmedPrev) {
         if (this._counterGlintFx) { this._counterGlintFx.destroy(); this._counterGlintFx = null; }
       }
       if (this._counterGlintFx && this._counterArmed) {
         this._counterGlintFx.setPosition(this.player.x, this.player.y);
-        this._counterGlintFx.setAlpha(0.30 + 0.20 * Math.sin(counterNow * 0.006));
+        // Bright pulsing ring — alternates 0.65-0.95 alpha so it's unmissable
+        this._counterGlintFx.setAlpha(0.65 + 0.30 * Math.sin(counterNow * 0.009));
       }
     }
 
