@@ -174,8 +174,51 @@ export const SECONDARIES = {
     },
   },
 
-  // Alexander — COMPANION JAVELINS: a staggered burst of cavalry javelins, distinct
-  // from the forward sarissa sweep. Reinforces the combined-arms identity.
+  // Alexander — PHALANX WALL: plant a line of sarissa pikes PERPENDICULAR to the aim
+  // direction ~90px ahead. The wall of ~5 pike-points spans ~160px. Each pike is a
+  // small tick-zone; enemies in/crossing the wall take damage ticks AND are heavily
+  // slowed (pinned). Wall persists 2.5s. Area-denial — distinct from every other
+  // secondary on the roster (no other secondary plants a static perpendicular wall).
+  phalanx_wall: {
+    id: 'phalanx_wall',
+    name: 'Phalanx Wall',
+    kind: 'pike_wall',
+    color: 0x4a90d9,
+    base: {
+      damage: 22,        // per pike per tick — mid damage, stacks across multiple pikes
+      cooldown: 2600,
+      count: 5,          // pikes in the wall
+      span: 160,         // total wall width in px
+      offset: 90,        // px ahead of player along aim direction
+      duration: 2500,    // ms the wall persists
+      tick: 300,         // ms between damage ticks per pike zone
+      pikeRadius: 18,    // hit-radius per pike zone
+      slow: { factor: 0.28, dur: 800 }, // heavy pin
+    },
+    axes: [
+      { id: 'dmg',      kind: 'dmg',      label: 'Sarissa Tips',   desc: '+16% damage per point' },
+      { id: 'wider',    kind: 'count',    label: 'Wider Wall',     desc: '+1 pike per point', per: 1 },
+      { id: 'hold',     kind: 'duration', label: 'Hold the Line',  desc: '+400ms wall duration per point', per: 400 },
+      { id: 'pin',      kind: 'slow',     label: 'Pin',            desc: 'Stronger slow: −0.06 factor & +200ms per point' },
+    ],
+    // EVOLVE — Anvil of Chaeronea: wall length ×2, pikes also BLEED, +damage ×1.6.
+    // The wall that broke every army — enemies bleed out on the sarissas.
+    evolution: {
+      name: 'Anvil of Chaeronea',
+      desc: 'Wall length ×2 (span 320px). Every pike applies bleed (3 dps, 8s). ×1.6 damage.',
+      overlay: {
+        damage: 35,       // ×1.6 vs base
+        span: 320,        // ×2 width
+        // anvilBleed flag: firePikeWall applies bleed to each ticked enemy
+        anvilBleed: { dps: 3, duration: 8000, stackMax: 6 },
+      },
+    },
+  },
+
+  // Alexander — COMPANION JAVELINS (RETIRED — replaced by phalanx_wall above).
+  // Kept so no existing save data / tests referencing this id crash. Mechanically
+  // identical to Caesar's pilum_volley (burst_aimed + slow) — the reason it was
+  // replaced. Not wired to any character.secondary; safe to remove in a future cleanup.
   companion_javelin: {
     id: 'companion_javelin',
     name: 'Companion Javelins',

@@ -278,6 +278,13 @@ export default class WeaponSystem {
       case 'boomerang':
         s.range = b.range * reachMult; s.spin = b.spin; s.speed = b.speed;
         break;
+      case 'pike_wall':
+        s.span = (b.span || 160) * reachMult;
+        s.offset = b.offset || 90;
+        s.duration = (b.duration || 2500) + P('duration') * M('duration', 400);
+        s.tick = b.tick || 300;
+        s.pikeRadius = b.pikeRadius || 18;
+        break;
       default: break;
     }
     if (s.duration == null && b.duration) s.duration = b.duration;
@@ -348,6 +355,7 @@ export default class WeaponSystem {
       s.mjolnirEcho = true;
       s.mjolnirEchoDmgMult = b.mjolnirEchoDmgMult || 0.7;
     }
+    if (b.anvilBleed) s.anvilBleed = b.anvilBleed;                     // Anvil of Chaeronea
     // allyDmgMult from overlay (Testudo Immortalis — overlay hard-sets it before axis scaling)
     if (b.allyDmgMult && b.allyDmgMult > 1) {
       s.allyDmgMult = Math.max(s.allyDmgMult || 1, b.allyDmgMult);
@@ -615,12 +623,12 @@ export default class WeaponSystem {
     } else if (id === 'axe_throw') {
       this.scene.fx.muzzle(this.player.x, this.player.y, s.def.color);
       this.scene.fx._flash(this.player.x, this.player.y, 9, 0xe8e8f0, 0.6, 120); // steel glint as the axe leaves the hand
-    } else if (s.def.kind === 'summon' || s.def.kind === 'line_thrust') {
+    } else if (s.def.kind === 'summon' || s.def.kind === 'line_thrust' || s.def.kind === 'pike_wall') {
       // these have their own bespoke visuals (no generic muzzle puff)
     } else {
       this.scene.fx.muzzle(this.player.x, this.player.y, s.def.color);
     }
-    const meleeish = s.def.kind === 'melee_arc' || s.def.kind === 'line_thrust' || s.def.kind === 'summon';
+    const meleeish = s.def.kind === 'melee_arc' || s.def.kind === 'line_thrust' || s.def.kind === 'summon' || s.def.kind === 'pike_wall';
     Audio.sfx(meleeish ? 'melee' : 'shoot');
     switch (s.def.kind) {
       case 'melee_arc':
@@ -645,6 +653,8 @@ export default class WeaponSystem {
         return this.fireTrail(s);
       case 'boomerang':
         return this.fireBoomerang(s);
+      case 'pike_wall':
+        return this.firePikeWall(s);
       default:
         return undefined;
     }
@@ -1226,5 +1236,126 @@ export default class WeaponSystem {
         p.boomExplosionLinger = s.boomExplosionLinger || 1200;
       }
     }
+  }
+
+  // ── Alexander: PHALANX WALL — plant a perpendicular line of sarissa pikes ahead. ─
+  // Computes N pike-point positions arranged along the axis PERPENDICULAR to the aim,
+  // centred at `offset` px ahead of the player. Each pike spawns a small persistent
+  // tick-zone (radius `pikeRadius`) that damages + slows enemies for `duration` ms.
+  // Rendered as weapon_sarissa sprites angled along the aim direction, bronze-tinted,
+  // staggered slightly, that fade as the duration expires.
+  firePikeWall(s) {
+    const target = this.nearestEnemy();
+    const facing = this._aimOverride != null
+      ? this._aimOverride
+      : target
+      ? Math.atan2(target.y - this.player.y, target.x - this.player.x)
+      : this.player.flipX ? Math.PI : 0;
+    this._lastAimAngle = facing;
+
+    const px = this.player.x;
+    const py = this.player.y;
+
+    // Wall centre: `offset` px ahead along aim direction
+    const cx = px + Math.cos(facing) * (s.offset || 90);
+    const cy = py + Math.sin(facing) * (s.offset || 90);
+
+    // Perpendicular axis (rotate aim 90°)
+    const perpX = -Math.sin(facing);
+    const perpY =  Math.cos(facing);
+
+    const count   = s.count;
+    const span    = s.span || 160;
+    const dur     = s.duration || 2500;
+    const tick    = s.tick || 300;
+    const pikR    = s.pikeRadius || 18;
+    const damage  = Math.round(s.damage);
+    const slow    = s.slow || null;
+    const bleed   = s.anvilBleed || null; // Anvil of Chaeronea evolution
+
+    // Bronze Macedonian tint for the pikes
+    const bronzeTint = 0xcd8e3a;
+
+    // Spawn-in FX: a brief horizontal flash across the wall line (steel glint)
+    const halfSpan = span / 2;
+    const g = this.scene.add.graphics().setDepth(10).setBlendMode('ADD');
+    g.lineStyle(3, 0xd4af37, 0.8);
+    g.beginPath();
+    g.moveTo(cx - perpX * halfSpan, cy - perpY * halfSpan);
+    g.lineTo(cx + perpX * halfSpan, cy + perpY * halfSpan);
+    g.strokePath();
+    this.scene.tweens.add({ targets: g, alpha: 0, duration: 220, ease: 'Quad.easeOut', onComplete: () => g.destroy() });
+    // shockwave at the centre to sell the impact
+    this.scene.fx._flash(cx, cy, 14, 0xd4af37, 0.65, 180);
+
+    for (let i = 0; i < count; i++) {
+      const t = count === 1 ? 0 : i / (count - 1) - 0.5;
+      const wx = cx + perpX * t * span;
+      const wy = cy + perpY * t * span;
+
+      // Small stagger per pike for organic feel
+      const stagger = i * 35;
+
+      // Visual: sarissa sprite planted at this position, angled along aim direction
+      if (this.scene.textures.exists('weapon_sarissa')) {
+        const img = this.scene.add.image(wx, wy, 'weapon_sarissa')
+          .setRotation(facing)
+          .setTint(bronzeTint)
+          .setScale(0.9)
+          .setDepth(5)
+          .setAlpha(0);
+        // pop in with a brief flash then hold for duration, fade out at expiry
+        this.scene.tweens.add({
+          targets: img,
+          alpha: 0.85,
+          duration: 60 + stagger * 0.5,
+          ease: 'Quad.easeOut',
+          onComplete: () => {
+            this.scene.time.delayedCall(dur - 120, () => {
+              if (img.active) {
+                this.scene.tweens.add({ targets: img, alpha: 0, duration: 160, onComplete: () => img.destroy() });
+              }
+            });
+          },
+        });
+      }
+
+      // Tick-zone: damages + slows enemies in the pike's radius for `dur` ms
+      this.scene.time.delayedCall(stagger, () => {
+        if (!this.player.active) return;
+        const ticks = Math.max(1, Math.floor(dur / tick));
+        let done = 0;
+        const ev = this.scene.time.addEvent({
+          delay: tick,
+          repeat: ticks - 1,
+          callback: () => {
+            const now = this.scene.time.now;
+            for (const e of this.scene.enemies.getChildren()) {
+              if (!e.active) continue;
+              const dx = e.x - wx;
+              const dy = e.y - wy;
+              if (dx * dx + dy * dy > pikR * pikR) continue;
+              this.scene.damageEnemy(e, damage, { fromPlayer: true });
+              // Apply heavy slow (pin)
+              if (slow) {
+                e.slowUntil  = now + slow.dur;
+                e.slowFactor = slow.factor;
+              }
+              // Anvil of Chaeronea: bleed
+              if (bleed) this.scene.applyBleed(e, bleed);
+            }
+            done++;
+          },
+        });
+        // clean up timer if the scene is torn down
+        this.scene.events.once('shutdown', () => ev.remove(false));
+      });
+    }
+
+    // Tip-flash at both ends of the wall
+    const endL = { x: cx - perpX * halfSpan, y: cy - perpY * halfSpan };
+    const endR = { x: cx + perpX * halfSpan, y: cy + perpY * halfSpan };
+    this.scene.fx._flash(endL.x, endL.y, 8, bronzeTint, 0.8, 140);
+    this.scene.fx._flash(endR.x, endR.y, 8, bronzeTint, 0.8, 140);
   }
 }
