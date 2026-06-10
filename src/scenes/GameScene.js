@@ -763,6 +763,34 @@ export default class GameScene extends Phaser.Scene {
           .setFlipX(this.player.flipX);
         this.tweens.add({ targets: ghost, alpha: 0, duration: 220, onComplete: () => ghost.destroy() });
       }
+
+      // DASH-STRIKE: deal damage to each enemy the player body overlaps during the dash.
+      // One hit per enemy per dash (tracked by _dashStrikeHit, cleared at dash start).
+      // Uses fromPlayer:true so the counter-arm check in damageEnemy applies — a
+      // counter-armed dash through a telegraphing enemy pays the full 1.5× counter bonus.
+      // No knockback or bleed during the dash to avoid wall-shove chaos.
+      {
+        const ds = this.weapons.computeStats();
+        const dashDmg = Math.round(ds.damage * 0.80);
+        const pr = 28; // hit radius around player centre (generous — bigger than the body hitbox)
+        const pr2 = pr * pr;
+        for (const e of this.enemies.getChildren()) {
+          if (!e.active || this._dashStrikeHit.has(e)) continue;
+          const ddx = e.x - this.player.x;
+          const ddy = e.y - this.player.y;
+          if (ddx * ddx + ddy * ddy <= pr2) {
+            this._dashStrikeHit.add(e);
+            this.damageEnemy(e, dashDmg, { fromPlayer: true }); // can trigger counter-hit!
+            // Small cyan spark impact at the point of contact
+            const ang = Math.atan2(ddy, ddx);
+            const sx = this.player.x + Math.cos(ang) * 20;
+            const sy = this.player.y + Math.sin(ang) * 20;
+            this.fx._flash(sx, sy, 6, 0x00e5ff, 0.7, 100);
+            this.fx._tint(this.fx.spark, 0x00e5ff);
+            this.fx.spark.emitParticleAt(sx, sy, 4);
+          }
+        }
+      }
     }
 
     // Status aura around the player — makes active buffs/debuffs obvious at a glance.
