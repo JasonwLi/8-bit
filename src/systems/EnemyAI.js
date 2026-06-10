@@ -333,6 +333,9 @@ function fireEnemyShot(scene, e, ang) {
         scale: 1.3,
         tint: 0x8888ff,
       });
+      // TWEAK 8: capture departure position BEFORE teleporting
+      const oldX = e.x;
+      const oldY = e.y;
       // Teleport: pick a random angle offset from behind/beside the player,
       // place the blinker blinkDistance away so it stays at range.
       const blinkAng = a + Math.PI + (Math.random() - 0.5) * Math.PI; // roughly behind
@@ -349,6 +352,19 @@ function fireEnemyShot(scene, e, ang) {
           else e.clearTint();
         }
       });
+      // TWEAK 8: leave a hazard zone at the departure point (punishes blindly dashing there)
+      if (e.blinkLeaveZone) {
+        scene.spawnHazardZone(
+          oldX, oldY,
+          e.blinkZoneRadius || 55,
+          e.blinkZoneDmg || 6,
+          0,
+          e.blinkZoneTick || 300,
+          e.blinkZoneDuration || 1200,
+          'acid',
+          'player'
+        );
+      }
       break;
     }
 
@@ -504,13 +520,29 @@ function updateMelee(scene, e, delta, dist, ang) {
       // Phase 1: active lunge (attack window — contactDamage boosted, token held)
       if (e.lungeActive) {
         e.lungeTimer -= delta;
+        e._lungeElapsed = (e._lungeElapsed || 0) + delta;
         if (e.lungeTimer > 0) {
           e.setVelocity(e.lungeDx * e.lungeSpeed, e.lungeDy * e.lungeSpeed);
+          // TWEAK 4: mid-lunge re-aim — fires once at 40% of lunge duration
+          if (e.lungeReaim && !e._lungeReaimed && e._lungeElapsed >= (e.lungeDuration || 300) * 0.40) {
+            e._lungeReaimed = true;
+            const newAng = Math.atan2(scene.player.y - e.y, scene.player.x - e.x);
+            const diff = Phaser.Math.Angle.Wrap(newAng - e.lungeDir);
+            const clamp = 0.61; // 35° max correction
+            e.lungeDir = e.lungeDir + Math.max(-clamp, Math.min(clamp, diff));
+            e.lungeDx = Math.cos(e.lungeDir);
+            e.lungeDy = Math.sin(e.lungeDir);
+            scene.physics.velocityFromRotation(e.lungeDir, e.lungeSpeed, e.body.velocity);
+            // Orange flash so the player can read the redirect
+            scene.fx._flash(e.x, e.y, 7, 0xff9900, 0.6, 80);
+          }
         } else {
           // end lunge, enter recovery — release token, restore contact damage
           e.lungeActive = false;
           e.lungeRecovering = true;
           e.lungeRecoverTimer = e.recoverTime;
+          e._lungeReaimed = false; // reset for next lunge
+          e._lungeElapsed = 0;
           releaseAttackToken(scene, e);
           e.contactDamage = e._baseContactDamage != null ? e._baseContactDamage : e.damage;
           if (e.isElite) e.setTint(e.eliteTint || 0xffd54a);
@@ -537,10 +569,13 @@ function updateMelee(scene, e, delta, dist, ang) {
         e.setVelocity(0, 0);
         if (e.lungeWindTimer <= 0) {
           // launch — boost contactDamage for the active leap window (+25%)
+          e.lungeDir = ang; // snapshot aim angle for TWEAK 4 re-aim
           e.lungeDx = Math.cos(ang);
           e.lungeDy = Math.sin(ang);
           e.lungeActive = true;
           e.lungeTimer  = e.lungeDuration;
+          e._lungeElapsed = 0; // reset elapsed for re-aim timing
+          e._lungeReaimed = false;
           if (e._baseContactDamage == null) e._baseContactDamage = e.contactDamage;
           e.contactDamage = Math.round(e._baseContactDamage * 1.25);
           if (e.isElite) e.setTint(e.eliteTint || 0xffd54a);

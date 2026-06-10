@@ -283,6 +283,39 @@ export default class SpawnSystem {
     e.berserkrRage   = !!def.berserkrRage;
     e.rageThreshold  = def.rageThreshold || 0.30;
     e.raging         = false;
+    // ── Answer-demanding enemy tweaks (pooling-safe resets) ──────────────────
+    // TWEAK 1: sentinel testudo — already handled by testudo/testudoArc above
+    // TWEAK 2: shaman heal aura — auraHealAmt read from def at pulse time
+    e.auraHealAmt    = def.auraHealAmt || 0;
+    // TWEAK 3: golem two-phase armor
+    e.ironcladArmor      = !!def.ironcladArmor;
+    e.ironcladThreshold  = def.ironcladThreshold || 0.60;
+    e.ironcladHardArmor  = def.ironcladHardArmor || 0.70;
+    e.ironcladSoftArmor  = def.ironcladSoftArmor || 0.15;
+    e._ironcladRingAcc   = 0; // ring pulse accumulator
+    // TWEAK 4: lunger mid-lunge re-aim
+    e.lungeReaim     = !!def.lungeReaim;
+    e._lungeReaimed  = false; // reset per-lunge flag
+    e._lungeElapsed  = 0;    // ms elapsed in current lunge
+    // TWEAK 5: titan fear aura + rage
+    e.titanAura           = !!def.titanAura;
+    e.titanAuraRadius     = def.titanAuraRadius || 100;
+    e.titanAuraSlow       = def.titanAuraSlow || 0.70;
+    e.titanRageThreshold  = def.titanRageThreshold || 0.50;
+    e.titanRageSpeedMult  = def.titanRageSpeedMult || 1.60;
+    e._titanRaged         = false;
+    e._titanRingAcc       = 0;
+    // TWEAK 6: spreader windup block
+    e.windupBlock    = !!def.windupBlock;
+    e.windupBlockArc = def.windupBlockArc || 1.4;
+    e.windupBlockDR  = def.windupBlockDR || 0.60;
+    // TWEAK 7: acolyte aura handled by existing ashipuAura path
+    // TWEAK 8: blinker departure zone
+    e.blinkLeaveZone   = !!def.blinkLeaveZone;
+    e.blinkZoneRadius  = def.blinkZoneRadius || 55;
+    e.blinkZoneDmg     = def.blinkZoneDmg || 6;
+    e.blinkZoneDuration = def.blinkZoneDuration || 1200;
+    e.blinkZoneTick    = def.blinkZoneTick || 300;
     // cone_sweep extras
     e.coneSweepCount    = def.coneSweepCount    || 5;
     e.coneSweepInterval = def.coneSweepInterval || 160;

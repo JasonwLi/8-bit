@@ -152,6 +152,8 @@ export const ENEMIES = {
     lungeRange: 240,     // max distance to trigger a lunge
     lungeWindup: 320,    // telegraph before lunge
     recoverTime: 500,    // ms to stand still after lunge ends
+    // TWEAK 4: mid-lunge re-aim — adjusts direction 40% into the lunge (±35°, orange flash)
+    lungeReaim: true,
     palette: { primary: 0x3a7a3a, secondary: 0x60c060, accent: 0x1a3a1a },
   },
 
@@ -175,6 +177,10 @@ export const ENEMIES = {
     windup: 600,
     projSpeed: 145,
     projDamage: 6,
+    // TWEAK 6: frontal windup block — 60% DR from front while winding up (forces flanking or counter)
+    windupBlock: true,
+    windupBlockArc: 1.4,   // ~80° half-cone frontal block
+    windupBlockDR: 0.60,   // 60% damage reduction while winding from front
     palette: { primary: 0xaa44aa, secondary: 0xdd88dd, accent: 0x551155 },
   },
 
@@ -304,6 +310,12 @@ export const ENEMIES = {
     projDamage: 10,
     blinkCooldown: 2200,  // ms between teleports (independent of fire cooldown)
     blinkDistance: 220,   // how far the blink repositions (units)
+    // TWEAK 8: leave a slow/damage field at the departure point after each blink
+    blinkLeaveZone: true,
+    blinkZoneRadius: 55,
+    blinkZoneDmg: 6,
+    blinkZoneDuration: 1200,
+    blinkZoneTick: 300,
     palette: { primary: 0x1a1a4a, secondary: 0x5555cc, accent: 0x0a0a22 },
   },
 
@@ -339,6 +351,12 @@ export const ENEMIES = {
     xp: 14,
     size: 60,
     armor: 0.35,
+    // TWEAK 5: fear aura while > 50% HP (30% slow), then rage flip below 50%
+    titanAura: true,
+    titanAuraRadius: 100,
+    titanAuraSlow: 0.70,
+    titanRageThreshold: 0.50,
+    titanRageSpeedMult: 1.60,
     palette: { primary: 0x4a3a6a, secondary: 0x8860b0, accent: 0x1e1428 },
   },
 
@@ -358,10 +376,17 @@ export const ENEMIES = {
     windup: 700,
     projSpeed: 120,
     projDamage: 8,
+    // TWEAK 2: periodically heals nearby allies via ashipuAura path + auraHealAmt
+    ashipuAura: true,
+    auraRadius: 120,
+    auraDmgBoost: 1.0,       // no damage boost — healer role only
+    auraSpeedBoost: 1.0,
+    auraPulseCooldown: 4000,
+    auraHealAmt: 12,         // HP healed per pulse to each ally in radius
     palette: { primary: 0x2a6a3a, secondary: 0x50c060, accent: 0x123018 },
   },
 
-  // Shielded type: heavy armour, barely takes damage, must be flanked
+  // Shielded type: directional frontal shield (testudo) — flank to deal full damage.
   sentinel: {
     id: 'sentinel',
     name: 'Iron Sentinel',
@@ -373,7 +398,10 @@ export const ENEMIES = {
     damage: 22,
     xp: 7,
     size: 44,
-    armor: 0.55,
+    // TWEAK 1: directional frontal shield — testudo does the heavy lifting, drop flat armor
+    testudo: true,
+    testudoArc: 1.6,   // ~92° half-cone (wider than rome_testudo's 1.4)
+    armor: 0.25,       // reduced flat armor since testudo covers the front
     palette: { primary: 0x708090, secondary: 0xb0c8d8, accent: 0x303840 },
   },
 
@@ -458,9 +486,7 @@ export const ENEMIES = {
     palette: { primary: 0x1a1a1a, secondary: 0x555555, accent: 0x0a0a0a },
   },
 
-  // Healer / support: orbits allies (or just circles far from player), fires a
-  // slow 3-spread that pushes player back rather than dealing huge damage — forces
-  // priority targeting
+  // Healer / support: emits a damage-boost aura to nearby allies — forces priority targeting.
   acolyte: {
     id: 'acolyte',
     name: 'Dark Acolyte',
@@ -478,6 +504,12 @@ export const ENEMIES = {
     windup: 550,
     projSpeed: 130,
     projDamage: 4,
+    // TWEAK 7: damage-boost aura — nearby allies deal +22% damage; kill it first
+    ashipuAura: true,
+    auraRadius: 150,
+    auraDmgBoost: 1.22,      // +22% damage to all nearby allies
+    auraSpeedBoost: 1.0,
+    auraPulseCooldown: 3500,
     palette: { primary: 0x550055, secondary: 0xcc44cc, accent: 0x220022 },
   },
 
@@ -527,7 +559,12 @@ export const ENEMIES = {
     damage: 30,
     xp: 12,
     size: 56,
-    armor: 0.4, // 40% flat damage reduction — must be ground down, not bursted
+    // TWEAK 3: two-phase armor — nearly immune above 60% HP, brittle below
+    // armor: 0.4 removed — ironcladArmor takes over
+    ironcladArmor: true,
+    ironcladThreshold: 0.60,
+    ironcladHardArmor: 0.70,  // 70% DR while above threshold
+    ironcladSoftArmor: 0.15,  // 15% DR below threshold (brittle phase)
     palette: { primary: 0x6b6b72, secondary: 0x9a9aa2, accent: 0x33333a },
   },
   reaver: {

@@ -989,6 +989,7 @@ export default class GameScene extends Phaser.Scene {
 
       // ── Signature-unit per-frame aura systems ─────────────────────────────────
       // Āšipu / caster aura: periodically buff nearby allies (speed + damage)
+      // Also used by: Shaman (TWEAK 2 — heals allies), Acolyte (TWEAK 7 — damage buff)
       if (e.ashipuAura) {
         e.auraPulseTimer = (e.auraPulseTimer || 0) - delta;
         if (e.auraPulseTimer <= 0) {
@@ -1001,12 +1002,45 @@ export default class GameScene extends Phaser.Scene {
               ally._ashipuBuffUntil = now + 2500;
               ally._ashipuDmgBoost  = e.auraDmgBoost  || 1.18;
               ally._ashipuSpeedBoost = e.auraSpeedBoost || 1.15;
+              // TWEAK 2: Shaman heal — restore HP to nearby non-boss allies
+              if (e.auraHealAmt) {
+                ally.hp = Math.min(ally.maxHp, ally.hp + e.auraHealAmt);
+                // Green heal puff on the healed unit
+                this.fx.impact(ally.x, ally.y - (ally.displayHeight || 30) * 0.4, 0x66ff88);
+              }
             }
           }
           // Visual: brief gold shockwave ring
           const ring = this.add.circle(e.x, e.y, e.auraRadius || 140, 0xffd54a, 0)
             .setDepth(3).setStrokeStyle(2, 0xffd54a, 0.8);
           this.tweens.add({ targets: ring, scale: 1.1, alpha: 0, duration: 600, ease: 'Quad.easeOut', onComplete: () => ring.destroy() });
+        }
+      }
+      // TWEAK 5: Titan fear aura (phase 1: > 50% HP) + rage flip (phase 2: ≤ 50% HP)
+      if (e.titanAura && e.maxHp > 0) {
+        const hpFrac = e.hp / e.maxHp;
+        const rageThresh = e.titanRageThreshold || 0.50;
+        if (hpFrac > rageThresh) {
+          // Phase 1: pulsing dark-purple slow aura
+          const dx = this.player.x - e.x, dy = this.player.y - e.y;
+          if (dx * dx + dy * dy <= (e.titanAuraRadius || 100) ** 2) {
+            this.player.curseSlow = Math.min(this.player.curseSlow, e.titanAuraSlow || 0.70);
+          }
+          e._titanRingAcc = (e._titanRingAcc || 0) + delta;
+          if (e._titanRingAcc >= 2000) {
+            e._titanRingAcc = 0;
+            const tr = this.add.circle(e.x, e.y, e.titanAuraRadius || 100, 0x5500aa, 0)
+              .setDepth(3).setStrokeStyle(2, 0x5500aa, 0.45);
+            this.tweens.add({ targets: tr, alpha: 0, duration: 1600, ease: 'Sine.easeInOut', onComplete: () => tr.destroy() });
+          }
+        } else if (!e._titanRaged) {
+          // Phase 2: one-shot rage flip when HP drops at or below threshold
+          e._titanRaged = true;
+          e.speed = Math.round(e.speed * (e.titanRageSpeedMult || 1.60));
+          e.setTint(0xaa2200);
+          this.fx.shockwave(e.x, e.y, 0xaa2200, 80);
+          e.contactDamage = Math.max(1, Math.round(e.damage * 0.15));
+          e._baseContactDamage = e.contactDamage;
         }
       }
 
@@ -1930,6 +1964,39 @@ export default class GameScene extends Phaser.Scene {
       const diff = Math.abs(Phaser.Math.Angle.Wrap(hitAng - faceAng));
       if (diff < (enemy.testudoArc || 1.4) / 2) {
         dmg = Math.max(1, Math.round(dmg * 0.05)); // 95% DR — nearly immune from front
+      }
+    }
+    // TWEAK 3: Stone Golem two-phase armor (ironcladArmor flag on base type)
+    // Hard phase (above threshold): 70% DR + silver ring pulse; brittle below
+    if (enemy.ironcladArmor && !opts.armorPierce) {
+      const thresh = enemy.ironcladThreshold || 0.60;
+      const hard   = enemy.ironcladHardArmor  || 0.70;
+      const soft   = enemy.ironcladSoftArmor  || 0.15;
+      dmg *= (enemy.hp > enemy.maxHp * thresh) ? (1 - hard) : (1 - soft);
+      // Silver ring pulse in the hard phase (reuses existing ring tween pattern)
+      if (enemy.hp > enemy.maxHp * thresh) {
+        enemy._ironcladRingAcc = (enemy._ironcladRingAcc || 0) + 1;
+        if (enemy._ironcladRingAcc >= 60) {
+          enemy._ironcladRingAcc = 0;
+          const ir = this.add.circle(enemy.x, enemy.y, (enemy.displayWidth || 56) * 0.65, 0x9aa6c0, 0)
+            .setDepth(3).setStrokeStyle(3, 0x9aa6c0, 0.9);
+          this.tweens.add({ targets: ir, alpha: 0, duration: 700, ease: 'Quad.easeOut', onComplete: () => ir.destroy() });
+        }
+      }
+    }
+    // TWEAK 6: Spreader windup block — 60% DR from front during telegraph
+    if (enemy.windupBlock && enemy.winding && !opts.armorPierce) {
+      const faceAng = Math.atan2(
+        this.player.y - enemy.y,   // faces the player during windup
+        this.player.x - enemy.x
+      );
+      const hitAng = Math.atan2(
+        (opts._hitY != null ? opts._hitY : this.player.y) - enemy.y,
+        (opts._hitX != null ? opts._hitX : this.player.x) - enemy.x
+      );
+      const diff = Math.abs(Phaser.Math.Angle.Wrap(hitAng - faceAng));
+      if (diff < (enemy.windupBlockArc || 1.4) / 2) {
+        dmg = Math.round(dmg * (1 - (enemy.windupBlockDR || 0.60)));
       }
     }
     // Sumer — Phalanx Solidarity: adjacent melee allies grant up to 30% DR
