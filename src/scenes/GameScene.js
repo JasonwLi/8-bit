@@ -26,6 +26,7 @@ import { isTelegraphing, releaseAttackToken, resetAttackTokens } from '../system
 import { Audio } from '../systems/AudioManager.js';
 import { Settings } from '../systems/Settings.js';
 import { GAME, DUNGEON } from '../config.js';
+import { resolveStringDef } from '../data/weapons.js';
 import TutorialController from '../systems/TutorialController.js';
 import BannerQueue from '../systems/BannerQueue.js';
 import { HERO_DIALOGUE, BOSS_DIALOGUE, STAGE_INTROS, pickRandom } from '../data/dialogue.js';
@@ -97,6 +98,15 @@ const ENEMY_DEBRIS_COLOR = {
   acolyte:0xd0d0f0, blinker:0xff8040, wraith:0xc0b0ff, shard:0xc0b090,
   golem:0xa09080, titan:0xa08870,
 };
+
+// ── DW string combo constants ─────────────────────────────────────────────────
+// FODDER: base grunts at or below this HP threshold die to 1–2 string hits.
+// Elites/bosses are never fodder regardless of HP.
+const FODDER_HP_THRESHOLD = 28; // covers soldier(14), archer(12), weaver, circler
+
+// FINISHER cooldown and window constants
+const FINISHER_CD_MS      = 1200; // ~1.2s per-depth finisher internal cooldown
+const STRING_WINDOW_MS    = 900;  // chain window after each J tap
 
 // ── Charge attack constants ────────────────────────────────────────────────────
 const CHARGE_FULL_MS   = 650;   // ms to reach heavy shot (was 900 — snappier hold cadence)
@@ -190,6 +200,14 @@ export default class GameScene extends Phaser.Scene {
     this._slamWindowUntil = 0;   // when slam-combo window closes
     this._slamCdUntil     = 0;   // internal slam cooldown
     this._lastDashing     = false; // edge-detect dash->stop transition
+
+    // ── DW String-combo state ────────────────────────────────────────────────
+    this._stringDepth        = 0;   // 0=idle, 1–4 = steps fired so far in the string
+    this._stringWindowMs     = 0;   // ms remaining before the chain window expires
+    this._finisherCdUntil    = 0;   // timestamp: finisher on CD until this time
+    this._tumbleEnemies      = new Set(); // enemies currently in TUMBLE state
+    this._stringStepActive   = false; // true while a string step is in damageEnemy callstack
+    this._stringLauncherActive = false; // true while a launcher finisher is in callstack
 
     // ── Juice tween budgets — must reset on restart so stale counts from a
     // previous run don't permanently reduce the concurrent-tween caps.
@@ -1379,6 +1397,24 @@ export default class GameScene extends Phaser.Scene {
       // update overhead elite nameplate (position + visibility follows the sprite)
       this._updateElitePlate(e);
 
+      // ── TUMBLE: enemy is airborne (launched by a DW string launcher step) ──────
+      // While tumbling, the enemy can't act, takes +30% damage, and shows a pale
+      // aerial tint. On expiry we restore scale + clear tint + destroy shadow.
+      if (e.tumbleUntil) {
+        if (now >= e.tumbleUntil) {
+          e.tumbleUntil = 0;
+          e.setScale(e.tumbleScaleBase || 1);
+          if (e._tumbleShadow) { e._tumbleShadow.destroy(); e._tumbleShadow = null; }
+          this._tumbleEnemies.delete(e);
+          if (e.isElite) e.setTint(e.eliteTint || 0xffd54a); else e.clearTint();
+        } else {
+          // Update shadow position while tumbling
+          if (e._tumbleShadow) e._tumbleShadow.setPosition(e.x, e.y + 14);
+          e.setVelocity(0, 0); // tumbling enemies freeze in place (top-down "airborne")
+          continue;
+        }
+      }
+
       // Stun (Genghis's Khan's Cleave): frozen — no movement, no attack — for the window.
       if (e.stunUntil && now < e.stunUntil) {
         e.setVelocity(0, 0);
@@ -2359,6 +2395,25 @@ export default class GameScene extends Phaser.Scene {
       }
     }
 
+    // ── TUMBLE bonus: +30% damage against a launched enemy ────────────────────
+    if (enemy.tumbleUntil && this.time.now < enemy.tumbleUntil) {
+      dmg = dmg * 1.30;
+    }
+
+    // ── FODDER bonus: string-step taps deal +50% damage to light grunts ──────
+    // _stringStepActive is set by the string state machine before fireStringStep fires,
+    // cleared immediately after; ensures only primary string taps trigger the mow bonus.
+    if (this._stringStepActive && opts.fromPlayer && !enemy.isElite && !enemy.isBoss
+        && (enemy.maxHp || 999) <= FODDER_HP_THRESHOLD) {
+      dmg = dmg * 1.50;
+    }
+
+    // ── LAUNCHER: apply TUMBLE status from a launcher step/finisher ──────────
+    // _stringLauncherActive is set by the state machine before firing a launcher step.
+    if (opts.fromPlayer && this._stringLauncherActive && !enemy.isBoss) {
+      this._applyTumble(enemy, 900);
+    }
+
     dmg = Math.round(dmg);
     enemy.hp -= dmg;
 
@@ -2582,6 +2637,13 @@ export default class GameScene extends Phaser.Scene {
     obj.bleedStacks      = 0;
     obj.bleedDps         = 0;
     obj.bleedUntil       = 0;
+    // TUMBLE cleanup
+    if (obj.tumbleUntil) {
+      obj.tumbleUntil = 0;
+      if (obj.tumbleScaleBase) obj.setScale(obj.tumbleScaleBase);
+      if (obj._tumbleShadow) { obj._tumbleShadow.destroy(); obj._tumbleShadow = null; }
+      if (this._tumbleEnemies) this._tumbleEnemies.delete(obj);
+    }
   }
 
   // delegators so external systems keep their stable `scene.X` entry points
@@ -2628,6 +2690,9 @@ export default class GameScene extends Phaser.Scene {
     else if (result === 'perfect_dodge') this.triggerPerfectDodge();
     else if (result === 'hit') {
       Audio.sfx('hurt');
+      // DW string: a real hit resets the string depth
+      this._stringDepth    = 0;
+      this._stringWindowMs = 0;
       // FLAWLESS FLOOR: a real hit breaks the untouched run on this floor
       this._flawlessFloor = false;
       // Searing Wounds mutation: drop a fire patch at the player's feet on each hit.
@@ -3008,114 +3073,202 @@ export default class GameScene extends Phaser.Scene {
 
     if (!this.canAct()) return;
 
-    // ── CHARGE STATE MACHINE (replaces bare fireHeld) ────────────────────────
-    // Three outcomes: tap (<120ms) → quick shot 0.6× INSTANTLY on press;
-    // manual release ≥95% → heavy +15% bonus (PERFECT RELEASE); normal release
-    // → 1.0×; hold-to-full (≥650ms) → heavy auto-release 1.8×. Orbital
-    // weapons are passive; they get a cosmetic flare instead.
+    // ── DW string window tick (runs every frame, before input) ───────────────
+    // Decrement the chain window; reset depth on expiry.
+    if (this._stringWindowMs > 0) {
+      this._stringWindowMs -= delta;
+      if (this._stringWindowMs <= 0) {
+        this._stringDepth   = 0;
+        this._stringWindowMs = 0;
+      }
+    }
+
+    // ── CHARGE + STRING STATE MACHINE ────────────────────────────────────────
+    // J-tap: advance the DW string (fire the next S-step).
+    //   The hold path accumulates charge for a mid-string finisher.
+    //   K: if a string is active → instant finisher (C2/C3/C4, never gated by
+    //   secondary CD).  K from neutral → secondary skill (unchanged).
+    // Duels are exempted entirely (return earlier).  Open-field only.
     {
-      const primaryDown = bk.primary.isDown;
+      const primaryDown     = bk.primary.isDown;
       const primaryJustDown = Phaser.Input.Keyboard.JustDown(bk.primary);
       const primaryJustUp   = Phaser.Input.Keyboard.JustUp(bk.primary);
 
-      // TAP: fire INSTANTLY on the press frame (no perceptible lockout).
-      // Only fires if the weapon is ready — otherwise fall through to normal charge.
+      // ── J just-pressed: slam-combo OR string step ─────────────────────────
       if (primaryJustDown && this.weapons.ready()) {
-        // SLAM COMBO: primary pressed within 180ms of dash end → ground slam instead of shot
         const _slamNow = this.time.now;
+
+        // SLAM COMBO: primary within 180ms of a dash landing
         if (_slamNow < this._slamWindowUntil && _slamNow >= this._slamCdUntil && !this.player.dashing) {
-          this._slamWindowUntil = 0; // consume the window
+          this._slamWindowUntil = 0;
           this._slamCdUntil = _slamNow + SLAM_COOLDOWN_MS;
           this._triggerSlamCombo();
-          this._tapFiredThisPress = true; // prevent a second shot on key-up
-          // Note: do NOT call _fireCharged — slam replaces the shot entirely
-        } else {
-          // Pre-arm for tap: if the weapon is ready we fire on press. The key-up path
-          // sees _chargeMs==0 + _chargeFired==true and skips the second fire.
-          this._chargeMs = 0;
           this._tapFiredThisPress = true;
-          this._fireCharged('tap');
-          // Don't return — still need to start the charge ring for a hold
+          // Slam counts as S1 for string depth accounting (so a hold afterwards can fire C2)
+          this._stringDepth    = 1;
+          this._stringWindowMs = STRING_WINDOW_MS;
+        } else {
+          // ── STRING ADVANCE ──────────────────────────────────────────────────
+          const stringDef = this.weapons.def && this.weapons.def().string;
+          if (stringDef) {
+            // Determine which step to fire (0-based index)
+            const stepIdx = Math.min(this._stringDepth, 3); // depth 0→S1, 1→S2, ...
+            const stepDef = resolveStringDef(this.weapons, stepIdx);
+            if (stepDef) {
+              const baseS = this.weapons.computeStats();
+              // Tag as NOT heavy for CRUMPLE; step fires via fireStringStep
+              this.weapons._isHeavyShot = false;
+              // Flags consumed by damageEnemy during this fire call
+              this._stringStepActive    = true;
+              this._stringLauncherActive = !!stepDef.launcher;
+              this.weapons.fireStringStep(stepDef, baseS);
+              this._stringStepActive    = false;
+              this._stringLauncherActive = false;
+              this.weapons._isHeavyShot = false;
+              this.weapons.timer = baseS.cooldown * CHARGE_TAP_CD;
+              // Ascending pitch per step
+              Audio.sfxPitch(stepDef.sfxPitchMult || 1.0);
+              this._lastPrimaryFireAt = _slamNow;
+              this._counterArmed = false;
+              if (this._counterGlintFx) { this._counterGlintFx.destroy(); this._counterGlintFx = null; }
+            }
+            // Advance depth (cap at 4)
+            this._stringDepth    = Math.min(this._stringDepth + 1, 4);
+            this._stringWindowMs = STRING_WINDOW_MS;
+            this._tapFiredThisPress = true;
+            this._chargeMs = 0;
+          } else {
+            // Fallback: weapon has no string def (shouldn't happen post-impl)
+            this._chargeMs = 0;
+            this._tapFiredThisPress = true;
+            this._fireCharged('tap');
+          }
         }
       } else {
         this._tapFiredThisPress = false;
       }
 
-      // hold-compat: _chargeFired is cleared here (not just on key-up) so that
-      // a player who keeps holding after an auto-release immediately starts a new
-      // charge cycle rather than stalling until they physically release the key.
+      // hold-compat: _chargeFired cleared so a keep-hold starts a new cycle immediately
       if (primaryDown && this._chargeFired && this._chargeMs === 0) {
-        this._chargeFired = false; // new cycle begins on the next branch below
+        this._chargeFired = false;
       }
 
       if (primaryDown && !this._chargeFired) {
-        // Key held: accumulate charge time (includes the current frame where tap fired)
         this._chargeMs += delta;
 
-        // Draw/update charge ring (render-only, depth 11, follows player)
-        const frac = Math.min(1, this._chargeMs / CHARGE_FULL_MS);
+        // Mid-string charge shortens to 450ms; depth-0 stays at CHARGE_FULL_MS
+        const effectiveChargeFull = (this._stringDepth > 0) ? 450 : CHARGE_FULL_MS;
+
+        // Charge ring — color reflects current depth (C1=gold, C2=cyan, C3=orange, C4=red)
+        const CHARGE_RING_COLORS = [0xffd700, 0x00ccff, 0xff8800, 0xff2222];
+        const ringColor = CHARGE_RING_COLORS[Math.max(0, Math.min(3, this._stringDepth))];
+        const frac = Math.min(1, this._chargeMs / effectiveChargeFull);
+
         if (!this._chargeFx) {
           this._chargeFx = this.add.arc(
-            this.player.x, this.player.y, 18, 0, 0, false, 0xffd700, 0.0,
-          ).setDepth(11).setStrokeStyle(2, 0xffd700, 0.9);
-          // Start charge hum on the first frame the ring appears
+            this.player.x, this.player.y, 18, 0, 0, false, ringColor, 0.0,
+          ).setDepth(11).setStrokeStyle(2, ringColor, 0.9);
           Audio.startChargeHum();
         }
         this._chargeFx.setPosition(this.player.x, this.player.y);
         this._chargeFx.setStartAngle(270).setEndAngle(270 + 360 * frac);
         this._chargeFx.setAlpha(0.4 + frac * 0.55);
-        // Update charge hum pitch/volume with current fraction
+        // Update ring color in case depth changed mid-hold
+        this._chargeFx.setStrokeStyle(2, ringColor, 0.9);
         Audio.updateChargeHum(frac);
 
-        // Arm at full charge
-        if (this._chargeMs >= CHARGE_FULL_MS && !this._chargeArmed) {
+        // Finisher-ready flash ring at 80% of charge
+        if (frac >= 0.80 && this._stringDepth >= 1 && !this._finisherFlashed) {
+          this._finisherFlashed = true;
+          this.fx._ring(this.player.x, this.player.y, 24, ringColor, 160, 2);
+        }
+
+        if (this._chargeMs >= effectiveChargeFull && !this._chargeArmed) {
           this._chargeArmed = true;
         }
-        // Auto-release when armed (hold-to-full)
+        // Auto-release when armed: mid-string → fire finisher; depth-0 → normal heavy
         if (this._chargeArmed) {
-          if (this.tutorial) this.events.emit('tut', 'charge'); // tut: charge tip card
-          Audio.stopChargeHum(); // stop before fire so the heavy SFX is heard cleanly
-          this._fireCharged('heavy');
-          this._chargeArmed = false;
-          // hold-compat: mark cycle done and zero the timer so the guard block
-          // above clears _chargeFired on the very next frame (key still held →
-          // new cycle) while the key-up path stays a no-op (_chargeFired=true).
-          this._chargeFired = true;
-          this._chargeMs = 0;
+          if (this.tutorial) this.events.emit('tut', 'charge');
+          Audio.stopChargeHum();
+          const depth = this._stringDepth;
+          const now   = this.time.now;
+          if (depth >= 1 && now >= this._finisherCdUntil) {
+            // Mid-string hold-to-full: fire the depth's finisher (accessibility fallback)
+            this._finisherCdUntil = now + FINISHER_CD_MS;
+            this._fireFinisher(depth);
+            this._stringDepth    = 0;
+            this._stringWindowMs = 0;
+          } else if (depth >= 1 && now < this._finisherCdUntil) {
+            // Finisher on CD → fall back to normal heavy
+            this._fireCharged('heavy');
+            this._stringDepth    = 0;
+            this._stringWindowMs = 0;
+          } else {
+            // depth == 0: regular C1 heavy
+            this._fireCharged('heavy');
+          }
+          this._chargeArmed  = false;
+          this._chargeFired  = true;
+          this._chargeMs     = 0;
+          this._finisherFlashed = false;
           if (this._chargeFx) { this._chargeFx.destroy(); this._chargeFx = null; }
         }
       }
 
+      if (!primaryDown) this._finisherFlashed = false;
+
       if (primaryJustUp || (!primaryDown && this._chargeMs > 0 && !this._chargeFired)) {
-        // Key released — decide mode
-        Audio.stopChargeHum(); // release or cancel — always stop hum
+        Audio.stopChargeHum();
         if (!this._chargeFired) {
-          const frac = this._chargeMs / CHARGE_FULL_MS;
+          const effectiveChargeFull = (this._stringDepth > 0) ? 450 : CHARGE_FULL_MS;
+          const frac = this._chargeMs / effectiveChargeFull;
           if (this._tapFiredThisPress || this._chargeMs < CHARGE_TAP_MS) {
-            // tap was already fired on press — skip the second fire
+            // string step already fired on press — skip the second fire
           } else if (frac >= CHARGE_MANUAL_PCT) {
-            // Perfect manual release: ≥95% charge on key-up → bonus heavy
             this._fireCharged('heavy_manual');
           } else {
             this._fireCharged('normal');
           }
         }
-        // Reset charge state
-        this._chargeMs = 0;
-        this._chargeArmed = false;
-        this._chargeFired = false;
+        this._chargeMs     = 0;
+        this._chargeArmed  = false;
+        this._chargeFired  = false;
         this._tapFiredThisPress = false;
+        this._finisherFlashed = false;
         if (this._chargeFx) { this._chargeFx.destroy(); this._chargeFx = null; }
       }
 
       if (!primaryDown && !primaryJustUp) {
-        // Key not held at all — also stop hum if it somehow didn't get cancelled
         if (this._chargeMs > 0) Audio.stopChargeHum();
-        this._chargeMs = 0;
-        this._chargeFired = false;
-        this._chargeArmed = false;
+        this._chargeMs     = 0;
+        this._chargeFired  = false;
+        this._chargeArmed  = false;
         this._tapFiredThisPress = false;
+        this._finisherFlashed = false;
         if (this._chargeFx) { this._chargeFx.destroy(); this._chargeFx = null; }
+      }
+    }
+
+    // ── K press context split ─────────────────────────────────────────────────
+    // String active + K → instant charge finisher (own 1.2s CD, not secondary CD).
+    // Neutral + K → secondary skill (unchanged).
+    {
+      const now = this.time.now;
+      const kJustDown = Phaser.Input.Keyboard.JustDown(bk.secondary);
+      if (kJustDown) {
+        if (this._stringDepth >= 1 && this._stringWindowMs > 0) {
+          // ── FINISHER BRANCH ─────────────────────────────────────────────────
+          if (now >= this._finisherCdUntil) {
+            this._finisherCdUntil = now + FINISHER_CD_MS;
+            this._fireFinisher(this._stringDepth);
+            this._stringDepth    = 0;
+            this._stringWindowMs = 0;
+          }
+          // else: finisher on CD — absorb the input silently (no secondary fire)
+        } else if (this.secondary.ready()) {
+          // ── SECONDARY SKILL (neutral K — unchanged) ─────────────────────────
+          this.secondary.castManual(this.aimDir);
+        }
       }
     }
 
@@ -3131,7 +3284,7 @@ export default class GameScene extends Phaser.Scene {
       }
       if (nearCount >= 4) this.secondary.castManual(this.aimDir);
     }
-    if (JustDown(bk.secondary) && this.secondary.ready()) this.secondary.castManual(this.aimDir); // along movement
+    // NOTE: secondary K was handled above in the K context split; no fallthrough here.
     if (JustDown(bk.ultimate)) {
       const fired = this.ability.tryCast(this.time.now);
       if (fired) {
@@ -3470,6 +3623,151 @@ export default class GameScene extends Phaser.Scene {
         break;
     }
     return out;
+  }
+
+  // ── DW String Finisher helpers ────────────────────────────────────────────────
+
+  // Fire the depth-specific charge finisher (C2/C3/C4).
+  // depth: 1→C2, 2→C3, 3→C4 (string was at depth 1 when K pressed means C2, etc.)
+  // Called from both: K-press instant-branch AND hold-J auto-release fallback.
+  _fireFinisher(depth) {
+    if (!this.weapons.ready()) return;
+    if (depth < 1) return;
+
+    const def = this.weapons.def();
+    const s   = this.weapons.computeStats();
+
+    // Orbital weapons skip the string system entirely (orbiters are passive)
+    if (def.kind === 'orbital') {
+      // Cosmetic flare only for orbitals
+      for (const orb of this.weapons._orbiters) {
+        if (orb.sprite && orb.sprite.active) this.fx.goldenBurst(orb.sprite.x, orb.sprite.y, 5);
+      }
+      this.fx._ring(this.player.x, this.player.y, s.orbitRadius || 62, 0xffd700, 300, 3);
+      Audio.sfx('parry');
+      this.weapons.timer = 800;
+      return;
+    }
+
+    // Map string depth to finisher key (depth 1 fired 1 step, so we're branching on K after that)
+    // depth = _stringDepth at the time K is pressed:
+    //   depth=1 (S1 fired, pressing K) → C2
+    //   depth=2 (S2 fired) → C3
+    //   depth=3 (S3 fired) → C4 (capped)
+    //   depth=4 (S4 fired) → C4 (capped)
+    const finisherKeys = ['C2', 'C3', 'C4', 'C4'];
+    const fKey = finisherKeys[Math.min(depth - 1, 3)];
+    const fd = def.chargeFinishers && def.chargeFinishers[fKey];
+
+    const finS = fd ? this._applyFinisherToStats(s, fd) : this._applyChargeToStats(s, 'heavy');
+
+    // Record fire + disarm counter window
+    this._lastPrimaryFireAt = this.time.now;
+    this._counterArmed = false;
+    if (this._counterGlintFx) { this._counterGlintFx.destroy(); this._counterGlintFx = null; }
+
+    this.weapons._aimOverride = this.aimDir != null ? this.aimDir : null;
+    // C4+ counts as heavy for CRUMPLE; C2/C3 do not
+    this.weapons._isHeavyShot = depth >= 3;
+
+    if (fd) {
+      // Fire through the appropriate path via fireStringStep (respects kind override)
+      this._stringLauncherActive = !!fd.launcher;
+      this.weapons.fireStringStep(fd, finS);
+      this._stringLauncherActive = false;
+    } else {
+      // No finisher def? Fall back to normal heavy fire
+      const motionKind = fd ? (fd.motionKind || 'charge_heavy') : 'charge_heavy';
+      this.playerAttackMotion(motionKind, this.aimDir != null ? this.aimDir : 0);
+      this.weapons.fire(finS);
+    }
+    this.weapons._isHeavyShot = false;
+
+    // Finisher FX — scale with depth
+    const ringColor = fd ? (fd.ringColor || 0xffd700) : 0xffd700;
+    const burstR = 22 + depth * 8;
+    this.fx._flash(this.player.x, this.player.y, 14 + depth * 4, ringColor, 0.85, 200);
+    this.fx._ring(this.player.x, this.player.y, 30 + depth * 10, ringColor, 280, 3 + depth);
+    if (depth >= 2) this.hitStop(40 + (depth - 1) * 20, 8);
+    if (depth >= 2) this.screenKick(this.aimDir != null ? this.aimDir : 0, JUICE_CAM.heavyPower);
+
+    // Grand finisher bonus effect (C4)
+    if (fd && fd.grandFinisher) this._triggerGrandFinisherFx(finS);
+
+    // Finisher label float
+    if (fd && fd.label) this._showFinisherLabel(fd.label, ringColor, depth);
+
+    // Depth float text ("C2", "C3", "C4")
+    const depthLabel = ['', 'C2', 'C3', 'C4', 'C4'][Math.min(depth, 4)];
+    const col = depth >= 3 ? '#ff8a3a' : '#ffd700';
+    const ft = this.add.text(this.player.x, this.player.y - 48, depthLabel, {
+      fontFamily: 'monospace', fontSize: '14px', color: col, fontStyle: 'bold',
+      stroke: '#000000', strokeThickness: 2,
+    }).setOrigin(0.5).setDepth(52).setScrollFactor(1);
+    this.tweens.add({ targets: ft, y: ft.y - 20, alpha: 0, duration: 600, ease: 'Quad.easeIn', onComplete: () => ft.destroy() });
+
+    this.weapons.timer = s.cooldown;
+    this.weapons._aimOverride = null;
+  }
+
+  // Apply finisher-def overrides to a stats object (same role as _applyChargeToStats
+  // but reads from the data-driven chargeFinishers def rather than mode constants).
+  _applyFinisherToStats(s, fd) {
+    const out = Object.assign({}, s);
+    out.damage = s.damage * (fd.dmgMult || 1.8) * (this.player.empowered ? 1.5 : 1);
+    if (fd.arcOverride    != null) out.arc      = fd.arcOverride;
+    if (fd.radiusMult     != null) out.radius   = s.radius * fd.radiusMult;
+    if (fd.lengthMult     != null) out.length   = (s.length || 150) * fd.lengthMult;
+    if (fd.widthMult      != null) out.width    = (s.width  || 46)  * fd.widthMult;
+    if (fd.countAdd       != null) out.count    = (s.count  || 1)   + fd.countAdd;
+    if (fd.spreadOverride != null) out.spread   = fd.spreadOverride;
+    if (fd.knockbackOverride != null) out.knockback = fd.knockbackOverride;
+    if (fd.pierceMod      != null) out.pierce   = (s.pierce || 0) + fd.pierceMod;
+    if (fd.launcher) out._launcher = true;
+    return out;
+  }
+
+  // Grand finisher bonus FX for C4 (hero-specific flair reusing existing hazard/burst calls).
+  _triggerGrandFinisherFx(s) {
+    const px = this.player.x, py = this.player.y;
+    // Generic: golden burst ring at the player
+    this.fx.goldenBurst(px, py, 14);
+    this.fx._ring(px, py, 80, 0xff2222, 400, 6);
+    // Spawn a brief fire hazard zone at the player location (matches Lü Bu "Wrath Nova" feel)
+    const r = s.radius ? s.radius * 0.6 : 70;
+    this.spawnHazardZone(px, py, r, Math.round(s.damage * 0.3), 80, 300, 1200, 'fire', 'enemies');
+    Audio.sfx('hit_heavy');
+  }
+
+  // Show the finisher label as a floating banner (e.g. "HEAVEN LAUNCHER").
+  _showFinisherLabel(label, color, depth) {
+    const t = this.add.text(this.player.x, this.player.y - 64, label, {
+      fontFamily: 'monospace', fontSize: '12px',
+      color: `#${(color || 0xffd700).toString(16).padStart(6, '0')}`,
+      fontStyle: 'bold', stroke: '#000000', strokeThickness: 2,
+    }).setOrigin(0.5).setDepth(52).setScrollFactor(1);
+    this.tweens.add({ targets: t, y: t.y - 18, alpha: 0, duration: 800, ease: 'Quad.easeIn', onComplete: () => t.destroy() });
+  }
+
+  // Apply TUMBLE status to an enemy (non-boss grunts only; elites get brief stagger).
+  _applyTumble(enemy, duration) {
+    if (!enemy || !enemy.active) return;
+    const dur = duration || 900;
+    if (enemy.isElite || enemy.isBoss) {
+      // Resistance: 250ms stagger instead of full tumble
+      enemy.stunUntil = Math.max(enemy.stunUntil || 0, this.time.now + 250);
+      return;
+    }
+    enemy.tumbleUntil     = this.time.now + dur;
+    enemy.tumbleScaleBase = enemy.scaleX;
+    enemy.setScale(enemy.scaleX * 1.25, enemy.scaleY * 1.25); // pop up 1.25×
+    // Shadow ellipse at feet (pooled-safe: create if absent, destroy on cleanup)
+    if (!enemy._tumbleShadow) {
+      enemy._tumbleShadow = this.add.ellipse(enemy.x, enemy.y, 28, 14, 0x000000, 0.38)
+        .setDepth(enemy.depth - 1);
+    }
+    this._tumbleEnemies.add(enemy);
+    enemy.setTint(0xa0d0ff); // pale aerial tint (distinct from stun blue-purple)
   }
 
   // --- modals ---

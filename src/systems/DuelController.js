@@ -338,6 +338,11 @@ export default class DuelController {
   begin() {
     const s = this.s;
     s.dueling = true;
+    // Reset DW string state so a mid-combo transition doesn't carry depth into duel
+    s._stringDepth        = 0;
+    s._stringWindowMs     = 0;
+    s._stringStepActive   = false;
+    s._stringLauncherActive = false;
     this.clean = true;
     this.atkState = 'ready';
     this.atkKind = null;
