@@ -59,7 +59,8 @@ export default class Fx {
   newFrame() {
     this.budgetSpark = 10;
     this.budgetPoof = 12;
-    this.budgetNum = 6;
+    this.budgetNum = 10;       // raised from 6; heavy AoE no longer starves hit numbers
+    this.budgetNumPlayer = 4;  // reserved for PLAYER damage hits — enemy ticks can't touch this
     this.budgetTrail = 60; // shared across all in-flight projectiles per frame
   }
 
@@ -85,9 +86,21 @@ export default class Fx {
 
   _tint(emitter, color) { if (emitter.setParticleTint) emitter.setParticleTint(color); }
 
-  damageNumber(x, y, amount, { color = '#ffffff', big = false } = {}) {
-    if (this.activeNumbers > 48 || this.budgetNum <= 0) return;
-    this.budgetNum -= 1;
+  // fromPlayer: true when the number originates from a PLAYER attack (damageEnemy path).
+  // Player numbers draw from the reserved sub-budget first so enemy DoT/hazard ticks
+  // (fromPlayer=false) can't exhaust the frame budget and make player hits invisible.
+  damageNumber(x, y, amount, { color = '#ffffff', big = false, fromPlayer = false } = {}) {
+    if (this.activeNumbers > 48) return;
+    if (fromPlayer) {
+      // Player-attack numbers: use the shared pool first, fall back to the reserved slot.
+      if (this.budgetNum <= 0 && this.budgetNumPlayer <= 0) return;
+      if (this.budgetNum > 0) this.budgetNum -= 1;
+      else this.budgetNumPlayer -= 1;
+    } else {
+      // Enemy/hazard numbers: only the shared pool; cannot dip into the player reserve.
+      if (this.budgetNum <= 0) return;
+      this.budgetNum -= 1;
+    }
     this.activeNumbers += 1;
     const t = this.scene.add
       .text(x + (Math.random() * 10 - 5), y - 10, `${amount}`, {

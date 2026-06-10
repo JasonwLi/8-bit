@@ -67,7 +67,12 @@ export default class ContractScene extends Phaser.Scene {
     const g = this.add.graphics();
     const ref = { c, g, cx, cy, w, h };
     this.cards.push(ref);
-    this.add.text(cx, top + 12, `${i + 1}. ${c.name}`, {
+    // Small icon on the left side of the header
+    const iconX = cx - w / 2 + 24;
+    if (c.icon && this.textures.exists(c.icon)) {
+      this.add.image(iconX, top + 20, c.icon).setScale(0.5);
+    }
+    this.add.text(cx + (c.icon ? 12 : 0), top + 12, `${i + 1}. ${c.name}`, {
       fontFamily: 'monospace', fontSize: '15px', color: '#ffffff', fontStyle: 'bold',
     }).setOrigin(0.5, 0);
     this.add.text(cx, top + 42, `− ${c.penalty}`, {

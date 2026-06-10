@@ -47,10 +47,14 @@ export default class ArtifactScene extends Phaser.Scene {
       fontFamily: 'monospace', fontSize: '17px', color: '#ffffff', fontStyle: 'bold',
       align: 'center', wordWrap: { width: w - 24 },
     }).setOrigin(0.5, 0);
-    this.add.text(cx, cy + 6, a.desc, {
+    // Artifact icon centred in the card body
+    if (a.icon && this.textures.exists(a.icon)) {
+      this.add.image(cx, top + 100, a.icon).setScale(0.9);
+    }
+    this.add.text(cx, cy + 50, a.desc, {
       fontFamily: 'monospace', fontSize: '13px', color: '#ffd27a',
       align: 'center', wordWrap: { width: w - 30 },
-    }).setOrigin(0.5);
+    }).setOrigin(0.5, 0);
 
     const zone = this.add.zone(cx, cy, w, h).setInteractive({ useHandCursor: true });
     zone.on('pointerover', () => g.setAlpha(0.82));

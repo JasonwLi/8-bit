@@ -167,12 +167,16 @@ export default class UIScene extends Phaser.Scene {
     g.fillStyle(0x141225, 1).fillRect(0, 0, width, 6);
     g.fillStyle(this.accent, 1).fillRect(0, 0, width * xpPct, 6);
 
-    // HP bar (left) + HP number to its right; defensive stats on their own line below
+    // HP bar (left) + HP number to its right; defensive stats on their own line below.
+    // When overhealed (hp > maxHp) the bar fills 100% red + a yellow overheal stripe on top.
     const hpPct = Phaser.Math.Clamp(p.hp / p.maxHp, 0, 1);
+    const overhealPct = p.hp > p.maxHp ? Phaser.Math.Clamp((p.hp - p.maxHp) / (p.maxHp * 0.25), 0, 1) : 0;
     const hx = 16, hy = 38, hw = 190, hh = 16;
     g.fillStyle(0x000000, 0.5).fillRect(hx - 2, hy - 2, hw + 4, hh + 4);
     g.fillStyle(0x3a1414, 1).fillRect(hx, hy, hw, hh);
     g.fillStyle(0xff4d4d, 1).fillRect(hx, hy, hw * hpPct, hh);
+    // Overheal: a yellow-gold stripe overlaying the red fill (capped at bar width)
+    if (overhealPct > 0) g.fillStyle(0xffd700, 0.7).fillRect(hx, hy, hw * overhealPct, Math.ceil(hh * 0.4));
     this.hpText.setPosition(hx + hw + 8, hy + 1).setText(`${Math.max(0, Math.ceil(p.hp))}/${p.maxHp}`);
     const extra = [];
     if (p.meleeDR > 0) extra.push(`DEF ${Math.round(p.meleeDR * 100)}`);

@@ -64,6 +64,8 @@ const RECRAFT_SOLID = new Set([
   // enemies whose Ideogram pass came out hollow/speckled (see-through interior) — the
   // crate bug. Recraft's solid pixel-art fill + matte renders them densely filled.
   'enemy_charger', 'enemy_harpy',
+  // small projectile sprites that Ideogram renders as hollow lineart or wrong colour
+  'proj_gate_spear',
 ]);
 
 async function generateOne(asset, key) {

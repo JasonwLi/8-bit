@@ -82,7 +82,13 @@ export default class FloorSystem {
     const floorImg = this.scene.add.tileSprite(0, 0, this.pixelW(), this.pixelH(), floorKey)
       .setOrigin(0).setDepth(-10);
     if (floorKey === 'dungeon_floor') floorImg.setTint(Phaser.Display.Color.IntegerToColor(theme.ground).lighten(28).color);
-    else floorImg.setTint(0xbdb9c8); // keep the themed ground, dim it for cave atmosphere
+    else {
+      // Per-civ cave tint: darken the theme's ground/motif colour slightly for an
+      // underground mood while keeping each civ visually distinct. theme.motif is
+      // already a dark, muted tone that reads well as a dim cave backdrop.
+      const civTint = Phaser.Display.Color.IntegerToColor(theme.motif).lighten(14).color;
+      floorImg.setTint(civTint);
+    }
     this._visuals.push(floorImg);
 
     // greedy-mesh wall cells into horizontal strips → fewer static bodies
