@@ -117,6 +117,8 @@ export default class UpgradeScene extends Phaser.Scene {
     const { width, height } = this.scale;
     const gs = this.gs;
     Audio.sfx('levelup');
+    // tut: first UpgradeScene visit → draft-hint toast
+    gs.events.emit('tut', 'draftHint');
 
     this.add.rectangle(0, 0, width, height, 0x05040a, 0.8).setOrigin(0).setDepth(0);
     this.add.text(width / 2, height / 2 - 190, 'LEVEL UP!', {
@@ -426,7 +428,10 @@ export default class UpgradeScene extends Phaser.Scene {
     const mut = this._rollMutation();
     if (mut) {
       final[final.length - 1] = mut; // swap the last slot for the purple rarity card
+      gs.events.emit('tut', 'mutation'); // tut: first mutation card offered
     }
+    // tut: first evolve card offered
+    if (final.some((c) => c.kind === 'evolve')) gs.events.emit('tut', 'evolve');
     return final;
   }
 

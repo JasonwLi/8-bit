@@ -26,6 +26,7 @@ import { isTelegraphing, releaseAttackToken, resetAttackTokens } from '../system
 import { Audio } from '../systems/AudioManager.js';
 import { Settings } from '../systems/Settings.js';
 import { GAME, DUNGEON } from '../config.js';
+import TutorialController from '../systems/TutorialController.js';
 import { HERO_DIALOGUE, BOSS_DIALOGUE, STAGE_INTROS, pickRandom } from '../data/dialogue.js';
 
 export default class GameScene extends Phaser.Scene {
@@ -263,7 +264,15 @@ export default class GameScene extends Phaser.Scene {
     this.input.keyboard.on('keydown-DELETE', goBack);
 
     this.scene.launch('UIScene', { gameScene: this });
-    this.events.once('shutdown', () => { this._stopAmbienceEmitter(); this.scene.stop('UIScene'); });
+    this.events.once('shutdown', () => {
+      this._stopAmbienceEmitter();
+      this.scene.stop('UIScene');
+      if (this.tutorial) { this.tutorial.detach(); this.tutorial = null; }
+    });
+
+    // Tutorial: attach after UIScene is live so tut toasts can use showBanner.
+    this.tutorial = new TutorialController();
+    this.tutorial.attach(this);
 
     // ── Dungeon descent: build the first floor (FloorSystem provides the ground +
     // walls + stairs, so the open-world scrolling backdrop is hidden). ───────────
@@ -367,6 +376,7 @@ export default class GameScene extends Phaser.Scene {
       if (st) this.drops.spawnChest(st.x, st.y);
       this.showBanner('Flawless floor — the spoils are yours', '#ffd700');
       Audio.sfx('levelup');
+      if (this.tutorial) this.events.emit('tut', 'flawless'); // tut: flawless toast
     }
 
     this.clearField();
@@ -397,6 +407,7 @@ export default class GameScene extends Phaser.Scene {
     if (this.gameOver) return;
     this.runTime += delta;
     this.fx.newFrame();
+    if (this.tutorial) this.tutorial.tick(); // tut: keep prompt alive across frames
 
     const cam = this.cameras.main;
     if (!this.dungeonMode) {
@@ -417,7 +428,10 @@ export default class GameScene extends Phaser.Scene {
     // Aim follows MOVEMENT: attacks fire in the direction you're moving, or the last
     // direction you moved while standing still (no mouse). `this.aimDir` (radians, or
     // null in duels → auto-target) is read by the weapon/ability aiming.
-    if (dx !== 0 || dy !== 0) this._lastMoveDir = Math.atan2(dy, dx); // remember heading
+    if (dx !== 0 || dy !== 0) {
+      this._lastMoveDir = Math.atan2(dy, dx); // remember heading
+      if (this.tutorial) this.events.emit('tut', 'move'); // tut: step (a)
+    }
     this.aimDir = (this.dungeonMode && !this.dueling) ? this._lastMoveDir : null;
     this.player.move(dx, dy);
     // Anti-tunnel guard: at high speed (speed gear/buffs × dash) the arcade body can step
@@ -541,6 +555,7 @@ export default class GameScene extends Phaser.Scene {
           this.fx._flash(sx, sy, 5, 0x00e5ff, 0.85, 130);
           this.fx._tint(this.fx.spark, 0x00e5ff);
           this.fx.spark.emitParticleAt(sx, sy, 3);
+          if (this.tutorial) this.events.emit('tut', 'graze'); // tut: graze toast
         }
       }
     }
@@ -1835,6 +1850,7 @@ export default class GameScene extends Phaser.Scene {
       this.fx._ring(enemy.x, enemy.y, 52, 0xffd700, 280, 3);
       this.fx._tint(this.fx.spark, 0xffd700);
       this.fx.spark.emitParticleAt(enemy.x, enemy.y, 6);
+      if (this.tutorial) this.events.emit('tut', 'counter'); // tut: step (d)
     } else {
       this.fx.impact(enemy.x, enemy.y);
     }
@@ -1872,6 +1888,10 @@ export default class GameScene extends Phaser.Scene {
     this.player.kills += 1;
     this.player.streak += 1; // MOMENTUM: one more kill without taking damage
     this.player.addMomentum(); // builds/extends the musou window if active
+    if (this.tutorial) {
+      this.events.emit('tut', 'attack'); // tut: step (b) — first kill
+      if (this.player.streak >= 10) this.events.emit('tut', 'momentum'); // tut: momentum toast
+    }
     // Deathburst mutation: release an energy nova on each kill.
     if (this.player.mutations && this.player.mutations.kill_nova) {
       this.abilityNova(enemy.x, enemy.y, 80, Math.round(8 * this.player.damageMult), 0xffd700, 0);
@@ -2006,6 +2026,7 @@ export default class GameScene extends Phaser.Scene {
     this.fx.shockwave(this.player.x, this.player.y, 0xffd700, 80);
 
     Audio.sfx('parry'); // the existing 'parry' sfx is a sharp metallic clash — fits perfectly
+    if (this.tutorial) this.events.emit('tut', 'perfect'); // tut: step (e)
   }
 
   onProjectileHit(projectile, enemy) {
@@ -2283,6 +2304,7 @@ export default class GameScene extends Phaser.Scene {
       if (consumed) {
         Audio.sfx('whoosh');
         this._dashAfterimageAcc = 0; // reset ghost timer so first ghost fires immediately
+        if (this.tutorial) this.events.emit('tut', 'dash'); // tut: step (c)
       }
     }
 
