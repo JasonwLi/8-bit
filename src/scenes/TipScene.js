@@ -58,6 +58,10 @@ function tipDefs(binds) {
       title: 'MOMENTUM',
       caption: `Kills without taking damage empower you — streak counter builds bonus damage. Don't get hit.`,
     },
+    combo: {
+      title: 'COMBO STRING',
+      caption: `Tap [${kPri}] up to 4 times — each tap fires a different swing. Press [${kSec}] MID-STRING for an instant Charge Finisher (C2/C3/C4). Hold [${kPri}] for the same finisher. Depth pips glow gold below the HP bar.`,
+    },
   };
 }
 
@@ -602,6 +606,137 @@ function demoMomentum(scene, area) {
   return { stop() { stopped = true; cleanObjs(scene, objs); } };
 }
 
+function demoCombo(scene, area) {
+  // Shows: player taps J three times (pips light up S1→S3), then K branches
+  // into a C3 charge finisher that launches an enemy airborne.
+  const cx = area.x + area.w / 2;
+  const cy = area.y + area.h / 2;
+  const objs = [];
+  let stopped = false;
+
+  const player = makeActor(scene, cx - 60, cy, PLAYER_COLOR);
+  objs.push(player);
+  const enemy = makeActor(scene, cx + 40, cy, ENEMY_COLOR);
+  objs.push(enemy);
+
+  // 4 depth pips (row above demo area bottom)
+  const PIP_W = 9, PIP_H = 9, PIP_GAP = 4;
+  const pipRow = [];
+  const pip0X = cx - 62;
+  const pipY  = cy + 32;
+  for (let i = 0; i < 4; i++) {
+    const pg = scene.add.graphics().setDepth(93);
+    pg.x = pip0X + i * (PIP_W + PIP_GAP); pg.y = pipY;
+    objs.push(pg);
+    pipRow.push(pg);
+  }
+
+  // [K] glyph text
+  const kGlyph = makeLabel(scene, pip0X + 4 * (PIP_W + PIP_GAP) + 8, pipY, '[K]', '#ffd700', '11px');
+  kGlyph.setAlpha(0); objs.push(kGlyph);
+
+  // Step labels (J tap flash)
+  const stepLabel = makeLabel(scene, cx - 60, cy - 36, '', '#aae8ff', '12px');
+  stepLabel.setAlpha(0); objs.push(stepLabel);
+
+  // Finisher label
+  const finLabel = makeLabel(scene, cx + 40, cy - 40, 'C3!', '#ff8800', '14px');
+  finLabel.setAlpha(0); objs.push(finLabel);
+
+  // Shadow ellipse for tumble
+  const shadow = scene.add.graphics().setDepth(88);
+  objs.push(shadow);
+
+  function drawPips(depth) {
+    pipRow.forEach((pg, i) => {
+      pg.clear();
+      const filled = i < depth;
+      pg.fillStyle(0x000000, 0.55).fillRect(-1, -1, PIP_W + 2, PIP_H + 2);
+      pg.fillStyle(filled ? 0xffd700 : 0x1a1400, filled ? 0.95 : 0.35).fillRect(0, 0, PIP_W, PIP_H);
+    });
+  }
+
+  function loop() {
+    if (stopped) return;
+    player.x = cx - 60; player.alpha = 1; player.setScale(1);
+    enemy.x = cx + 40; enemy.y = cy; enemy.alpha = 1; enemy.setScale(1);
+    shadow.clear();
+    stepLabel.setAlpha(0);
+    finLabel.setAlpha(0);
+    kGlyph.setAlpha(0);
+    drawPips(0);
+
+    // S1 tap
+    scene.time.delayedCall(300, () => {
+      if (stopped) return;
+      drawPips(1);
+      stepLabel.setText('S1').setAlpha(1);
+      scene.tweens.add({ targets: player, x: cx - 52, duration: 80, yoyo: true });
+      scene.tweens.add({ targets: stepLabel, alpha: 0, duration: 350 });
+    });
+
+    // S2 tap
+    scene.time.delayedCall(650, () => {
+      if (stopped) return;
+      drawPips(2);
+      stepLabel.setText('S2').setAlpha(1);
+      scene.tweens.add({ targets: player, x: cx - 46, duration: 80, yoyo: true });
+      scene.tweens.add({ targets: stepLabel, alpha: 0, duration: 350 });
+    });
+
+    // S3 tap
+    scene.time.delayedCall(1000, () => {
+      if (stopped) return;
+      drawPips(3);
+      stepLabel.setText('S3').setAlpha(1);
+      scene.tweens.add({ targets: player, x: cx - 40, duration: 80, yoyo: true });
+      scene.tweens.add({ targets: stepLabel, alpha: 0, duration: 350 });
+      // [K] glyph appears
+      kGlyph.setAlpha(1);
+      scene.tweens.add({ targets: kGlyph, scaleX: 1.5, scaleY: 1.5, duration: 100, yoyo: true });
+    });
+
+    // K fires C3 finisher
+    scene.time.delayedCall(1380, () => {
+      if (stopped) return;
+      kGlyph.setAlpha(0);
+      drawPips(0); // depth resets
+      finLabel.setAlpha(1);
+      scene.tweens.add({ targets: finLabel, y: finLabel.y - 16, alpha: 0, duration: 600 });
+
+      // Enemy tumble: scale pop + float up
+      scene.tweens.add({
+        targets: enemy, scaleX: 1.25, scaleY: 1.25, duration: 100, ease: 'Quad.easeOut',
+        onComplete: () => {
+          if (stopped) return;
+          enemy.setTint(0xffeedd); // pale tint
+          // shadow ellipse under enemy
+          shadow.clear().fillStyle(0x000000, 0.35).fillEllipse(cx + 40, cy + 18, 26, 8);
+          scene.tweens.add({
+            targets: enemy, y: cy - 22, duration: 300, ease: 'Quad.easeOut',
+            onUpdate: () => { shadow.clear().fillStyle(0x000000, 0.25).fillEllipse(enemy.x, cy + 18, 26, 8); },
+            onComplete: () => {
+              if (stopped) return;
+              scene.tweens.add({
+                targets: enemy, y: cy, scaleX: 1, scaleY: 1, duration: 350, ease: 'Bounce.easeOut',
+                onUpdate: () => { shadow.clear().fillStyle(0x000000, 0.3).fillEllipse(enemy.x, cy + 18, 26, 8); },
+                onComplete: () => {
+                  shadow.clear(); enemy.clearTint();
+                  finLabel.y = cy - 40;
+                  if (!stopped) scene.time.delayedCall(900, loop);
+                },
+              });
+            },
+          });
+        },
+      });
+    });
+  }
+  loop();
+
+  return { stop() { stopped = true; cleanObjs(scene, objs); } };
+}
+
 // ── Demo registry ──────────────────────────────────────────────────────────────
 const DEMO_FNS = {
   dash: demoDash,
@@ -613,6 +748,7 @@ const DEMO_FNS = {
   execution: demoExecution,
   wall_crunch: demoWallCrunch,
   momentum: demoMomentum,
+  combo: demoCombo,
 };
 
 // ── TipScene ───────────────────────────────────────────────────────────────────

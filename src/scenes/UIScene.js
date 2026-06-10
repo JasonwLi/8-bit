@@ -63,6 +63,14 @@ export default class UIScene extends Phaser.Scene {
     this.resonanceText = this.add
       .text(12, 146, '', { fontFamily: 'monospace', fontSize: '10px', color: '#8fe6ff', lineSpacing: 2 }).setDepth(101);
 
+    // DW combo string: 4 depth pips (below HP bar) + [K] glyph when finisher is ready.
+    // Both are positioned below the HP bar (drawn each frame in update).
+    this._kGlyphText = this.add
+      .text(0, 0, '', { fontFamily: 'monospace', fontSize: '11px', color: '#ffd700', fontStyle: 'bold' })
+      .setDepth(101).setVisible(false);
+    this._kGlyphText.setShadow(1, 1, '#000000', 3, true, true);
+    this._kGlyphTween = null; // tracks pulse tween so we don't stack them
+
     // MOMENTUM streak counter — sits just right of the HP number, below the dash pips.
     // Shown only when streak > 0; pulses gold at milestones (10/20/30+), gold at cap (30).
     this.streakText = this.add
@@ -202,6 +210,54 @@ export default class UIScene extends Phaser.Scene {
         g.fillStyle(filled ? 0x00e5ff : 0x112222, filled ? 0.92 : 0.7).fillRect(cx, py0, pipW, pipH);
       }
     }
+    // ── DW string depth pips ────────────────────────────────────────────────────
+    // 4 small gold squares below the HP bar. Filled squares = steps fired so far.
+    // When depth >= 1 AND the finisher CD is clear, a [K] glyph pulses to the
+    // right of the pips, teaching the player they can branch now.
+    {
+      const depth    = gs._stringDepth   || 0;
+      const winMs    = gs._stringWindowMs || 0;
+      const cdUntil  = gs._finisherCdUntil || 0;
+      const nowMs    = gs.time ? gs.time.now : 0;
+      const pipW = 7, pipH = 7, pipGap = 3;
+      const spx0 = hx;        // left-align under the HP bar
+      const spy0 = hy + hh + 4;  // same row as dash pips (below HP bar)
+
+      for (let i = 0; i < 4; i++) {
+        const cx = spx0 + i * (pipW + pipGap);
+        g.fillStyle(0x000000, 0.55).fillRect(cx - 1, spy0 - 1, pipW + 2, pipH + 2);
+        // Gold fill when step fired, dim amber outline when window active but not yet fired
+        const fired   = i < depth && winMs > 0;
+        const pending = i === depth && depth < 4 && winMs > 0; // next step slot, active chain
+        const col = fired ? 0xffd700 : (pending ? 0x886600 : 0x1a1400);
+        const alpha = fired ? 0.95 : (pending ? 0.5 : 0.35);
+        g.fillStyle(col, alpha).fillRect(cx, spy0, pipW, pipH);
+      }
+
+      // [K] glyph: appears when in-string (depth >= 1) and finisher CD is clear
+      const finisherReady = depth >= 1 && winMs > 0 && nowMs >= cdUntil;
+      if (finisherReady) {
+        const kx = spx0 + 4 * (pipW + pipGap) + 4;
+        const ky = spy0 - 2;
+        const kKey = keyLabel(Settings.binds.secondary);
+        if (!this._kGlyphText.visible) {
+          // Just became visible — fire a pop tween
+          this._kGlyphText.setVisible(true).setScale(1.4);
+          this.tweens.killTweensOf(this._kGlyphText);
+          this._kGlyphTween = this.tweens.add({
+            targets: this._kGlyphText,
+            scaleX: 1, scaleY: 1, duration: 120, ease: 'Quad.easeOut',
+          });
+        }
+        this._kGlyphText.setPosition(kx, ky).setText(`[${kKey}]`);
+      } else {
+        if (this._kGlyphText.visible) {
+          this.tweens.killTweensOf(this._kGlyphText);
+          this._kGlyphText.setVisible(false).setScale(1);
+        }
+      }
+    }
+
     // MOMENTUM streak counter — just below the dash pips, right-aligned to the HP bar
     {
       const streak = p.streak || 0;

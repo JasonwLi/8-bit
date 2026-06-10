@@ -3106,7 +3106,7 @@ export default class GameScene extends Phaser.Scene {
           this._tapFiredThisPress = true;
           // Slam counts as S1 for string depth accounting (so a hold afterwards can fire C2)
           this._stringDepth    = 1;
-          this._stringWindowMs = STRING_WINDOW_MS;
+          this._stringWindowMs = STRING_WINDOW_MS * (this.player.empowered ? 0.70 : 1);
         } else {
           // ── STRING ADVANCE ──────────────────────────────────────────────────
           const stringDef = this.weapons.def && this.weapons.def().string;
@@ -3134,7 +3134,10 @@ export default class GameScene extends Phaser.Scene {
             }
             // Advance depth (cap at 4)
             this._stringDepth    = Math.min(this._stringDepth + 1, 4);
-            this._stringWindowMs = STRING_WINDOW_MS;
+            // Musou empowered: tighter chain window (×0.70) + finisher depth upgraded (+1 in _fireFinisher)
+            this._stringWindowMs = STRING_WINDOW_MS * (this.player.empowered ? 0.70 : 1);
+            // First time player builds a string (reaches S2) — show the combo tip card
+            if (this._stringDepth === 2 && this.tutorial) this.events.emit('tut', 'combo');
             this._tapFiredThisPress = true;
             this._chargeMs = 0;
           } else {
@@ -3630,9 +3633,14 @@ export default class GameScene extends Phaser.Scene {
   // Fire the depth-specific charge finisher (C2/C3/C4).
   // depth: 1→C2, 2→C3, 3→C4 (string was at depth 1 when K pressed means C2, etc.)
   // Called from both: K-press instant-branch AND hold-J auto-release fallback.
-  _fireFinisher(depth) {
+  // MUSOU empowered: depth upgraded one step (C2→C3, C3→C4, C4 stays C4).
+  _fireFinisher(rawDepth) {
     if (!this.weapons.ready()) return;
-    if (depth < 1) return;
+    if (rawDepth < 1) return;
+
+    // Musou empowerment: bump finisher one step deeper + shorten next chain window
+    const empowered = this.player.empowered;
+    const depth = empowered ? Math.min(rawDepth + 1, 4) : rawDepth;
 
     const def = this.weapons.def();
     const s   = this.weapons.computeStats();

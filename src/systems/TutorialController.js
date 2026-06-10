@@ -47,7 +47,7 @@ const TOAST_IDS = [
 // Mechanic ids that trigger a FULL TIP CARD instead of a toast.
 const TIP_CARD_IDS = [
   'dash', 'perfect_dodge', 'deflect', 'counter', 'charge',
-  'slam', 'execution', 'wall_crunch', 'momentum',
+  'slam', 'execution', 'wall_crunch', 'momentum', 'combo',
 ];
 
 // Floor-1 steps that map to a tip card (so "? for demo" hint can be offered
