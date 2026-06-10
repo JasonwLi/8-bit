@@ -198,6 +198,19 @@ class AudioManager {
         this._tone(1480, 0.06, { type: 'square', vol: 0.14, sweepTo: 880, decay: 0.14 });
         this._noise(0.06, { vol: 0.08, lowpass: 5000 });
         break;
+      case 'evolve':
+        // Triumphant evolution chord — a rising four-note fanfare followed by a shimmering
+        // sustain. Conveys permanent power rather than the brief 'levelup' arpeggio.
+        [392, 523, 659, 784].forEach((f, i) =>
+          setTimeout(() => this._tone(f, 0.32, { type: 'square', vol: 0.16, sweepTo: f * 1.25 }), i * 80)
+        );
+        setTimeout(() => {
+          // sustain: a bright triangle pad ring that fades over ~0.6s
+          [784, 988, 1318].forEach((f, j) =>
+            this._tone(f, 0.6, { type: 'triangle', vol: 0.09 - j * 0.02, attack: 0.04 })
+          );
+        }, 360);
+        break;
 
       default:
         break;

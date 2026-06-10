@@ -61,13 +61,21 @@ export default class UpgradeScene extends Phaser.Scene {
 
     // one reroll per level-up presentation
     this._rerolled = false;
+    // banish mode: player presses B to enter; clicking a card removes that axis from
+    // future drafts for this run. 2 charges per run, persisted on run.banishedIds.
+    this._banishMode = false;
     this._choices = this.rollChoices();
     this._buildCards(width, height);
 
     this.input.keyboard.on('keydown', (e) => {
       const n = parseInt(e.key, 10);
-      if (n >= 1 && n <= this._choices.length) this.pick(this._choices[n - 1]);
+      if (n >= 1 && n <= this._choices.length) {
+        if (this._banishMode) { this.banishCard(this._choices[n - 1]); return; }
+        this.pick(this._choices[n - 1]);
+      }
       if (e.key === 'r' || e.key === 'R') this.reroll(width, height);
+      if (e.key === 'b' || e.key === 'B') this.toggleBanishMode(width, height);
+      if (e.key === 'l' || e.key === 'L') this.cycleLock(width, height);
     });
   }
 
@@ -95,10 +103,16 @@ export default class UpgradeScene extends Phaser.Scene {
     const cy = height / 2 + 24;
     choices.forEach((c, i) => this.buildCard(startX + i * (cardW + gap), cy, cardW, cardH, c, i + 1, reg));
 
-    // reroll affordance — dimmed after use
+    // ── Footer controls row: reroll | banish (B) | lock (L) ──────────────────
+    // Laid out evenly across the width so the row reads as a coherent control strip.
+    const footerY = height / 2 + cardH / 2 + 38;
+    const gs = this.gs;
+    const run = gs.run;
+
+    // --- reroll ---
     const rerollColor = this._rerolled ? '#555566' : '#9a93c0';
     const rerollLabel = this._rerolled ? '↻ rerolled' : '↻ reroll  [R]';
-    const rb = reg(this.add.text(width / 2, height / 2 + cardH / 2 + 38, rerollLabel, {
+    const rb = reg(this.add.text(width / 2 - 180, footerY, rerollLabel, {
       fontFamily: 'monospace', fontSize: '13px', color: rerollColor,
     }).setOrigin(0.5).setDepth(2));
     if (!this._rerolled) {
@@ -107,12 +121,88 @@ export default class UpgradeScene extends Phaser.Scene {
       rb.on('pointerout', () => rb.setColor(rerollColor));
       rb.on('pointerdown', () => this.reroll(width, height));
     }
+
+    // --- banish (2 charges per run) ---
+    const banishCharges = 2 - ((run.banishesUsed || 0));
+    const banishActive = this._banishMode;
+    const banishAvail = banishCharges > 0;
+    const banishColor = banishActive ? '#ff5252' : (banishAvail ? '#e8a040' : '#555566');
+    const banishLabel = banishActive
+      ? '✕ click card to banish'
+      : `⊘ banish  [B]  ×${banishCharges}`;
+    const bb = reg(this.add.text(width / 2, footerY, banishLabel, {
+      fontFamily: 'monospace', fontSize: '13px', color: banishColor,
+    }).setOrigin(0.5).setDepth(2));
+    this._banishBtn = bb; // store for mode-toggle refresh
+    if (banishAvail || banishActive) {
+      bb.setInteractive({ useHandCursor: true });
+      bb.on('pointerover', () => bb.setColor('#ffffff'));
+      bb.on('pointerout', () => bb.setColor(banishColor));
+      bb.on('pointerdown', () => this.toggleBanishMode(width, height));
+    }
+
+    // --- lock (one card, cleared after next draft) ---
+    const lockedId = run.lockedCardId || null;
+    const lockColor = lockedId ? '#7eddff' : '#9a93c0';
+    const lockLabel = lockedId ? `🔒 locked: ${lockedId}` : '🔒 lock card  [L]';
+    const lb = reg(this.add.text(width / 2 + 180, footerY, lockLabel, {
+      fontFamily: 'monospace', fontSize: '13px', color: lockColor,
+    }).setOrigin(0.5).setDepth(2));
+    lb.setInteractive({ useHandCursor: true });
+    lb.on('pointerover', () => lb.setColor('#ffffff'));
+    lb.on('pointerout', () => lb.setColor(lockColor));
+    lb.on('pointerdown', () => this.cycleLock(width, height));
   }
 
   reroll(width, height) {
     if (this._rerolled) return;
     this._rerolled = true;
     this._choices = this.rollChoices(); // re-roll a fresh hand
+    this._buildCards(width, height);
+  }
+
+  // Toggle banish-mode. While active, clicking a card banishes that axis from
+  // future drafts this run (stored in run.banishedIds as 'weapon:axis' / 'secondary:axis').
+  // Cancels on a second B press or after a banish is used. Max 2 banishes per run.
+  toggleBanishMode(width, height) {
+    const run = this.gs.run;
+    const charges = 2 - (run.banishesUsed || 0);
+    if (charges <= 0 && !this._banishMode) return; // no charges and not already in mode
+    this._banishMode = !this._banishMode;
+    this._buildCards(width, height); // rebuild to update button color + label
+  }
+
+  banishCard(c) {
+    // stat cards and ability (ultimate) cards cannot be banished — only weapon/secondary axes.
+    if (c.kind !== 'weapon' && c.kind !== 'secondary') {
+      this._banishMode = false;
+      this._buildCards(this.scale.width, this.scale.height);
+      return;
+    }
+    const run = this.gs.run;
+    if (!run.banishedIds) run.banishedIds = [];
+    const key = `${c.kind}:${c.axis}`;
+    if (!run.banishedIds.includes(key)) run.banishedIds.push(key);
+    run.banishesUsed = (run.banishesUsed || 0) + 1;
+    this._banishMode = false;
+    this._choices = this.rollChoices(); // re-draw without the banished card
+    this._buildCards(this.scale.width, this.scale.height);
+  }
+
+  // Cycle lock: if no card is locked, lock the first available card; if one is already
+  // locked, clear it. The locked card is guaranteed to appear in the NEXT draft and is
+  // cleared once it has been offered. Stored as run.lockedCardId ('kind:axis').
+  cycleLock(width, height) {
+    const run = this.gs.run;
+    if (run.lockedCardId) {
+      // unlock
+      run.lockedCardId = null;
+    } else {
+      // lock the first non-stat card in the current draft (stats have no stable axis key)
+      const lockable = this._choices.find((c) => c.kind === 'weapon' || c.kind === 'secondary' || c.kind === 'ability');
+      if (!lockable) return;
+      run.lockedCardId = `${lockable.kind}:${lockable.axis}`;
+    }
     this._buildCards(width, height);
   }
 
@@ -134,9 +224,27 @@ export default class UpgradeScene extends Phaser.Scene {
     return cards.concat(stats).slice(0, 5);
   }
 
+  // Build an EVOLVE card for a weapon system (weapon or secondary).
+  // This replaces all normal axis cards for that skill in the draft.
+  _evolveCard(sys, kind) {
+    const def = sys.def();
+    const evo = def.evolution;
+    const wIcon = this.textures.exists(`abil_icon_${def.id}`) ? `abil_icon_${def.id}` : `proj_${def.id}`;
+    return {
+      kind: 'evolve', evolveTarget: kind, // 'weapon' | 'secondary'
+      group: def.name, tag: 'EVOLVE',
+      label: evo.name, desc: evo.desc,
+      level: sys.totalLevel(),
+      color: 0xffd700, // golden
+      icon: 'axis_effect', weaponIcon: wIcon,
+    };
+  }
+
   rollChoices() {
     const gs = this.gs;
+    const run = gs.run;
     const CAP = GAME.upgradeCap;
+    const banished = new Set(run.banishedIds || []);
 
     // milestone level: ULTIMATE axes — unless the ultimate is maxed → hero stats
     if (this.ultimateLevel) {
@@ -164,17 +272,27 @@ export default class UpgradeScene extends Phaser.Scene {
 
     // normal level: PRIMARY + SECONDARY axes — but only from abilities BELOW the cap.
     // Maxed weapons drop out; their slots fill with hero-stat upgrades.
+    // Exception: a maxed skill that CAN evolve (cap + artifact) replaces its cards
+    // with exactly ONE golden EVOLVE card in the pool.
     const pool = [];
+    const evolveCards = []; // collected separately so they always make it into the draft
+
     const addAttack = (sys, def, tag) => {
-      if (sys.totalLevel() >= CAP) return; // this ability is maxed → no more upgrade cards
+      const kind = tag === 'PRIMARY' ? 'weapon' : 'secondary';
+      // Check evolution eligibility FIRST: a maxed, evolvable skill shows only the evolve card.
+      if (sys.canEvolve(run)) {
+        evolveCards.push(this._evolveCard(sys, kind));
+        return;
+      }
+      if (sys.totalLevel() >= CAP) return; // maxed, no evolution → no cards, fill with stats
       const wIcon = this.textures.exists(`abil_icon_${def.id}`) ? `abil_icon_${def.id}` : `proj_${def.id}`;
       const color = tag === 'PRIMARY' ? gs.theme.accent : def.color;
-      const kind = tag === 'PRIMARY' ? 'weapon' : 'secondary';
       // data-driven flavored axes if the skill declares them, else the legacy 4
       const axes = def.axes
         ? def.axes.map((a) => ({ axis: a.id, label: a.label, desc: a.desc, iconAxis: a.kind }))
         : ['damage', 'reach', 'speed', 'effect'].map((axis) => ({ axis, label: AXIS_INFO[axis].label, desc: axis === 'effect' ? def.effectLabel : AXIS_INFO[axis].desc, iconAxis: axis }));
       for (const a of axes) {
+        if (banished.has(`${kind}:${a.axis}`)) continue; // player banished this axis
         pool.push({
           kind, axis: a.axis, group: def.name, tag, label: a.label, desc: a.desc,
           level: sys.points[a.axis], color, icon: `axis_${AXIS_ICON[a.iconAxis] || 'effect'}`, weaponIcon: wIcon,
@@ -185,15 +303,45 @@ export default class UpgradeScene extends Phaser.Scene {
     addAttack(gs.secondary, getSecondary(gs.secondary.weaponId), 'SECONDARY');
 
     Phaser.Utils.Array.Shuffle(pool);
-    return this.fillWithStats(pool.slice(0, 5));
+    let chosen = pool.slice(0, 5);
+
+    // Inject the locked card at the front if one is set (ensures it appears).
+    // Cleared from run after the draft regardless of whether the player picks it.
+    if (run.lockedCardId) {
+      const [lockKind, lockAxis] = run.lockedCardId.split(':');
+      // Check if it's already in the chosen set
+      const alreadyThere = chosen.some((c) => c.kind === lockKind && c.axis === lockAxis);
+      if (!alreadyThere) {
+        // Find the card in the full pool (which may have been sliced off) or rebuild it
+        const fromPool = pool.find((c) => c.kind === lockKind && c.axis === lockAxis);
+        if (fromPool) {
+          chosen = [fromPool, ...chosen.slice(0, 4)];
+        }
+      }
+      // Clear the lock now that this draft has been offered
+      run.lockedCardId = null;
+    }
+
+    // Prepend any evolution cards so they always appear (they're very rare and important).
+    // They count toward the 5-card slot limit, pushing stat filler out.
+    const final = [...evolveCards, ...chosen].slice(0, 5);
+    return this.fillWithStats(final);
   }
 
   buildCard(cx, cy, w, h, c, num, reg = (o) => o) {
     const top = cy - h / 2;
+    const isEvolve = c.kind === 'evolve';
     const g = reg(this.add.graphics().setDepth(1));
     drawPanel(g, cx - w / 2, top, w, h, c.color, { header: 30 });
 
-    const tagColor = c.kind === 'ability' ? Phaser.Display.Color.IntegerToColor(c.color).rgba : '#ffd27a';
+    // Evolve cards get an extra golden border ring for immediate visual distinction.
+    if (isEvolve) {
+      const eg = reg(this.add.graphics().setDepth(1));
+      eg.lineStyle(3, 0xffd700, 0.85);
+      eg.strokeRect(cx - w / 2 + 2, top + 2, w - 4, h - 4);
+    }
+
+    const tagColor = isEvolve ? '#ffd700' : (c.kind === 'ability' ? Phaser.Display.Color.IntegerToColor(c.color).rgba : '#ffd27a');
     reg(this.add.text(cx, top + 16, `${num}. ${c.tag}`, {
       fontFamily: 'monospace', fontSize: '12px', color: tagColor, fontStyle: 'bold',
     }).setOrigin(0.5).setDepth(2));
@@ -232,11 +380,18 @@ export default class UpgradeScene extends Phaser.Scene {
   }
 
   pick(c) {
+    // If banish mode is active, route card clicks to banishCard instead.
+    if (this._banishMode) {
+      this.banishCard(c);
+      return;
+    }
     const gs = this.gs;
     if (c.kind === 'weapon') gs.weapons.customize(c.axis);
     else if (c.kind === 'secondary') gs.secondary.customize(c.axis);
     else if (c.kind === 'ability') gs.ability.upgrade(c.axis);
     else if (c.kind === 'stat') gs.player.addLevelMod(c.modKey, c.amount); // permanent hero boost
+    else if (c.kind === 'evolve') this._applyEvolve(c, gs);
+
     gs.updateResonances(); // matching investments may unlock a resonance
 
     gs.pendingLevels = Math.max(0, gs.pendingLevels - 1);
@@ -246,6 +401,20 @@ export default class UpgradeScene extends Phaser.Scene {
       gs.levelingUp = false;
       this.scene.stop();
       this.scene.resume('GameScene');
+    }
+  }
+
+  // Apply an EVOLVE pick: set the weapon system's evolved flag, play the fanfare,
+  // show a banner, and emit a brief golden burst on the player.
+  _applyEvolve(c, gs) {
+    const sys = c.evolveTarget === 'weapon' ? gs.weapons : gs.secondary;
+    sys.evolved = true;
+    Audio.sfx('evolve');
+    // Resume the game scene momentarily to fire the visual FX on the player sprite,
+    // then immediately re-pause (the upgrade scene is still open; we only need one frame
+    // of FX, not full game logic). We delegate to gs.onSkillEvolved() which is safe.
+    if (typeof gs.onSkillEvolved === 'function') {
+      gs.onSkillEvolved(sys);
     }
   }
 }

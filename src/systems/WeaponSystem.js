@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import { getWeapon } from '../data/weapons.js';
 import { getSecondary } from '../data/secondaries.js';
 import { Audio } from './AudioManager.js';
+import { GAME } from '../config.js';
 
 // Lightweight monotonic time getter used by the orbital hit-cooldown system.
 function _getTime(scene) {
@@ -25,6 +26,9 @@ export default class WeaponSystem {
     this.timer = 0;
     this.lastCooldown = (this.def().base.cooldown) || 1000; // for readyFraction()
     this._aimOverride = null; // when set, fire toward this angle instead of auto-targeting
+    // Evolution: once eligible (cap reached + run has an artifact), the player may pick
+    // the golden EVOLVE card. Setting evolved=true merges def.evolution.overlay over base.
+    this.evolved = false;
 
     // --- Orbital system (Gilgamesh divine_arsenal) ---
     // Persistent blade sprites that circle the player and damage nearby enemies.
@@ -36,6 +40,34 @@ export default class WeaponSystem {
 
   def() {
     return getWeapon(this.weaponId) || getSecondary(this.weaponId);
+  }
+
+  // Effective base: returns def.base merged with the evolution overlay (partial
+  // field overrides + optional behavior flags). When not evolved, returns def.base
+  // unchanged (same object — no copy cost). Both computeStats paths use this so
+  // the overlay is automatically respected everywhere stats are read.
+  effBase() {
+    const d = this.def();
+    if (!this.evolved || !d.evolution || !d.evolution.overlay) return d.base;
+    return Object.assign({}, d.base, d.evolution.overlay);
+  }
+
+  // Display name for evolved state — used by UI to show the evolution name.
+  displayName() {
+    const d = this.def();
+    if (this.evolved && d.evolution) return d.evolution.name;
+    return d.name;
+  }
+
+  // True when this skill is eligible for evolution: points at cap AND run owns >=1 artifact.
+  // The run reference is optional (duel-test / standalone checks skip artifact gate).
+  canEvolve(run) {
+    const d = this.def();
+    if (!d.evolution) return false; // no evolution defined for this skill
+    if (this.evolved) return false; // already evolved
+    if (this.totalLevel() < GAME.upgradeCap) return false;
+    if (run && (!run.artifacts || run.artifacts.length === 0)) return false;
+    return true;
   }
 
   customize(axis) {
@@ -65,12 +97,14 @@ export default class WeaponSystem {
   }
 
   // Resolve base + points + player mods into the numbers used when firing.
+  // When evolved, effBase() merges the evolution overlay over def.base so any
+  // overridden fields (damage, cooldown, kind, etc.) take effect automatically.
   computeStats() {
     const def = this.def();
     if (def.axes) return this.computeStatsGeneric(); // data-driven per-skill axes
     const pt = this.points;
     const pp = def.perPoint;
-    const b = def.base;
+    const b = this.effBase(); // evolved? overlay merged; else same as def.base
 
     // musou: while the ability's empowered window is open, the regular attack
     // surges — harder, faster, and bigger (a fused combo effect). The window lasts
@@ -190,7 +224,7 @@ export default class WeaponSystem {
   // DEFAULT-ON effects (knockback/bleed/stun/slow/lifesteal/pierceAll) the upgrade scales.
   computeStatsGeneric() {
     const def = this.def();
-    const b = def.base;
+    const b = this.effBase(); // evolved? overlay merged; else same as def.base
     const p = this.player;
     const emp = p.empowered;
     const empDmg = emp ? 1.5 : 1;

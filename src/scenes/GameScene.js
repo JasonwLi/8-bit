@@ -175,6 +175,9 @@ export default class GameScene extends Phaser.Scene {
     }
     for (const [slot, item] of Object.entries(r.equipment || {})) if (item) this.player.equipment[slot] = item;
     this.player.artifactMods = (r.artifacts || []).map((id) => getArtifact(id).mods);
+    // Restore evolution state (earned last session or earlier in this run).
+    if (r.weaponEvolved) this.weapons.evolved = true;
+    if (r.secondaryEvolved) this.secondary.evolved = true;
     this.updateResonances(); // recomputes from carried weapon/ability points
     if (this.contract.playerHpMult !== 1) this.player.maxHp = Math.round(this.player.maxHp * this.contract.playerHpMult);
     this.player.contractXpMult = 1 + this.contract.xpBonus;
@@ -1249,9 +1252,22 @@ export default class GameScene extends Phaser.Scene {
     r.floor = this.floor; // resume on the same floor (same floorSeed → same layout)
     r.spawnedThisFloor = this.spawner.spawnedThisFloor; // a cleared floor stays cleared on resume
     r.bossPhase = this.bossPhase;
+    // Persist evolution booleans — earned across the whole run, survive stage transitions.
+    r.weaponEvolved = this.weapons.evolved;
+    r.secondaryEvolved = this.secondary.evolved;
     // Accumulate total run time across stages for the WinScene recap display
     r.runTimeTotal = (r._stageTimeBase || 0) + this.runTime;
     this.registry.set('run', r);
+  }
+
+  // Called by UpgradeScene when a skill evolves. Fires the golden burst FX on the
+  // player and shows an evolution banner — safe to call while UpgradeScene is active
+  // because this only emits particles + tweens (no game logic).
+  onSkillEvolved(sys) {
+    const evo = sys.def().evolution;
+    if (!evo) return;
+    this.fx.goldenBurst(this.player.x, this.player.y, 20);
+    this.showBanner(`✦ ${evo.name}`, '#ffd700');
   }
 
   conquerStage() {
