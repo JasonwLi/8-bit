@@ -17,6 +17,73 @@ const AXIS_ICON = {
   effect: 'effect', pierce: 'effect', stun: 'effect', fear: 'effect', armorpierce: 'effect', burnpatch: 'effect', burn: 'effect', buff: 'effect', multishot: 'amount',
 };
 
+// MUTATION CARDS — rare behavior-changing modifiers (purple/rare, weight ~35% per
+// draft, at most one per draft, only offered at level 10+, pickable ONCE per run).
+// Flags are stored on player.mutations and restored from run.mutations on resume.
+// Each card is picked at most once per run (owned list: run.ownedMutations).
+export const MUTATION_CARDS = [
+  {
+    id: 'ricochet_shots', name: 'Ricochet',
+    desc: 'Your projectiles bounce once to the nearest un-hit enemy on impact.',
+    color: 0xb05aff, icon: 'axis_effect',
+  },
+  {
+    id: 'echo_ultimate', name: 'Echo',
+    desc: 'Your ultimate echoes a second cast at 40% power 1 s later.',
+    color: 0xb05aff, icon: 'axis_power',
+  },
+  {
+    id: 'reverse_knockback', name: 'Gravitic Pull',
+    desc: 'Knockback now PULLS enemies toward you instead of pushing them away.',
+    color: 0xb05aff, icon: 'axis_area',
+  },
+  {
+    id: 'gem_detonator', name: 'Gem Detonator',
+    desc: 'Collecting a gem triggers a small shrapnel burst that damages nearby enemies.',
+    color: 0xb05aff, icon: 'axis_effect',
+  },
+  {
+    id: 'fire_on_hit', name: 'Searing Wounds',
+    desc: 'Taking a hit drops a burning fire patch at your feet.',
+    color: 0xb05aff, icon: 'axis_damage',
+  },
+  {
+    id: 'secondary_autocast', name: 'Tactical Reflex',
+    desc: 'Your secondary auto-fires when 4 or more enemies are within 220 px.',
+    color: 0xb05aff, icon: 'axis_speed',
+  },
+  {
+    id: 'homing_shots', name: 'Seeking',
+    desc: 'All your projectiles gain a gentle homing curve toward nearby enemies.',
+    color: 0xb05aff, icon: 'axis_haste',
+  },
+  {
+    id: 'kill_nova', name: 'Deathburst',
+    desc: 'Each enemy kill releases a small energy nova that damages adjacent foes.',
+    color: 0xb05aff, icon: 'axis_area',
+  },
+  {
+    id: 'speed_on_kill', name: 'Bloodrush',
+    desc: 'Killing an enemy gives +40% move speed for 2 s (stacks reset the timer).',
+    color: 0xb05aff, icon: 'axis_haste',
+  },
+  {
+    id: 'proj_split_on_expire', name: 'Fragmentation',
+    desc: 'Projectiles that expire without a hit split into 3 short-range shards.',
+    color: 0xb05aff, icon: 'axis_amount',
+  },
+  {
+    id: 'lifesteal_on_ult', name: 'Bloodthrone',
+    desc: 'Casting your ultimate heals you for 3% of max HP for each enemy in its radius.',
+    color: 0xb05aff, icon: 'axis_power',
+  },
+  {
+    id: 'knockback_chain', name: 'Billiards',
+    desc: 'A knocked-back enemy that collides with another enemy knocks it back too.',
+    color: 0xb05aff, icon: 'axis_area',
+  },
+];
+
 // HERO STAT upgrades — offered once an ability hits the upgrade cap (and to fill the
 // pool). Each adds a permanent mod to the player (Brotato / Halls-of-Torment style).
 // [modKey, amount] feeds Player.recompute via the levelMods bag.
@@ -240,6 +307,33 @@ export default class UpgradeScene extends Phaser.Scene {
     };
   }
 
+  // Build a mutation card object for the draft (level/kind/etc. for buildCard).
+  _mutationCard(m) {
+    return {
+      kind: 'mutation', mutId: m.id,
+      group: 'Mutation', tag: 'MUTATION',
+      label: m.name, desc: m.desc,
+      level: 0, // mutations don't have levels; we show "✓ new" in buildCard instead
+      color: m.color, icon: m.icon, weaponIcon: null,
+    };
+  }
+
+  // Try to inject one mutation card into the draft (at most one, ~35% chance,
+  // level ≥ 10 only, skips already-owned mutations). Returns the card or null.
+  _rollMutation() {
+    const gs = this.gs;
+    const run = gs.run;
+    // Only available from level 10 onwards
+    if (gs.player.level < 10) return null;
+    // ~35% chance a given draft contains one
+    if (Math.random() > 0.35) return null;
+    const owned = new Set(run.ownedMutations || []);
+    const available = MUTATION_CARDS.filter((m) => !owned.has(m.id));
+    if (!available.length) return null;
+    const picked = available[Math.floor(Math.random() * available.length)];
+    return this._mutationCard(picked);
+  }
+
   rollChoices() {
     const gs = this.gs;
     const run = gs.run;
@@ -324,8 +418,16 @@ export default class UpgradeScene extends Phaser.Scene {
 
     // Prepend any evolution cards so they always appear (they're very rare and important).
     // They count toward the 5-card slot limit, pushing stat filler out.
-    const final = [...evolveCards, ...chosen].slice(0, 5);
-    return this.fillWithStats(final);
+    let final = [...evolveCards, ...chosen].slice(0, 5);
+    final = this.fillWithStats(final);
+
+    // Try to inject one mutation card (at most one per draft, ~35% at level 10+,
+    // replaces the last card in the hand so total stays at 5).
+    const mut = this._rollMutation();
+    if (mut) {
+      final[final.length - 1] = mut; // swap the last slot for the purple rarity card
+    }
+    return final;
   }
 
   buildCard(cx, cy, w, h, c, num, reg = (o) => o) {
@@ -334,14 +436,24 @@ export default class UpgradeScene extends Phaser.Scene {
     const g = reg(this.add.graphics().setDepth(1));
     drawPanel(g, cx - w / 2, top, w, h, c.color, { header: 30 });
 
+    const isMutation = c.kind === 'mutation';
+
     // Evolve cards get an extra golden border ring for immediate visual distinction.
     if (isEvolve) {
       const eg = reg(this.add.graphics().setDepth(1));
       eg.lineStyle(3, 0xffd700, 0.85);
       eg.strokeRect(cx - w / 2 + 2, top + 2, w - 4, h - 4);
     }
+    // Mutation cards get a purple pulsing border so they immediately read as rare/exotic.
+    if (isMutation) {
+      const mg = reg(this.add.graphics().setDepth(1));
+      mg.lineStyle(3, 0xb05aff, 0.9);
+      mg.strokeRect(cx - w / 2 + 2, top + 2, w - 4, h - 4);
+    }
 
-    const tagColor = isEvolve ? '#ffd700' : (c.kind === 'ability' ? Phaser.Display.Color.IntegerToColor(c.color).rgba : '#ffd27a');
+    const tagColor = isEvolve ? '#ffd700'
+      : isMutation ? '#cc88ff'
+      : (c.kind === 'ability' ? Phaser.Display.Color.IntegerToColor(c.color).rgba : '#ffd27a');
     reg(this.add.text(cx, top + 16, `${num}. ${c.tag}`, {
       fontFamily: 'monospace', fontSize: '12px', color: tagColor, fontStyle: 'bold',
     }).setOrigin(0.5).setDepth(2));
@@ -369,8 +481,11 @@ export default class UpgradeScene extends Phaser.Scene {
       fontFamily: 'monospace', fontSize: '11px', color: '#c9c4e0',
       align: 'center', wordWrap: { width: w - 22 },
     }).setOrigin(0.5, 0).setDepth(2));
-    reg(this.add.text(cx, cy + h / 2 - 22, `Lv ${c.level} ▸ ${c.level + 1}`, {
-      fontFamily: 'monospace', fontSize: '12px', color: '#ffd27a',
+    // Mutation cards don't have levels — show a "once per run" badge instead.
+    const footLabel = isMutation ? '✦ once per run' : `Lv ${c.level} ▸ ${c.level + 1}`;
+    const footColor = isMutation ? '#cc88ff' : '#ffd27a';
+    reg(this.add.text(cx, cy + h / 2 - 22, footLabel, {
+      fontFamily: 'monospace', fontSize: '12px', color: footColor,
     }).setOrigin(0.5).setDepth(2));
 
     const zone = reg(this.add.zone(cx, cy, w, h).setInteractive({ useHandCursor: true }).setDepth(3));
@@ -391,6 +506,7 @@ export default class UpgradeScene extends Phaser.Scene {
     else if (c.kind === 'ability') gs.ability.upgrade(c.axis);
     else if (c.kind === 'stat') gs.player.addLevelMod(c.modKey, c.amount); // permanent hero boost
     else if (c.kind === 'evolve') this._applyEvolve(c, gs);
+    else if (c.kind === 'mutation') this._applyMutation(c, gs);
 
     gs.updateResonances(); // matching investments may unlock a resonance
 
@@ -416,5 +532,17 @@ export default class UpgradeScene extends Phaser.Scene {
     if (typeof gs.onSkillEvolved === 'function') {
       gs.onSkillEvolved(sys);
     }
+  }
+
+  // Apply a MUTATION pick: set the flag on player.mutations and track in run.ownedMutations
+  // so the same card can't appear again. A purple burst on the player marks the pickup.
+  _applyMutation(c, gs) {
+    if (!gs.player.mutations) gs.player.mutations = {};
+    gs.player.mutations[c.mutId] = true;
+    if (!gs.run.ownedMutations) gs.run.ownedMutations = [];
+    if (!gs.run.ownedMutations.includes(c.mutId)) gs.run.ownedMutations.push(c.mutId);
+    Audio.sfx('levelup');
+    // Violet shockwave so the pick stands out from normal ability upgrades.
+    if (typeof gs.onMutationPicked === 'function') gs.onMutationPicked(c.mutId);
   }
 }

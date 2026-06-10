@@ -693,6 +693,13 @@ export default class WeaponSystem {
     p.ricochet = false; p.boomerang = false; p.spin = 0;
     if (s.homing) { p.homing = true; p.homingRange = s.homing.range || 360; p.homingTurn = s.homing.turn || 0.13; }
     else p.homing = false;
+    // Seeking mutation: apply a gentle homing curve to all projectiles that don't
+    // already home (the existing homing update loop in GameScene handles the physics).
+    if (!p.homing && this.player.mutations && this.player.mutations.homing_shots) {
+      p.homing = true;
+      p.homingRange = 200;
+      p.homingTurn = 0.06;
+    }
     return p;
   }
 

@@ -133,10 +133,17 @@ export default class PickupController {
   // --- overlap callbacks ---
   onGem(player, gem) {
     if (!gem.active) return;
+    const gemX = gem.x, gemY = gem.y; // capture before deactivate clears position
     this.s.deactivate(gem);
     Audio.sfx('pickup');
     const gained = player.addXp(gem.value);
     if (gained > 0) this.s.pendingLevels += gained;
+    // Gem Detonator mutation: collecting a gem bursts shrapnel at nearby enemies.
+    if (player.mutations && player.mutations.gem_detonator) {
+      const gs = this.s;
+      gs.abilityNova(gemX, gemY, 72, 8 + Math.round(player.damageMult * 4), 0xffe08a, 0);
+      gs.fx.shockwave(gemX, gemY, 0xffe08a, 72);
+    }
   }
 
   onChest(player, chest) {

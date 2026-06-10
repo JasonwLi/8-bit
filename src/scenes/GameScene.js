@@ -164,6 +164,9 @@ export default class GameScene extends Phaser.Scene {
     Object.assign(this.ability.points, r.abilityPoints); // ability points key on stable slots
 
     if (r.levelMods) Object.assign(this.player.levelMods, r.levelMods); // carried hero-stat upgrades
+    // Restore mutation flags so behavior hooks work correctly on stage resume.
+    if (r.mutations) this.player.mutations = { ...r.mutations };
+    else this.player.mutations = {};
     // Apply one-time legacy boon at the start of a fresh run (not on stage resumes).
     // `r._boonApplied` guards against re-applying on Continue or multi-stage saves.
     if (!r._boonApplied) {
@@ -453,7 +456,21 @@ export default class GameScene extends Phaser.Scene {
         }
       }
       p.lifespan -= delta;
-      if (p.lifespan <= 0) this.deactivate(p);
+      if (p.lifespan <= 0) {
+        // Fragmentation mutation: unexpired projectiles that hit nothing split into 3 shards
+        if (this.player.mutations && this.player.mutations.proj_split_on_expire && !p._isShard) {
+          const sp = Math.hypot(p.body.velocity.x, p.body.velocity.y) || 200;
+          for (let i = 0; i < 3; i++) {
+            const a = p.rotation + (i - 1) * 0.55;
+            const sh = this.weapons.spawnProjectile(
+              Object.assign({}, this.weapons.computeStats(), { speed: sp * 0.6, pierce: 0, damage: Math.round((p.damage || 4) * 0.4), reachMult: 0.5 }),
+              p.x, p.y, a,
+            );
+            if (sh) { sh._isShard = true; sh.homing = false; }
+          }
+        }
+        this.deactivate(p);
+      }
     }
     this.updateAllies(time, delta); // Caesar's legionaries seek + fight
     // enemy projectile lifespans (+ trail)
@@ -831,14 +848,34 @@ export default class GameScene extends Phaser.Scene {
   // body directly (it bypasses the collider), so on dungeon floors we push only as far as
   // the destination stays walkable (stepping back to the furthest clear fraction).
   knockbackEnemy(e, ang, dist) {
+    // Gravitic Pull mutation: flip the angle 180° so the shove pulls toward the player.
+    if (this.player.mutations && this.player.mutations.reverse_knockback) ang = ang + Math.PI;
     const cos = Math.cos(ang), sin = Math.sin(ang);
     const fs = this.floorSys;
-    if (!this.dungeonMode || !fs) { e.x += cos * dist; e.y += sin * dist; return; }
-    if (fs.isWalkable(e.x + cos * dist, e.y + sin * dist)) { e.x += cos * dist; e.y += sin * dist; return; }
-    for (let f = 0.66; f >= 0.2; f -= 0.23) {
-      if (fs.isWalkable(e.x + cos * dist * f, e.y + sin * dist * f)) { e.x += cos * dist * f; e.y += sin * dist * f; return; }
+    if (!this.dungeonMode || !fs) { e.x += cos * dist; e.y += sin * dist; }
+    else if (fs.isWalkable(e.x + cos * dist, e.y + sin * dist)) { e.x += cos * dist; e.y += sin * dist; }
+    else {
+      let moved = false;
+      for (let f = 0.66; f >= 0.2; f -= 0.23) {
+        if (fs.isWalkable(e.x + cos * dist * f, e.y + sin * dist * f)) { e.x += cos * dist * f; e.y += sin * dist * f; moved = true; break; }
+      }
+      if (!moved) return; // blocked — leave where it is
     }
-    // immediate path is blocked — leave the enemy where it is rather than clip the rock
+    // Billiards mutation: a knocked-back enemy collides with nearby foes and shoves them too.
+    // The chain is NOT recursive (we don't re-check mutKnockbackChain on the secondary shove).
+    if (this.player.mutations && this.player.mutations.knockback_chain) {
+      const chainR = 48, chainR2 = chainR * chainR;
+      for (const nb of this.enemies.getChildren()) {
+        if (!nb.active || nb === e || nb.isBoss) continue;
+        const dx = nb.x - e.x, dy = nb.y - e.y;
+        if (dx * dx + dy * dy <= chainR2) {
+          const a2 = Math.atan2(dy, dx);
+          nb.x += Math.cos(a2) * dist * 0.45;
+          nb.y += Math.sin(a2) * dist * 0.45;
+          this.damageEnemy(nb, Math.round(dist * 0.3));
+        }
+      }
+    }
   }
 
   // Shared by ranged enemies and bosses. Pooled, so scale/tint are reset here.
@@ -1255,6 +1292,8 @@ export default class GameScene extends Phaser.Scene {
     r.secondaryPoints = this.packPointsByPosition(this.secondary);
     r.abilityPoints = { ...this.ability.points };
     r.levelMods = { ...this.player.levelMods };
+    r.mutations = { ...(this.player.mutations || {}) }; // mutation flags survive stage transitions
+    r.ownedMutations = [...(this.run.ownedMutations || [])]; // owned set (no re-offer)
     r.swarmElapsed = this.spawner.elapsed; // carry swarm difficulty into the next stage
     r.equipment = {};
     for (const [slot, item] of Object.entries(this.player.equipment)) if (item) r.equipment[slot] = item;
@@ -1269,6 +1308,19 @@ export default class GameScene extends Phaser.Scene {
     // Accumulate total run time across stages for the WinScene recap display
     r.runTimeTotal = (r._stageTimeBase || 0) + this.runTime;
     this.registry.set('run', r);
+  }
+
+  // Called by UpgradeScene when a mutation is picked. Purple shockwave + banner.
+  // Safe to call while UpgradeScene is active (FX-only, no game-logic side effects).
+  onMutationPicked(mutId) {
+    this.fx.shockwave(this.player.x, this.player.y, 0xb05aff, 80);
+    const names = {
+      ricochet_shots: 'Ricochet', echo_ultimate: 'Echo', reverse_knockback: 'Gravitic Pull',
+      gem_detonator: 'Gem Detonator', fire_on_hit: 'Searing Wounds', secondary_autocast: 'Tactical Reflex',
+      homing_shots: 'Seeking', kill_nova: 'Deathburst', speed_on_kill: 'Bloodrush',
+      proj_split_on_expire: 'Fragmentation', lifesteal_on_ult: 'Bloodthrone', knockback_chain: 'Billiards',
+    };
+    this.showBanner(`✦ Mutation: ${names[mutId] || mutId}`, '#cc88ff');
   }
 
   // Called by UpgradeScene when a skill evolves. Fires the golden burst FX on the
@@ -1551,6 +1603,14 @@ export default class GameScene extends Phaser.Scene {
     }
     this.player.kills += 1;
     this.player.addMomentum(); // builds/extends the musou window if active
+    // Deathburst mutation: release an energy nova on each kill.
+    if (this.player.mutations && this.player.mutations.kill_nova) {
+      this.abilityNova(enemy.x, enemy.y, 80, Math.round(8 * this.player.damageMult), 0xffd700, 0);
+    }
+    // Bloodrush mutation: +40% move speed for 2 s (stacks reset the timer).
+    if (this.player.mutations && this.player.mutations.speed_on_kill) {
+      this.player.addBuff('speed', 1.4, 2000, this.time.now);
+    }
     this.fx.death(enemy.x, enemy.y);
     // Volatile elite: detonate a telegraphed AoE where it died (back off when it's low!)
     if (enemy.volatile) {
@@ -1597,8 +1657,14 @@ export default class GameScene extends Phaser.Scene {
 
   reactToHit(result) {
     if (result === 'dodge') Audio.sfx('dodge');
-    else if (result === 'hit') Audio.sfx('hurt');
-    else if (result === 'dead') this.endRun();
+    else if (result === 'hit') {
+      Audio.sfx('hurt');
+      // Searing Wounds mutation: drop a fire patch at the player's feet on each hit.
+      // A brief delay prevents it registering before the player moves off (80ms).
+      if (this.player.mutations && this.player.mutations.fire_on_hit) {
+        this.spawnHazardZone(this.player.x, this.player.y, 48, 6, 80, 280, 1400, 'fire', 'enemies');
+      }
+    } else if (result === 'dead') this.endRun();
   }
 
   onProjectileHit(projectile, enemy) {
@@ -1639,6 +1705,18 @@ export default class GameScene extends Phaser.Scene {
         projectile.lifespan = 900; // refresh so it can reach the next link in the chain
         return;
       }
+    }
+    // Ricochet mutation: any non-bouncing projectile gets one free bounce on first impact.
+    // We arm it here (bouncesLeft=1, ricochet=true) and return so the first-hit redirects
+    // rather than consuming a pierce — the redirect IS the hit, not a free pierce.
+    else if (this.player.mutations && this.player.mutations.ricochet_shots
+      && !projectile.ricochet && projectile.bouncesLeft == null) {
+      projectile.bouncesLeft = 1;
+      projectile.ricochet = true;
+      projectile.bounceRange = 280;
+      projectile.bounceSpeed = Math.hypot(projectile.body.velocity.x, projectile.body.velocity.y);
+      this.fx.chainArc(projectile.x, projectile.y, enemy.x, enemy.y, projectile.trailColor || 0xffe08a);
+      return; // skip pierce decrement — first hit redirects
     }
     projectile.pierceLeft -= 1;
     if (projectile.pierceLeft <= 0) this.deactivate(projectile);
@@ -1856,6 +1934,18 @@ export default class GameScene extends Phaser.Scene {
 
     if (!this.canAct()) return;
     if (bk.primary.isDown) this.weapons.fireHeld();            // held manual primary (move-aimed)
+    // Tactical Reflex mutation: auto-fire secondary when 4+ enemies are within 220 px.
+    if (this.player.mutations && this.player.mutations.secondary_autocast && this.secondary.ready() && !this.dueling) {
+      let nearCount = 0;
+      const pr2 = 220 * 220;
+      for (const e of this.enemies.getChildren()) {
+        if (e.active) {
+          const dx = e.x - this.player.x, dy = e.y - this.player.y;
+          if (dx * dx + dy * dy <= pr2) nearCount++;
+        }
+      }
+      if (nearCount >= 4) this.secondary.castManual(this.aimDir);
+    }
     if (JustDown(bk.secondary) && this.secondary.ready()) this.secondary.castManual(this.aimDir); // along movement
     if (JustDown(bk.ultimate)) {
       const fired = this.ability.tryCast(this.time.now);

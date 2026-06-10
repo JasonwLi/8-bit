@@ -59,6 +59,18 @@ export default class AbilitySystem {
     this.lastCooldown = s.cooldown;
     this.cdRemaining = s.cooldown;
     this.cast(s);
+    // Echo mutation: queue a second cast at 40% power 1 s later (no invuln/empower).
+    if (this.player.mutations && this.player.mutations.echo_ultimate) {
+      this.scene.time.delayedCall(1000, () => {
+        if (!this.player.active) return;
+        const es = Object.assign({}, s, {
+          damage: Math.round(s.damage * 0.4),
+          knockback: (s.knockback || 0) * 0.4,
+          radius: (s.radius || 0) * 0.85,
+        });
+        this.cast(es);
+      });
+    }
     // per-ability self-buffs: Caesar's testudo fortifies (defense), Ragnar's berserker
     // enrages (damage+speed). The 'buff' axis (Shield Wall / Bloodrage) scales them.
     if (s.def.selfBuffs) for (const bf of s.def.selfBuffs) {
@@ -154,6 +166,19 @@ export default class AbilitySystem {
   }
 
   cast(s) {
+    // Bloodthrone mutation: heal 3% max HP per enemy in the ultimate's radius on cast.
+    if (this.player.mutations && this.player.mutations.lifesteal_on_ult) {
+      const r = s.radius || 180;
+      const r2 = r * r;
+      let hits = 0;
+      for (const e of this.scene.enemies.getChildren()) {
+        if (e.active) {
+          const dx = e.x - this.player.x, dy = e.y - this.player.y;
+          if (dx * dx + dy * dy <= r2) hits++;
+        }
+      }
+      if (hits > 0) this.player.heal(Math.round(this.player.maxHp * 0.03 * hits));
+    }
     switch (s.def.kind) {
       case 'nova':
         return this.castNova(s);
