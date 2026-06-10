@@ -64,9 +64,17 @@ export default class SpawnSystem {
     // tougher archetypes (can't grind floor 1 to see them all). The table's legacy
     // `from` (seconds, 0–400) maps to a floor gate at ~1 floor per 30s of that curve,
     // so the full bestiary is unlocked by ~floor 13.
+    // Signature units (entries with a `civ` field) are only eligible when the current
+    // stage civ matches — they are the unique flavor of THAT stage.
     const floor = this.scene.floor || 1;
+    const stageCiv = this.scene.stageCiv || null;
     const gate = (s) => Math.max(1, Math.round(s.from / 30));
-    const eligible = SPAWN_TABLE.filter((s) => floor >= gate(s));
+    const eligible = SPAWN_TABLE.filter((s) => {
+      if (floor < gate(s)) return false;
+      // civ-locked entries: only eligible during their civ's stage (floor >= 3 minimum)
+      if (s.civ) return stageCiv === s.civ && floor >= 3;
+      return true;
+    });
     const total = eligible.reduce((a, s) => a + s.weight, 0);
     let r = Math.random() * total;
     for (const s of eligible) {
@@ -116,9 +124,10 @@ export default class SpawnSystem {
     }
 
     e.typeId = typeId;
+    e.civId = def.civ || civId || null; // signature units carry their own civId
     // ITEM A: per-civ localized name (falls back to the base name when unmapped)
     // civId already declared above for texture selection
-    e.localName = localEnemyName(civId, typeId, def.name);
+    e.localName = localEnemyName(e.civId, typeId, def.name);
     e.attack = def.attack;
     e.speed = def.speed;
     // XP scales sub-linearly with the same difficulty that drives enemy HP, so deeper/
@@ -237,6 +246,57 @@ export default class SpawnSystem {
     e.blinkDistance  = def.blinkDistance  || 220;
     e.blinkTimer     = Phaser.Math.Between(800, def.blinkCooldown || 2200); // stagger first blink
 
+    // ── Signature unit flags (safe to init on all entities; no-op when false) ──
+    // fire-lance: cone hazard on swing strike
+    e.fireLance      = !!def.fireLance;
+    // shinobi: blink behind player before swing
+    e.shinobiStrike  = !!def.shinobiStrike;
+    e._shinobiBlinking = false;
+    // testudo / skjaldborg: frontal damage block
+    e.testudo        = !!def.testudo;
+    e.testudoArc     = def.testudoArc || 1.4;
+    // scorpio: piercing projectile flag (applied in fireEnemyShot)
+    e.piercing       = !!def.piercing;
+    // kataphraktoi: trample wake at dash end
+    e.kataWake       = !!def.kataWake;
+    // sumer war chariot: trail wake during dash
+    e.chariotWake    = !!def.chariotWake;
+    e.wakeInterval   = def.wakeInterval || 100;
+    e.wakeAccum      = def.wakeInterval || 100;
+    // ashipu: ally buff aura
+    e.ashipuAura     = !!def.ashipuAura;
+    e.auraRadius     = def.auraRadius     || 140;
+    e.auraDmgBoost   = def.auraDmgBoost   || 1.18;
+    e.auraSpeedBoost = def.auraSpeedBoost || 1.15;
+    e.auraPulseCooldown = def.auraPulseCooldown || 5000;
+    e.auraPulseTimer = Phaser.Math.Between(0, def.auraPulseCooldown || 5000);
+    // drummer: passive speed aura
+    e.drumAura       = !!def.drumAura;
+    // horse archer: fires while moving
+    e.firesOnMove    = !!def.firesOnMove;
+    // peltast: reposition after firing
+    e.peltastRepos   = !!def.peltastRepos;
+    e.reposTimer     = 0;
+    e.reposVx        = 0;
+    e.reposVy        = 0;
+    // berserkr: rage on HP threshold
+    e.berserkrRage   = !!def.berserkrRage;
+    e.rageThreshold  = def.rageThreshold || 0.30;
+    e.raging         = false;
+    // cone_sweep extras
+    e.coneSweepCount    = def.coneSweepCount    || 5;
+    e.coneSweepInterval = def.coneSweepInterval || 160;
+    e.coneSweepAngle    = def.coneSweepAngle    || 0.87;
+    // china streak (set in GameScene projectile overlap)
+    e._chinaStreakUntil = 0;
+    // _moveAng: last movement angle for testudo facing check
+    e._moveAng       = 0;
+    // mongolia strafe direction (randomised each reposition)
+    e._mongolStrafeDir = Math.random() < 0.5 ? 1 : -1;
+    // drum buffing clear
+    e._drumBuffed    = false;
+    e._baseSpeed     = null; // set once when drum buff first applies
+
     // reset elite-modifier state (pooled enemies are reused)
     e.isElite = forceElite;
     e.eliteMod = null;
@@ -323,6 +383,18 @@ export default class SpawnSystem {
       e.contactDamage = e.damage;
     }
     e._baseContactDamage = e.contactDamage; // snapshot for the active-attack boost/restore
+
+    // ── Per-civ behavior modifiers (applied to shared-roster enemies too) ────────
+    // Japan — Bushido Snap: melee swings telegraph 12% faster
+    if (this.scene.stageCiv === 'japan' && e.swing) {
+      e.swingWindup = Math.round(e.swingWindup * 0.88);
+    }
+    // Rome — Legionary Discipline: melee takes 15% less contact damage, 8% slower swing
+    if (this.scene.stageCiv === 'rome' && e.attack === 'melee') {
+      e.contactDamage = Math.max(1, Math.round(e.contactDamage * 0.85));
+      e._baseContactDamage = e.contactDamage;
+      if (e.swing) e.swingWindup = Math.round(e.swingWindup * 1.08);
+    }
   }
 
   update(_time, delta) {

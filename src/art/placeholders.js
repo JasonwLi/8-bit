@@ -277,6 +277,315 @@ export function generatePlaceholders(scene) {
     });
   }
 
+  // ── Signature unit placeholders ────────────────────────────────────────────
+  // Each is a distinctive silhouette so it's visually distinct from stock enemies
+  // while staying readable at 36–54px. Real AI art replaces these next slice.
+
+  // china_bolt_cart — two-wheeled cart with a crossbow mount on top
+  bake(scene, 'enemy_china_bolt_cart', 48, 48, (g) => {
+    const u = 3;
+    g.fillStyle(0x000000, 0.25); g.fillEllipse(24, 45, 38, 7);
+    g.fillStyle(0x8a2020, 1); g.fillRect(u*2, u*6, u*12, u*7);   // cart body
+    g.fillStyle(0xcc7820, 1); g.fillRect(u*3, u*4, u*10, u*2.5); // crossbow mount
+    g.fillStyle(0x3a0808, 1); g.fillRect(u*7, u*2, u*2, u*3);    // bow arm
+    g.fillStyle(0xcc7820, 1);
+    g.fillCircle(u*4, u*13, u*2); g.fillCircle(u*12, u*13, u*2); // wheels
+    g.fillStyle(0x8a2020, 1);
+    g.fillRect(u*3.7, u*11, u*0.6, u*4); g.fillRect(u*2.5, u*12.5, u*3, u*0.6); // spoke L
+    g.fillRect(u*11.7, u*11, u*0.6, u*4); g.fillRect(u*10.5, u*12.5, u*3, u*0.6); // spoke R
+    // soldier behind cart
+    g.fillStyle(0xd8b08a, 1); g.fillCircle(u*8, u*3, u*1.5); // head
+    g.fillStyle(0x3a3a3a, 1); g.fillRect(u*6.5, u*4.5, u*3, u*2); // torso
+  });
+
+  // china_fire_lance — padded soldier with bamboo lance, sparks at tip
+  bake(scene, 'enemy_china_fire_lance', 38, 38, (g) => {
+    const u = 38 / 16;
+    g.fillStyle(0x000000, 0.25); g.fillEllipse(19, 36, 24, 5);
+    drawFigure(g, 38, { primary: 0x3a3a3a, secondary: 0xcc4400, accent: 0x181818, skin: 0xd8b08a }, {});
+    // lance tip sparks
+    g.fillStyle(0xff8800, 1); g.fillCircle(Math.round(u*14), Math.round(u*2), Math.round(u*1.2));
+    g.fillStyle(0xffee00, 0.9); g.fillCircle(Math.round(u*14), Math.round(u*2), Math.round(u*0.6));
+    // smoke wisp
+    g.fillStyle(0x888888, 0.4); g.fillCircle(Math.round(u*13), Math.round(u*1), Math.round(u*0.8));
+  });
+
+  // japan_shinobi — grey-clad figure with ninjato, purple smoke at feet
+  bake(scene, 'enemy_japan_shinobi', 34, 34, (g) => {
+    const u = 34 / 16;
+    g.fillStyle(0xaa44ff, 0.25); g.fillCircle(17, 28, 10); // purple smoke aura
+    drawFigure(g, 34, { primary: 0x3a3a3a, secondary: 0x6a6a8a, accent: 0x181820, skin: 0xc0a080 }, {});
+    // face wrap (dark strip over lower face)
+    g.fillStyle(0x181820, 1); g.fillRect(Math.round(u*5.5), Math.round(u*5.5), Math.round(u*5), Math.round(u*1.2));
+  });
+
+  // japan_yari_ashigaru — wide formation, long spears
+  bake(scene, 'enemy_japan_yari_ashigaru', 52, 52, (g) => {
+    const u = 52 / 16;
+    g.fillStyle(0x000000, 0.25); g.fillEllipse(26, 50, 44, 7);
+    // three figures side by side (simplified blocks)
+    for (let i = 0; i < 3; i++) {
+      const ox = (i - 1) * Math.round(u * 4);
+      g.fillStyle(0xd8b08a, 1); g.fillCircle(26 + ox, Math.round(u*4), Math.round(u*1.5));
+      g.fillStyle(0xc8a840, 1); g.fillRect(26 + ox - Math.round(u*2), Math.round(u*5.5), Math.round(u*4), Math.round(u*5));
+      g.fillStyle(0x344e7a, 1); g.fillRect(26 + ox - Math.round(u*1.5), Math.round(u*2.5), Math.round(u*3), Math.round(u*3)); // helmet
+      // yari spear
+      g.fillStyle(0x8a6a3a, 1); g.fillRect(26 + ox + Math.round(u*2), Math.round(u*0.5), Math.round(u*0.7), Math.round(u*10));
+      g.fillStyle(0xd4af37, 1); g.fillTriangle(
+        26 + ox + Math.round(u*2), Math.round(u*0.5),
+        26 + ox + Math.round(u*2.7), Math.round(u*0.5),
+        26 + ox + Math.round(u*2.35), 2
+      );
+    }
+  });
+
+  // rome_testudo — four shields locked together (turtle formation view)
+  bake(scene, 'enemy_rome_testudo', 52, 52, (g) => {
+    const u = 52 / 16;
+    g.fillStyle(0x000000, 0.3); g.fillEllipse(26, 50, 46, 7);
+    // overlapping shields canopy
+    g.fillStyle(0xb03030, 1); g.fillRect(Math.round(u*1), Math.round(u*4), Math.round(u*14), Math.round(u*8));
+    g.fillStyle(0xc0c0d0, 1);
+    for (let i = 0; i < 4; i++) {
+      g.fillRect(Math.round(u*(1 + i*3.5)), Math.round(u*4), Math.round(u*4), Math.round(u*8));
+    }
+    g.fillStyle(0xd4af37, 1); // boss ornaments
+    for (let i = 0; i < 4; i++) g.fillCircle(Math.round(u*(3 + i*3.5)), Math.round(u*8), Math.round(u*0.8));
+    // legs peeking below
+    g.fillStyle(0x4a1010, 1);
+    for (let i = 0; i < 4; i++) {
+      g.fillRect(Math.round(u*(1.5 + i*3.5)), Math.round(u*12), Math.round(u*1.5), Math.round(u*4));
+    }
+  });
+
+  // rome_scorpio — heavy bolt-thrower on a tripod
+  bake(scene, 'enemy_rome_scorpio', 48, 48, (g) => {
+    const u = 3;
+    g.fillStyle(0x000000, 0.25); g.fillEllipse(24, 45, 42, 7);
+    // tripod legs
+    g.fillStyle(0x5a5a4a, 1);
+    g.fillRect(u*5, u*9, u*1, u*7); g.fillRect(u*9, u*9, u*1, u*7); g.fillRect(u*7, u*7, u*1, u*9);
+    // body frame
+    g.fillStyle(0x8a8a7a, 1); g.fillRect(u*3, u*6, u*10, u*4);
+    // bow arms
+    g.fillStyle(0xb0b0a0, 1); g.fillRect(u*2, u*7, u*2, u*2); g.fillRect(u*12, u*7, u*2, u*2);
+    // bolt in groove
+    g.fillStyle(0xd0d0ff, 1); g.fillRect(u*5, u*7.5, u*6, u*1.2);
+    g.fillStyle(0xa0a0c0, 1); g.fillTriangle(u*11, u*7.5, u*13, u*8, u*11, u*8.5);
+    // two soldiers
+    for (let i = 0; i < 2; i++) {
+      const ox = i === 0 ? u*2 : u*10;
+      g.fillStyle(0xd8b08a, 1); g.fillCircle(ox, u*4.5, u*1.2);
+      g.fillStyle(0x8a8a7a, 1); g.fillRect(ox - u, u*5.5, u*2, u*3);
+    }
+  });
+
+  // byzantium_siphon — two-wheeled cart, bronze nozzle glowing orange
+  bake(scene, 'enemy_byzantium_siphon', 44, 44, (g) => {
+    const u = 44 / 16;
+    g.fillStyle(0x000000, 0.25); g.fillEllipse(22, 42, 38, 6);
+    g.fillStyle(0x2a4a2a, 1); g.fillRect(Math.round(u*2), Math.round(u*6), Math.round(u*12), Math.round(u*6));
+    g.fillStyle(0xcc8820, 1);
+    g.fillRect(Math.round(u*10), Math.round(u*7), Math.round(u*4), Math.round(u*2)); // nozzle
+    g.fillCircle(Math.round(u*14), Math.round(u*8), Math.round(u*1.5)); // nozzle tip
+    // fire glow
+    g.fillStyle(0xff6600, 0.8); g.fillCircle(Math.round(u*14), Math.round(u*8), Math.round(u*1));
+    g.fillStyle(0xffcc00, 0.7); g.fillCircle(Math.round(u*14.5), Math.round(u*8), Math.round(u*0.5));
+    // wheels
+    g.fillStyle(0x2a4a2a, 1);
+    g.fillCircle(Math.round(u*4), Math.round(u*12), Math.round(u*2));
+    g.fillCircle(Math.round(u*12), Math.round(u*12), Math.round(u*2));
+    // soldiers
+    g.fillStyle(0xd8b08a, 1); g.fillCircle(Math.round(u*5), Math.round(u*4), Math.round(u*1.3));
+    g.fillStyle(0x2a4a2a, 1); g.fillRect(Math.round(u*3.5), Math.round(u*5), Math.round(u*3), Math.round(u*4));
+  });
+
+  // byzantium_kataphraktoi — fully-armoured horse+rider
+  bake(scene, 'enemy_byzantium_kataphraktoi', 52, 52, (g) => {
+    const u = 52 / 16;
+    g.fillStyle(0x000000, 0.3); g.fillEllipse(26, 50, 46, 7);
+    // horse body
+    g.fillStyle(0x3a2010, 1); g.fillEllipse(26, 38, 44, 20);
+    g.fillStyle(0x4a2818, 1); g.fillEllipse(36, 30, 18, 12); // hindquarter
+    // legs
+    g.fillStyle(0x2a1808, 1);
+    g.fillRect(Math.round(u*3), Math.round(u*10), Math.round(u*2), Math.round(u*6));
+    g.fillRect(Math.round(u*6), Math.round(u*10), Math.round(u*2), Math.round(u*6));
+    g.fillRect(Math.round(u*9), Math.round(u*10), Math.round(u*2), Math.round(u*6));
+    g.fillRect(Math.round(u*12), Math.round(u*10), Math.round(u*2), Math.round(u*6));
+    // rider — lamellar plates, gold trim
+    g.fillStyle(0x6a1010, 1); g.fillRect(Math.round(u*5), Math.round(u*4), Math.round(u*6), Math.round(u*7));
+    g.fillStyle(0xd4af37, 1);
+    g.fillRect(Math.round(u*5), Math.round(u*4), Math.round(u*6), Math.round(u*1)); // trim top
+    g.fillRect(Math.round(u*5), Math.round(u*10), Math.round(u*6), Math.round(u*1)); // trim bot
+    // helmet
+    g.fillStyle(0x6a1010, 1); g.fillRect(Math.round(u*6), Math.round(u*1.5), Math.round(u*4), Math.round(u*3));
+    g.fillStyle(0xd4af37, 1); g.fillRect(Math.round(u*6.5), Math.round(u*1), Math.round(u*3), Math.round(u*0.8));
+    // kontos lance
+    g.fillStyle(0x8a6a3a, 1); g.fillRect(Math.round(u*10), Math.round(u*5), Math.round(u*6), Math.round(u*1));
+    g.fillStyle(0xd4af37, 1); g.fillTriangle(Math.round(u*15), Math.round(u*5), Math.round(u*16), Math.round(u*5.5), Math.round(u*15), Math.round(u*6));
+  });
+
+  // sumer_war_chariot — solid disc-wheel chariot with spearman
+  bake(scene, 'enemy_sumer_war_chariot', 54, 54, (g) => {
+    const u = 54 / 16;
+    g.fillStyle(0x000000, 0.25); g.fillEllipse(27, 52, 48, 7);
+    // chariot box
+    g.fillStyle(0xb89040, 1); g.fillRect(Math.round(u*3), Math.round(u*6), Math.round(u*10), Math.round(u*6));
+    g.fillStyle(0x9a5a20, 1); g.fillRect(Math.round(u*3), Math.round(u*5.5), Math.round(u*10), Math.round(u*1));
+    // disc wheels (solid)
+    g.fillStyle(0x6a4818, 1);
+    g.fillCircle(Math.round(u*5), Math.round(u*12), Math.round(u*2.5));
+    g.fillCircle(Math.round(u*11), Math.round(u*12), Math.round(u*2.5));
+    g.fillStyle(0x9a5a20, 1);
+    g.fillCircle(Math.round(u*5), Math.round(u*12), Math.round(u*1.5));
+    g.fillCircle(Math.round(u*11), Math.round(u*12), Math.round(u*1.5));
+    // onager asses (stylised)
+    g.fillStyle(0x8a7050, 1); g.fillEllipse(Math.round(u*13), Math.round(u*10), Math.round(u*5), Math.round(u*3));
+    // spearman
+    g.fillStyle(0xd8b08a, 1); g.fillCircle(Math.round(u*7), Math.round(u*4), Math.round(u*1.3));
+    g.fillStyle(0xb89040, 1); g.fillRect(Math.round(u*5.5), Math.round(u*5), Math.round(u*3), Math.round(u*4));
+    // spear
+    g.fillStyle(0x8a6a3a, 1); g.fillRect(Math.round(u*9), Math.round(u*1), Math.round(u*0.8), Math.round(u*8));
+    g.fillStyle(0xd4af37, 1); g.fillTriangle(Math.round(u*9), Math.round(u*1), Math.round(u*9.8), Math.round(u*1), Math.round(u*9.4), 0);
+  });
+
+  // sumer_ashipu — robed exorcist with lapis staff, incantation smoke
+  bake(scene, 'enemy_sumer_ashipu', 38, 38, (g) => {
+    const u = 38 / 16;
+    g.fillStyle(0xd4af37, 0.20); g.fillCircle(19, 19, 18); // gold aura glow
+    drawFigure(g, 38, { primary: 0x4a3870, secondary: 0x8a7020, accent: 0x1a1030, skin: 0xc8a880 }, {});
+    // clay tablet held up (white rect)
+    g.fillStyle(0xf0e8c0, 1); g.fillRect(Math.round(u*10), Math.round(u*6), Math.round(u*3), Math.round(u*4));
+    // staff (left side)
+    g.fillStyle(0x8a7020, 1); g.fillRect(Math.round(u*2.5), Math.round(u*4), Math.round(u*1), Math.round(u*10));
+    // lapis gem on staff
+    g.fillStyle(0x0066cc, 1); g.fillCircle(Math.round(u*3), Math.round(u*4), Math.round(u*1));
+    // incantation smoke
+    g.fillStyle(0xd4af37, 0.4); g.fillCircle(Math.round(u*4), Math.round(u*2), Math.round(u*1.2));
+    g.fillStyle(0xd4af37, 0.25); g.fillCircle(Math.round(u*5), Math.round(u*1), Math.round(u*1.5));
+  });
+
+  // macedon_phalangite — bronze thorax, sarissa pike sticking up
+  bake(scene, 'enemy_macedon_phalangite', 44, 44, (g) => {
+    const u = 44 / 16;
+    g.fillStyle(0x000000, 0.25); g.fillEllipse(22, 42, 32, 6);
+    drawFigure(g, 44, { primary: 0x6a7020, secondary: 0xd4af37, accent: 0x2a2c0a, skin: 0xd8b08a }, {});
+    // very long sarissa pike along the right side
+    g.fillStyle(0x8a6a3a, 1); g.fillRect(Math.round(u*12), 0, Math.round(u*0.7), 44);
+    g.fillStyle(0xd4af37, 1); g.fillTriangle(Math.round(u*12), 0, Math.round(u*12.7), 0, Math.round(u*12.35), -4);
+    // Macedonian-style helmet crest
+    g.fillStyle(0xd4af37, 1); g.fillRect(Math.round(u*6), Math.round(u*1.5), Math.round(u*4), Math.round(u*1));
+  });
+
+  // macedon_peltast — light skirmisher, pelta shield, javelin cocked back
+  bake(scene, 'enemy_macedon_peltast', 36, 36, (g) => {
+    const u = 36 / 16;
+    g.fillStyle(0x000000, 0.25); g.fillEllipse(18, 34, 24, 5);
+    drawFigure(g, 36, { primary: 0xc07830, secondary: 0x8a6a40, accent: 0x604020, skin: 0xd8b08a }, {});
+    // pelta shield (crescent-style, left arm)
+    g.fillStyle(0x8a6a40, 1); g.fillCircle(Math.round(u*3.5), Math.round(u*9), Math.round(u*2.5));
+    g.fillStyle(0xc07830, 1); g.fillCircle(Math.round(u*3.5), Math.round(u*9), Math.round(u*1.5));
+    // javelin cocked back (right arm raised)
+    g.fillStyle(0x8a6a3a, 1); g.fillRect(Math.round(u*11), Math.round(u*6), Math.round(u*4.5), Math.round(u*0.6));
+    g.fillStyle(0xd4af37, 1); g.fillTriangle(Math.round(u*15.5), Math.round(u*6), Math.round(u*16), Math.round(u*6.3), Math.round(u*15.5), Math.round(u*6.6));
+  });
+
+  // mongolia_horse_archer — galloping horse, archer twisted back (Parthian shot)
+  bake(scene, 'enemy_mongolia_horse_archer', 40, 40, (g) => {
+    const u = 40 / 16;
+    g.fillStyle(0x000000, 0.25); g.fillEllipse(20, 38, 36, 7);
+    // horse body (galloping, elongated ellipse)
+    g.fillStyle(0x6a4020, 1); g.fillEllipse(20, 28, 36, 16);
+    // legs (extended mid-gallop)
+    g.fillStyle(0x4a2810, 1);
+    g.fillRect(Math.round(u*3), Math.round(u*10), Math.round(u*1.5), Math.round(u*5));
+    g.fillRect(Math.round(u*6), Math.round(u*11), Math.round(u*1.5), Math.round(u*4));
+    g.fillRect(Math.round(u*9), Math.round(u*10), Math.round(u*1.5), Math.round(u*5));
+    g.fillRect(Math.round(u*12), Math.round(u*11), Math.round(u*1.5), Math.round(u*4));
+    // rider — deel coat, twisted
+    g.fillStyle(0x8a4a18, 1); g.fillRect(Math.round(u*7), Math.round(u*5), Math.round(u*5), Math.round(u*6));
+    g.fillStyle(0xd8b08a, 1); g.fillCircle(Math.round(u*9), Math.round(u*4), Math.round(u*1.5));
+    // recurve bow (drawn, arm cocked back)
+    g.lineStyle(Math.round(u*0.5), 0x6a4020, 1);
+    g.beginPath(); g.arc(Math.round(u*13), Math.round(u*6), Math.round(u*2), -0.8, 0.8, false); g.strokePath();
+    g.fillStyle(0xd8b08a, 1); g.fillRect(Math.round(u*13), Math.round(u*5.5), Math.round(u*0.4), Math.round(u*3));
+  });
+
+  // mongolia_drummer — horse + two large kettledrums on flanks
+  bake(scene, 'enemy_mongolia_drummer', 42, 42, (g) => {
+    const u = 42 / 16;
+    g.fillStyle(0x000000, 0.25); g.fillEllipse(21, 40, 38, 6);
+    // horse
+    g.fillStyle(0x5a3018, 1); g.fillEllipse(21, 30, 34, 14);
+    g.fillStyle(0x3a1808, 1);
+    g.fillRect(Math.round(u*3), Math.round(u*10), Math.round(u*1.5), Math.round(u*5));
+    g.fillRect(Math.round(u*6), Math.round(u*11), Math.round(u*1.5), Math.round(u*4));
+    g.fillRect(Math.round(u*9), Math.round(u*10), Math.round(u*1.5), Math.round(u*5));
+    g.fillRect(Math.round(u*12), Math.round(u*11), Math.round(u*1.5), Math.round(u*4));
+    // kettledrums (large circles on each flank)
+    g.fillStyle(0xd4af37, 1); g.fillCircle(Math.round(u*3.5), Math.round(u*9), Math.round(u*2.5));
+    g.fillStyle(0xb03020, 1); g.fillCircle(Math.round(u*3.5), Math.round(u*9), Math.round(u*2));
+    g.fillStyle(0xd4af37, 1); g.fillCircle(Math.round(u*12.5), Math.round(u*9), Math.round(u*2.5));
+    g.fillStyle(0xb03020, 1); g.fillCircle(Math.round(u*12.5), Math.round(u*9), Math.round(u*2));
+    // drummer
+    g.fillStyle(0xd8b08a, 1); g.fillCircle(Math.round(u*8), Math.round(u*4.5), Math.round(u*1.5));
+    g.fillStyle(0xb03020, 1); g.fillRect(Math.round(u*6), Math.round(u*5.5), Math.round(u*4), Math.round(u*4));
+    // mallets
+    g.fillStyle(0x8a6a3a, 1);
+    g.fillRect(Math.round(u*3), Math.round(u*7), Math.round(u*2), Math.round(u*0.5)); // left mallet
+    g.fillRect(Math.round(u*11), Math.round(u*7), Math.round(u*2), Math.round(u*0.5)); // right mallet
+  });
+
+  // norse_berserkr — bare-chested, bear pelt, dual axes
+  bake(scene, 'enemy_norse_berserkr', 42, 42, (g) => {
+    const u = 42 / 16;
+    g.fillStyle(0x000000, 0.25); g.fillEllipse(21, 40, 30, 6);
+    // bear pelt (over shoulders, darker)
+    g.fillStyle(0x3a2010, 1); g.fillRect(Math.round(u*3.5), Math.round(u*6), Math.round(u*9), Math.round(u*7));
+    // bare chest showing (secondary colour strip down center)
+    g.fillStyle(0xd8b08a, 1); g.fillRect(Math.round(u*6.5), Math.round(u*7.5), Math.round(u*3), Math.round(u*4));
+    // head (wild hair)
+    g.fillStyle(0xd8b08a, 1); g.fillCircle(Math.round(u*8), Math.round(u*4), Math.round(u*2));
+    g.fillStyle(0x3a2010, 1);
+    g.fillRect(Math.round(u*6), Math.round(u*2.5), Math.round(u*4), Math.round(u*2)); // hair top
+    g.fillRect(Math.round(u*5), Math.round(u*3.5), Math.round(u*2), Math.round(u*2)); // left wild hair
+    g.fillRect(Math.round(u*9), Math.round(u*3.5), Math.round(u*2), Math.round(u*2)); // right
+    // legs
+    g.fillStyle(0x3a3a3a, 1);
+    g.fillRect(Math.round(u*5), Math.round(u*12), Math.round(u*2.5), Math.round(u*4));
+    g.fillRect(Math.round(u*8.5), Math.round(u*12), Math.round(u*2.5), Math.round(u*4));
+    // dual axes
+    g.fillStyle(0x8a1010, 1);
+    g.fillTriangle(Math.round(u*2), Math.round(u*6), Math.round(u*4), Math.round(u*7), Math.round(u*2), Math.round(u*8)); // left axe
+    g.fillTriangle(Math.round(u*14), Math.round(u*6), Math.round(u*12), Math.round(u*7), Math.round(u*14), Math.round(u*8)); // right axe
+    g.fillStyle(0x8a6a3a, 1);
+    g.fillRect(Math.round(u*2.5), Math.round(u*6), Math.round(u*1), Math.round(u*6)); // left haft
+    g.fillRect(Math.round(u*12.5), Math.round(u*6), Math.round(u*1), Math.round(u*6)); // right haft
+  });
+
+  // norse_skjaldborg — two huscarls, interlocked round shields
+  bake(scene, 'enemy_norse_skjaldborg', 50, 50, (g) => {
+    const u = 50 / 16;
+    g.fillStyle(0x000000, 0.25); g.fillEllipse(25, 48, 44, 7);
+    // two figures side by side
+    for (let i = 0; i < 2; i++) {
+      const ox = (i === 0 ? -1 : 1) * Math.round(u * 3);
+      g.fillStyle(0xd8b08a, 1); g.fillCircle(25 + ox, Math.round(u*3.5), Math.round(u*1.5));
+      g.fillStyle(0x8a8a9a, 1); g.fillRect(25 + ox - Math.round(u*2), Math.round(u*5), Math.round(u*4), Math.round(u*6)); // chainmail
+      g.fillStyle(0x4a7030, 1);
+      g.fillRect(25 + ox - Math.round(u*2), Math.round(u*11), Math.round(u*2), Math.round(u*4)); // leg L
+      g.fillRect(25 + ox, Math.round(u*11), Math.round(u*2), Math.round(u*4)); // leg R
+      // round shield (interlocked, each facing forward)
+      const sx = i === 0 ? 25 + ox + Math.round(u*2) : 25 + ox - Math.round(u*2);
+      g.fillStyle(0x4a7030, 1); g.fillCircle(sx, Math.round(u*8), Math.round(u*2.5));
+      g.fillStyle(0x8a8a9a, 1); g.fillCircle(sx, Math.round(u*8), Math.round(u*1.5)); // iron rim
+      g.fillStyle(0xd4af37, 1); g.fillCircle(sx, Math.round(u*8), Math.round(u*0.6)); // boss ornament
+      // spear tip above
+      g.fillStyle(0xd4af37, 1); g.fillTriangle(25 + ox, Math.round(u*1.5), 25 + ox + Math.round(u*0.6), Math.round(u*3.5), 25 + ox - Math.round(u*0.6), Math.round(u*3.5));
+    }
+  });
+
   // --- XP gem ---
   bake(scene, 'gem', SPRITE.gem, SPRITE.gem, (g) => {
     const s = SPRITE.gem;

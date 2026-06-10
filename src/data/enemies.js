@@ -3,7 +3,20 @@
 //   ranged -> hold at `range`, telegraph (windup), fire projectile(s)
 //
 // Melee `move` tags: 'chase' | 'zigzag' | 'circle' | 'charger' | 'lunger' | 'flyer' | 'bomber'
-// Ranged `rangedKind` tags: 'single' | 'spread' | 'rapid' | 'lob' | 'siege' | 'blink'
+// Ranged `rangedKind` tags: 'single' | 'spread' | 'rapid' | 'lob' | 'siege' | 'blink' | 'cone_sweep'
+//
+// ── Signature-unit flags (civ: '<civId>' gates them to that civ) ─────────────
+//   fireLance:true      — cone hazard zone spawned on swing strike (china_fire_lance)
+//   shinobiStrike:true  — blink behind player before swing wind (japan_shinobi)
+//   testudo:true        — frontal arc blocks 95% damage (rome_testudo / norse_skjaldborg)
+//   piercing:true       — projectile passes through player, deactivates on lifespan only (rome_scorpio)
+//   kataWake:true       — spawn trample hazard at dash end (byzantium_kataphraktoi)
+//   chariotWake:true    — spawn trail hazard during dash (sumer_war_chariot)
+//   ashipuAura:true     — periodic ally buff pulse (sumer_ashipu / any caster)
+//   drumAura:true       — permanent passive speed aura on nearby allies (mongolia_drummer)
+//   firesOnMove:true    — ranged fires while continuing circle orbit (mongolia_horse_archer)
+//   peltastRepos:true   — sprints perpendicularly after firing (macedon_peltast)
+//   berserkrRage:true   — rage on HP threshold crossing (norse_berserkr)
 export const ENEMIES = {
   // ── Original types (with move/rangedKind retrofitted) ──────────────────────
   soldier: {
@@ -529,6 +542,176 @@ export const ENEMIES = {
     size: 40,
     palette: { primary: 0x3a3f5a, secondary: 0x6a7390, accent: 0x171a26 },
   },
+
+  // ── Signature units (civ-gated, unlocked from floor 3+) ──────────────────────
+
+  // ── China ─────────────────────────────────────────────────────────────────────
+  china_bolt_cart: {
+    id: 'china_bolt_cart', civ: 'china',
+    name: 'Zhuge Crossbow Cart',
+    attack: 'ranged', rangedKind: 'rapid',
+    rapidBurst: 10, rapidInterval: 80,
+    hp: 80, speed: 42, damage: 4, xp: 9, size: 48,
+    range: 300, fireCooldown: 3800, windup: 400, projSpeed: 280, projDamage: 4,
+    palette: { primary: 0x8a2020, secondary: 0xcc7820, accent: 0x3a0808 },
+  },
+  china_fire_lance: {
+    id: 'china_fire_lance', civ: 'china',
+    name: 'Fire-Lance Spearman',
+    attack: 'melee', move: 'chase',
+    swing: true, swingWindup: 380, swingRange: 72, swingArc: 2.2, swingDmgMult: 2.0,
+    fireLance: true,
+    hp: 38, speed: 68, damage: 14, xp: 8, size: 38,
+    palette: { primary: 0x3a3a3a, secondary: 0xcc4400, accent: 0x181818 },
+  },
+
+  // ── Japan ─────────────────────────────────────────────────────────────────────
+  japan_shinobi: {
+    id: 'japan_shinobi', civ: 'japan',
+    name: 'Shinobi Assassin',
+    attack: 'melee', move: 'circle',
+    swing: true, swingWindup: 220, swingRange: 62, swingDmgMult: 2.2,
+    shinobiStrike: true, blinkDistance: 170,
+    orbitRadius: 200, orbitSpeed: 100,
+    hp: 28, speed: 85, damage: 12, xp: 9, size: 34,
+    palette: { primary: 0x3a3a3a, secondary: 0x6a6a8a, accent: 0x181820 },
+  },
+  japan_yari_ashigaru: {
+    id: 'japan_yari_ashigaru', civ: 'japan',
+    name: 'Yari Ashigaru Line',
+    attack: 'melee', move: 'chase',
+    swing: true, swingWindup: 500, swingRange: 100, swingArc: 0.9, swingDmgMult: 1.6,
+    hp: 52, speed: 38, damage: 16, xp: 8, size: 52,
+    palette: { primary: 0xc8a840, secondary: 0x344e7a, accent: 0x6a5820 },
+  },
+
+  // ── Rome ──────────────────────────────────────────────────────────────────────
+  rome_testudo: {
+    id: 'rome_testudo', civ: 'rome',
+    name: 'Testudo Squad',
+    attack: 'melee', move: 'chase',
+    swing: true, swingWindup: 480, swingRange: 70, swingArc: 1.8,
+    testudo: true, testudoArc: 1.4,
+    armor: 0.2,
+    hp: 110, speed: 34, damage: 20, xp: 10, size: 52,
+    palette: { primary: 0xb03030, secondary: 0xc0c0d0, accent: 0x4a1010 },
+  },
+  rome_scorpio: {
+    id: 'rome_scorpio', civ: 'rome',
+    name: 'Scorpio Bolt Crew',
+    attack: 'ranged', rangedKind: 'single',
+    piercing: true,
+    hp: 90, speed: 0, damage: 0, xp: 10, size: 48,
+    range: 9999, fireCooldown: 4200, windup: 900, projSpeed: 400, projDamage: 22,
+    palette: { primary: 0x8a8a7a, secondary: 0xb0b0a0, accent: 0x3a3a30 },
+  },
+
+  // ── Byzantium ─────────────────────────────────────────────────────────────────
+  byzantium_siphon: {
+    id: 'byzantium_siphon', civ: 'byzantium',
+    name: 'Greek Fire Siphon Team',
+    attack: 'ranged', rangedKind: 'cone_sweep',
+    coneSweepCount: 5, coneSweepInterval: 160, coneSweepAngle: 0.87,
+    hp: 55, speed: 52, damage: 8, xp: 10, size: 44,
+    range: 180, fireCooldown: 4500, windup: 600, projSpeed: 0, projDamage: 8,
+    palette: { primary: 0x2a4a2a, secondary: 0xcc8820, accent: 0x101810 },
+  },
+  byzantium_kataphraktoi: {
+    id: 'byzantium_kataphraktoi', civ: 'byzantium',
+    name: 'Kataphraktoi',
+    attack: 'melee', move: 'charger',
+    kataWake: true,
+    armor: 0.3,
+    hp: 130, speed: 46, damage: 20, xp: 12, size: 52,
+    dashSpeed: 480, dashDuration: 420, dashCooldown: 3200, dashRange: 320, dashWindup: 600,
+    palette: { primary: 0x6a1010, secondary: 0xd4af37, accent: 0x2a0808 },
+  },
+
+  // ── Sumer ─────────────────────────────────────────────────────────────────────
+  sumer_war_chariot: {
+    id: 'sumer_war_chariot', civ: 'sumer',
+    name: 'Sumerian War Chariot',
+    attack: 'melee', move: 'charger',
+    chariotWake: true, wakeInterval: 100,
+    hp: 95, speed: 55, damage: 16, xp: 11, size: 54,
+    dashSpeed: 440, dashDuration: 500, dashCooldown: 2800, dashRange: 300, dashWindup: 500,
+    palette: { primary: 0xb89040, secondary: 0x9a5a20, accent: 0x6a4818 },
+  },
+  sumer_ashipu: {
+    id: 'sumer_ashipu', civ: 'sumer',
+    name: 'Āšipu Exorcist',
+    attack: 'ranged', rangedKind: 'single',
+    ashipuAura: true, auraRadius: 140, auraDmgBoost: 1.18, auraSpeedBoost: 1.15,
+    auraPulseCooldown: 5000,
+    move: 'circle', orbitRadius: 220, orbitSpeed: 70,
+    hp: 32, speed: 58, damage: 6, xp: 10, size: 38,
+    range: 280, fireCooldown: 3200, windup: 600, projSpeed: 150, projDamage: 6,
+    palette: { primary: 0x4a3870, secondary: 0x8a7020, accent: 0x1a1030 },
+  },
+
+  // ── Macedon ───────────────────────────────────────────────────────────────────
+  macedon_phalangite: {
+    id: 'macedon_phalangite', civ: 'macedon',
+    name: 'Phalangite',
+    attack: 'melee', move: 'chase',
+    swing: true, swingWindup: 460, swingRange: 110, swingArc: 0.85, swingDmgMult: 1.7,
+    hp: 58, speed: 36, damage: 18, xp: 9, size: 44,
+    palette: { primary: 0x6a7020, secondary: 0xd4af37, accent: 0x2a2c0a },
+  },
+  macedon_peltast: {
+    id: 'macedon_peltast', civ: 'macedon',
+    name: 'Agrianian Peltast',
+    attack: 'ranged', rangedKind: 'spread',
+    spreadCount: 2, spreadAngle: 0.15,
+    peltastRepos: true,
+    hp: 30, speed: 72, damage: 8, xp: 8, size: 36,
+    range: 260, fireCooldown: 2600, windup: 340, projSpeed: 200, projDamage: 8,
+    palette: { primary: 0xc07830, secondary: 0x8a6a40, accent: 0x604020 },
+  },
+
+  // ── Mongolia ──────────────────────────────────────────────────────────────────
+  mongolia_horse_archer: {
+    id: 'mongolia_horse_archer', civ: 'mongolia',
+    name: 'Mongol Horse Archer',
+    attack: 'ranged', rangedKind: 'rapid',
+    rapidBurst: 3, rapidInterval: 110,
+    firesOnMove: true,
+    move: 'circle', orbitRadius: 200, orbitSpeed: 140,
+    hp: 36, speed: 95, damage: 6, xp: 9, size: 40,
+    range: 240, fireCooldown: 2000, windup: 200, projSpeed: 220, projDamage: 6,
+    palette: { primary: 0x8a4a18, secondary: 0xc87030, accent: 0x3a1a08 },
+  },
+  mongolia_drummer: {
+    id: 'mongolia_drummer', civ: 'mongolia',
+    name: 'Naccara Drummer',
+    attack: 'melee', move: 'circle',
+    drumAura: true, auraRadius: 180, auraSpeedBoost: 1.20,
+    orbitRadius: 280, orbitSpeed: 90,
+    hp: 42, speed: 70, damage: 4, xp: 10, size: 42,
+    palette: { primary: 0xb03020, secondary: 0xd4af37, accent: 0x4a0808 },
+  },
+
+  // ── Norse ─────────────────────────────────────────────────────────────────────
+  norse_berserkr: {
+    id: 'norse_berserkr', civ: 'norse',
+    name: 'Berserkr',
+    attack: 'melee', move: 'chase',
+    swing: true, swingWindup: 340, swingRange: 68, swingArc: 1.8, swingDmgMult: 1.7,
+    berserkrRage: true, rageThreshold: 0.30,
+    armor: 0.1,
+    hp: 56, speed: 78, damage: 14, xp: 10, size: 42,
+    palette: { primary: 0x3a3a3a, secondary: 0x8a1010, accent: 0x181818 },
+  },
+  norse_skjaldborg: {
+    id: 'norse_skjaldborg', civ: 'norse',
+    name: 'Skjaldborg Shieldwall',
+    attack: 'melee', move: 'chase',
+    swing: true, swingWindup: 420, swingRange: 80, swingArc: 1.2, swingDmgMult: 1.8,
+    testudo: true, testudoArc: 1.2,
+    armor: 0.25,
+    hp: 90, speed: 40, damage: 18, xp: 10, size: 50,
+    palette: { primary: 0x4a7030, secondary: 0x8a8a9a, accent: 0x1a2810 },
+  },
 };
 
 // Elite tactical modifiers — an elite rolls one, changing HOW it fights (not just
@@ -592,4 +775,23 @@ export const SPAWN_TABLE = [
   { id: 'cannoneer',from: 300, weight: 3  }, // wide-spread cannon — late-mid
   { id: 'acolyte',  from: 270, weight: 4  }, // dark support spreader — late-mid
   { id: 'wraith',   from: 350, weight: 4  }, // blink teleporter — late
+
+  // ── Signature / civ units: `civ` field gates them in SpawnSystem.pickType ────
+  // `from` maps to floor gate (~1 floor per 30s). Weight intentionally low.
+  { id: 'china_bolt_cart',           civ: 'china',      from: 90,  weight: 3 },
+  { id: 'china_fire_lance',          civ: 'china',      from: 60,  weight: 4 },
+  { id: 'japan_shinobi',             civ: 'japan',      from: 60,  weight: 3 },
+  { id: 'japan_yari_ashigaru',       civ: 'japan',      from: 90,  weight: 4 },
+  { id: 'rome_testudo',              civ: 'rome',       from: 90,  weight: 3 },
+  { id: 'rome_scorpio',              civ: 'rome',       from: 150, weight: 2 },
+  { id: 'byzantium_siphon',          civ: 'byzantium',  from: 90,  weight: 3 },
+  { id: 'byzantium_kataphraktoi',    civ: 'byzantium',  from: 120, weight: 2 },
+  { id: 'sumer_war_chariot',         civ: 'sumer',      from: 90,  weight: 3 },
+  { id: 'sumer_ashipu',              civ: 'sumer',      from: 60,  weight: 3 },
+  { id: 'macedon_phalangite',        civ: 'macedon',    from: 180, weight: 3 },
+  { id: 'macedon_peltast',           civ: 'macedon',    from: 90,  weight: 4 },
+  { id: 'mongolia_horse_archer',     civ: 'mongolia',   from: 60,  weight: 4 },
+  { id: 'mongolia_drummer',          civ: 'mongolia',   from: 90,  weight: 2 },
+  { id: 'norse_berserkr',            civ: 'norse',      from: 60,  weight: 4 },
+  { id: 'norse_skjaldborg',          civ: 'norse',      from: 90,  weight: 3 },
 ];

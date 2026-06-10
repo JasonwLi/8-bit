@@ -2,9 +2,24 @@
 // routing, curse/elite hooks, then delegates each mob's movement + attack here.
 //
 // Melee `move` tags:  'chase' | 'zigzag' | 'circle' | 'charger' | 'lunger' | 'flyer' | 'bomber'
-// Ranged `rangedKind`: 'single' | 'spread' | 'rapid' | 'lob' | 'siege' | 'blink'
+// Ranged `rangedKind`: 'single' | 'spread' | 'rapid' | 'lob' | 'siege' | 'blink' | 'cone_sweep'
 // Projectiles go through scene.spawnHostileProjectile().
 // AoE zones go through scene.spawnHazardZone(x, y, radius, dmg, delay, tick, linger).
+//
+// ── NEW MECHANICS (signature units) ─────────────────────────────────────────
+//  fireLance     – cone hazard zone spawned on swing strike
+//  shinobiStrike – melee unit blinks behind player before swing windup
+//  cone_sweep    – rangedKind: schedules 5 hazard zones in a sweeping arc
+//  firesOnMove   – ranged fires while continuing circle orbit motion
+//  peltastRepos  – sprint perpendicularly after firing (reposTimer / reposVx/Vy)
+// GameScene hooks (not here):
+//  testudo       – frontal arc blocks 95% damage (in damageEnemy)
+//  piercing      – projectile passes through on contact (in onEnemyProjectileHit)
+//  kataWake      – hazard zone at dash end (in charger 'end dash' branch here)
+//  chariotWake   – trail hazards during dash (in charger 'dashing' branch here)
+//  ashipuAura    – ally buff pulse (in updateEnemies aura scan)
+//  drumAura      – passive speed aura (in updateEnemies aura scan)
+//  berserkrRage  – rage on HP threshold (in damageEnemy)
 //
 // ── ATTACK TOKEN SYSTEM ─────────────────────────────────────────────────────
 // At most ATTACK_TOKEN_CAP regular enemies may be actively WINDING UP or DASHING/LUNGING/
@@ -50,6 +65,8 @@ export function isTelegraphing(e) {
   if (e.isBoss) return false; // bosses use the duel parry path; never flag here
   // Melee striker windup
   if (e.swingState === 'wind') return true;
+  // Shinobi blink-pre-windup (blinking counts as telegraph so a sharp read rewards the player)
+  if (e._shinobiBlinking) return true;
   // Ranged windup
   if (e.winding) return true;
   // Charger dash windup
@@ -91,11 +108,18 @@ export function navAngle(scene, e, fallback, dist) {
 // ─────────────────────────────────────────────────────────────────────────────
 
 function updateRanged(scene, e, delta, dist, ang) {
-  // Siege catapult: completely stationary — skip all movement, always fires
-  if (e.rangedKind === 'siege') {
+  // Siege catapult / scorpio: completely stationary — skip all movement, always fires
+  if (e.rangedKind === 'siege' || e.speed === 0) {
     e.setVelocity(0, 0);
     tickRangedFire(scene, e, delta, ang);
     return;
+  }
+
+  // Peltast reposition sprint: move perpendicularly for reposTimer ms after firing
+  if (e.peltastRepos && e.reposTimer > 0) {
+    e.reposTimer -= delta;
+    e.setVelocity(e.reposVx || 0, e.reposVy || 0);
+    return; // skip standoff logic during sprint
   }
 
   // No line of sight (a wall blocks the shot)? Reposition AROUND the wall to find an
@@ -114,9 +138,38 @@ function updateRanged(scene, e, delta, dist, ang) {
   } else if (dist < e.range * 0.7) {
     e.setVelocity(-Math.cos(ang) * e.speed, -Math.sin(ang) * e.speed);
   } else {
-    e.setVelocity(0, 0);
+    // Mongolian steppe mobility: ranged units strafe laterally at standoff instead of halting
+    if (e._mongolStrafeDir == null) e._mongolStrafeDir = Math.random() < 0.5 ? 1 : -1;
+    if (scene.stageCiv === 'mongolia' && !e.firesOnMove) {
+      const perp = ang + Math.PI / 2 * e._mongolStrafeDir;
+      e.setVelocity(Math.cos(perp) * e.speed * 0.6, Math.sin(perp) * e.speed * 0.6);
+    } else if (e.firesOnMove) {
+      // Horse archer: apply circle orbit while firing
+      _applyCircleOrbit(e, ang, dist);
+    } else {
+      e.setVelocity(0, 0);
+    }
     tickRangedFire(scene, e, delta, ang);
   }
+}
+
+// Shared circle-orbit velocity helper — used by both the melee circle case and
+// the horse archer so the math isn't duplicated.
+function _applyCircleOrbit(e, ang, dist) {
+  const orbitR = e.orbitRadius || 160;
+  const orbitV = e.orbitSpeed  || 120;
+  const dir    = e.orbitDir    || 1;
+  const radErr = dist - orbitR;
+  const radialFraction = Math.min(1, Math.abs(radErr) / orbitR);
+  const radialSpeed    = radialFraction * e.speed * (radErr > 0 ? 1 : -1);
+  const radX = Math.cos(ang) * radialSpeed;
+  const radY = Math.sin(ang) * radialSpeed;
+  const tanX = -Math.sin(ang) * dir * orbitV;
+  const tanY =  Math.cos(ang) * dir * orbitV;
+  const vx = radX + tanX;
+  const vy = radY + tanY;
+  const mag = Math.sqrt(vx * vx + vy * vy) || 1;
+  e.setVelocity((vx / mag) * e.speed, (vy / mag) * e.speed);
 }
 
 // Windup-then-fire accumulator (pooling-safe).
@@ -133,8 +186,9 @@ function tickRangedFire(scene, e, delta, ang) {
       // Gate the windup on the attack-token cap (elites are always exempt)
       if (!acquireAttackToken(scene, e)) return; // cap full — wait, stay at standoff
       e.winding = true;
+      // Cone sweep: telegraph tint is orange (fire) to hint at the mechanic
       e.windRemain = e.windup;
-      e.setTint(0xff5555); // telegraph flash
+      e.setTint(e.rangedKind === 'cone_sweep' ? 0xff7722 : 0xff5555); // telegraph flash
     }
     return;
   }
@@ -144,7 +198,11 @@ function tickRangedFire(scene, e, delta, ang) {
     fireEnemyShot(scene, e, ang);
     e.winding = false;
     releaseAttackToken(scene, e); // attack resolved — free the slot
-    e.fireTimer = e.fireCooldown;
+    // Gunpowder Discipline (china): reduce cooldown if a hit streak is active
+    const baseCd = e.fireCooldown;
+    e.fireTimer = (e._chinaStreakUntil && scene.time.now < e._chinaStreakUntil)
+      ? baseCd * 0.85
+      : baseCd;
     // restore tint unless we just kicked off a burst (burst restores internally)
     if (!e.burstActive) {
       if (e.isElite) e.setTint(e.eliteTint || 0xffd54a);
@@ -161,40 +219,85 @@ function fireEnemyShot(scene, e, ang) {
 
   if (scene.enemyFireFx) scene.enemyFireFx(e, a); // muzzle flash + recoil jolt
 
-  const lifespan = (e.range / e.projSpeed) * 1000 * 2.4;
+  // Byzantine Greek Fire Residue civ modifier: leave a small fire patch at firing pos
+  if (scene.stageCiv === 'byzantium' && e.attack === 'ranged') {
+    scene.spawnHazardZone(e.x, e.y, 30, 6, 0, 9999, 1200, 'fire');
+  }
+
+  // Gunpowder Discipline (china): on-hit streak bonus applied in projectile overlap;
+  // compute effective fire cooldown here so it's used when the timer resets
+  // (e._chinaStreakUntil is set on hit — see GameScene projectile overlap handler)
+
+  const lifespan = (e.projSpeed > 0) ? (e.range / e.projSpeed) * 1000 * 2.4 : 4000;
 
   switch (e.rangedKind) {
 
     // ── Single: one aimed shot ─────────────────────────────────────────────
     case 'single':
-    default:
-      scene.spawnHostileProjectile(e.x, e.y, a, e.projSpeed, e.projDamage, { lifespan });
+    default: {
+      // Scorpio: piercing bolt — passes through player, deactivates on lifespan only
+      const piercingOpts = e.piercing ? { lifespan: 3600, scale: 1.4, tint: 0xd0d0ff, _piercing: true } : { lifespan };
+      const proj = scene.spawnHostileProjectile(e.x, e.y, a, e.projSpeed, e.projDamage, piercingOpts);
+      if (proj && e.piercing) proj.piercing = true;
       break;
+    }
 
     // ── Spread: fan of N shots ─────────────────────────────────────────────
     case 'spread': {
       const n = e.spreadCount || 3;
       const half = e.spreadAngle || 0.3;
+      // Macedonian Combined Arms: +10% projDamage when a melee unit is nearby
+      let dmg = e.projDamage;
+      if (scene.stageCiv === 'macedon') {
+        let hasMeleeNear = false;
+        for (const a2 of scene.enemies.getChildren()) {
+          if (a2.active && a2.attack === 'melee') {
+            const dx = a2.x - e.x, dy = a2.y - e.y;
+            if (dx * dx + dy * dy < 40000) { hasMeleeNear = true; break; }
+          }
+        }
+        if (hasMeleeNear) dmg = Math.round(dmg * 1.10);
+      }
       for (let i = 0; i < n; i++) {
         const offset = n === 1 ? 0 : -half + (i / (n - 1)) * half * 2;
-        scene.spawnHostileProjectile(
-          e.x, e.y, a + offset, e.projSpeed, e.projDamage,
-          { lifespan }
-        );
+        scene.spawnHostileProjectile(e.x, e.y, a + offset, e.projSpeed, dmg, { lifespan });
+      }
+      // Peltast: reposition after firing
+      if (e.peltastRepos) {
+        const perp = a + (Math.random() < 0.5 ? Math.PI / 2 : -Math.PI / 2);
+        e.reposTimer = 700;
+        e.reposVx = Math.cos(perp) * e.speed * 1.8;
+        e.reposVy = Math.sin(perp) * e.speed * 1.8;
+        // randomise next strafe direction
+        e._mongolStrafeDir = Math.random() < 0.5 ? 1 : -1;
       }
       break;
     }
 
     // ── Rapid: kick off a burst; individual shots fired in tickRapidBurst ──
-    case 'rapid':
+    case 'rapid': {
+      // Macedonian Combined Arms: +10% projDamage when melee nearby
+      let dmg = e.projDamage;
+      if (scene.stageCiv === 'macedon') {
+        let hasMeleeNear = false;
+        for (const a2 of scene.enemies.getChildren()) {
+          if (a2.active && a2.attack === 'melee') {
+            const dx = a2.x - e.x, dy = a2.y - e.y;
+            if (dx * dx + dy * dy < 40000) { hasMeleeNear = true; break; }
+          }
+        }
+        if (hasMeleeNear) dmg = Math.round(dmg * 1.10);
+      }
       e.burstActive = true;
       e.rapidShotsFired = 0;
       e.rapidIntervalTimer = 0;
+      e._burstDmg = dmg; // store boosted dmg for the burst
       // fire first shot immediately
-      scene.spawnHostileProjectile(e.x, e.y, a, e.projSpeed, e.projDamage, { lifespan });
+      scene.spawnHostileProjectile(e.x, e.y, a, e.projSpeed, dmg, { lifespan });
       e.rapidShotsFired = 1;
       e._burstAng = a; // lock aim direction for the burst
       break;
+    }
 
     // ── Lob: slow, heavy projectile with bonus damage ─────────────────────
     case 'lob':
@@ -248,6 +351,26 @@ function fireEnemyShot(scene, e, ang) {
       });
       break;
     }
+
+    // ── Cone sweep: Greek Fire Siphon — 5 hazard zones in a sweeping arc ──
+    case 'cone_sweep': {
+      const count = e.coneSweepCount || 5;
+      const halfAngle = e.coneSweepAngle || 0.87; // ~50 deg half-arc
+      const interval = e.coneSweepInterval || 160;
+      const dist2 = Math.min(e.range * 0.6, 120);
+      const dmg2 = e.projDamage || 8;
+      for (let i = 0; i < count; i++) {
+        const t = i / Math.max(1, count - 1); // 0..1
+        const sweepAng = a + (-halfAngle + t * halfAngle * 2);
+        scene.time.delayedCall(i * interval, () => {
+          if (!e.active) return;
+          const zx = e.x + Math.cos(sweepAng) * dist2;
+          const zy = e.y + Math.sin(sweepAng) * dist2;
+          scene.spawnHazardZone(zx, zy, 40, dmg2, 0, 300, 2500, 'fire');
+        });
+      }
+      break;
+    }
   }
 }
 
@@ -259,12 +382,14 @@ function tickRapidBurst(scene, e, delta, ang) {
   if (e.rapidShotsFired < e.rapidBurst) {
     const a = e._burstAng; // use locked aim
     const lifespan = (e.range / e.projSpeed) * 1000 * 2.4;
-    scene.spawnHostileProjectile(e.x, e.y, a, e.projSpeed, e.projDamage, { lifespan });
+    const dmg = e._burstDmg != null ? e._burstDmg : e.projDamage;
+    scene.spawnHostileProjectile(e.x, e.y, a, e.projSpeed, dmg, { lifespan });
     e.rapidShotsFired++;
   }
 
   if (e.rapidShotsFired >= e.rapidBurst) {
     e.burstActive = false;
+    e._burstDmg = null;
     if (e.isElite) e.setTint(e.eliteTint || 0xffd54a);
     else e.clearTint();
   }
@@ -285,6 +410,7 @@ function updateMelee(scene, e, delta, dist, ang) {
     case 'chase':
     default: {
       const ma = navAngle(scene, e, ang, dist);
+      e._moveAng = ma; // testudo facing — stored each frame for frontal-block check
       e.setVelocity(Math.cos(ma) * e.speed, Math.sin(ma) * e.speed);
       break;
     }
@@ -306,26 +432,7 @@ function updateMelee(scene, e, delta, dist, ang) {
 
     // ── Circle: orbit at preferred radius, occasionally closing ───────────
     case 'circle': {
-      const orbitR  = e.orbitRadius || 160;
-      const orbitV  = e.orbitSpeed  || 120;
-      const dir     = e.orbitDir    || 1;
-      const radErr  = dist - orbitR;
-
-      // Radial component: close in or back off
-      const radialFraction = Math.min(1, Math.abs(radErr) / orbitR);
-      const radialSpeed    = radialFraction * e.speed * (radErr > 0 ? 1 : -1);
-      const radX = Math.cos(ang) * radialSpeed;
-      const radY = Math.sin(ang) * radialSpeed;
-
-      // Tangential component: strafe perpendicular
-      const tanX = -Math.sin(ang) * dir * orbitV;
-      const tanY =  Math.cos(ang) * dir * orbitV;
-
-      // Normalise to e.speed so mobs don't suddenly slow when they hit orbit radius
-      const vx = radX + tanX;
-      const vy = radY + tanY;
-      const mag = Math.sqrt(vx * vx + vy * vy) || 1;
-      e.setVelocity((vx / mag) * e.speed, (vy / mag) * e.speed);
+      _applyCircleOrbit(e, ang, dist);
       break;
     }
 
@@ -336,12 +443,24 @@ function updateMelee(scene, e, delta, dist, ang) {
         e.dashTimer -= delta;
         if (e.dashTimer > 0) {
           e.setVelocity(e.dashDx * e.dashSpeed, e.dashDy * e.dashSpeed);
+          // Chariot wake: spawn trail hazard zones during the dash
+          if (e.chariotWake) {
+            e.wakeAccum = (e.wakeAccum || 0) - delta;
+            if (e.wakeAccum <= 0) {
+              e.wakeAccum = e.wakeInterval || 100;
+              scene.spawnHazardZone(e.x, e.y, 55, 10, 0, 9999, 800, 'trample');
+            }
+          }
         } else {
           // end dash — release token and restore passive contact damage
           e.dashActive = false;
           e.dashTimer  = e.dashCooldown;
           releaseAttackToken(scene, e);
           e.contactDamage = e._baseContactDamage != null ? e._baseContactDamage : e.damage;
+          // Kataphraktoi wake: trample zone at dash endpoint
+          if (e.kataWake) {
+            scene.spawnHazardZone(e.x, e.y, 60, 14, 0, 9999, 1000, 'trample');
+          }
           if (e.isElite) e.setTint(e.eliteTint || 0xffd54a);
           else e.clearTint();
         }
@@ -579,6 +698,12 @@ function handleSwing(scene, e, delta, dist, ang) {
           scene.reactToHit(scene.player.takeDamage(dmg, scene.time.now));
         }
       }
+      // Fire-Lance: spawn a lingering ground hazard patch in front on strike
+      if (e.fireLance) {
+        const fx = e.x + Math.cos(e.swingAng) * 48;
+        const fy = e.y + Math.sin(e.swingAng) * 48;
+        scene.spawnHazardZone(fx, fy, 50, 18, 0, 9999, 600, 'fire');
+      }
     }
     if (e.swingTimer <= 0) {
       e.swingState = 'recover';
@@ -604,6 +729,29 @@ function handleSwing(scene, e, delta, dist, ang) {
   // Gate on the attack-token cap so only ATTACK_TOKEN_CAP strikers can wind up at once.
   if (e.swingCd <= 0 && dist <= e.swingRange) {
     if (!acquireAttackToken(scene, e)) return false; // cap full — keep approaching
+    // Shinobi: blink BEHIND the player first, then start the wind
+    if (e.shinobiStrike && !e._shinobiBlinking) {
+      e._shinobiBlinking = true;
+      const blinkAng = ang + Math.PI + (Math.random() - 0.5) * 0.6; // roughly behind
+      const bd = e.blinkDistance || 170;
+      const nx = scene.player.x + Math.cos(blinkAng) * bd;
+      const ny = scene.player.y + Math.sin(blinkAng) * bd;
+      e.setPosition(nx, ny);
+      e.body.reset(nx, ny);
+      // Purple smoke flash for the shinobi blink
+      e.setTint(0xaa44ff);
+      scene.time.delayedCall(80, () => {
+        e._shinobiBlinking = false;
+        if (e.active) {
+          e.swingState = 'wind';
+          e.swingTimer = e.swingWindup;
+          // new ang from blink position to player
+          e.swingAng = Math.atan2(scene.player.y - e.y, scene.player.x - e.x);
+          e.setTint(0xff3030);
+        }
+      });
+      return true; // own the frame while blinking
+    }
     e.swingState = 'wind';
     e.swingTimer = e.swingWindup;
     e.swingAng = ang;

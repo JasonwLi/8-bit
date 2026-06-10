@@ -263,6 +263,10 @@ export const CIV_ENEMY_NAMES = {
   },
 };
 
+// ── Signature unit names (civ-specific, referenced directly via their id) ─────
+// These are always returned by localEnemyName since the civ matches their def.
+// Entries added here primarily so KIND_CLASS routing works correctly below.
+
 // ── ITEM A2: kindClass — classify every enemy type for elite-title branching ──
 // humanoid  → rank + name + epithet (existing soldier format)
 // beast     → mythic descriptive title (civ-flavoured creature epithets)
@@ -297,6 +301,23 @@ export const KIND_CLASS = {
   ballista:  'construct', // siege engine
   catapult:  'construct', // siege engine
   titan:     'construct', // massive armoured war-construct
+  // ── Signature units ──────────────────────────────────────────────────────────
+  china_bolt_cart:        'construct',
+  china_fire_lance:       'humanoid',
+  japan_shinobi:          'humanoid',
+  japan_yari_ashigaru:    'humanoid',
+  rome_testudo:           'humanoid',
+  rome_scorpio:           'construct',
+  byzantium_siphon:       'construct',
+  byzantium_kataphraktoi: 'humanoid',
+  sumer_war_chariot:      'construct',
+  sumer_ashipu:           'humanoid',
+  macedon_phalangite:     'humanoid',
+  macedon_peltast:        'humanoid',
+  mongolia_horse_archer:  'humanoid',
+  mongolia_drummer:       'humanoid',
+  norse_berserkr:         'humanoid',
+  norse_skjaldborg:       'humanoid',
 };
 
 // ── ITEM B: per-civ first-name pools for elite naming (humanoid only) ─────────

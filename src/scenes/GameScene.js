@@ -742,6 +742,14 @@ export default class GameScene extends Phaser.Scene {
     this.player.curseSlow = 1; // reset; Hex elites re-apply below
     // Bulwark elite damage-reduction aura: reset each frame, re-applied below per active bulwark
     for (const e of this.enemies.getChildren()) { if (e.active && !e.isBoss) e._bulwarkShield = false; }
+    // Drum aura: reset _drumBuffed flag each frame so the drummer re-applies (or lets it lapse)
+    for (const e of this.enemies.getChildren()) {
+      if (e.active && !e.isBoss && e._drumBuffed) {
+        // Restore speed here; the drummer will re-apply if still in range below
+        if (e._baseSpeed != null) e.speed = e._baseSpeed;
+        e._drumBuffed = false;
+      }
+    }
     const now = this.time.now;
     for (const e of this.enemies.getChildren()) {
       if (!e.active) continue;
@@ -855,6 +863,91 @@ export default class GameScene extends Phaser.Scene {
             this.tweens.add({ targets: hr, alpha: 0, duration: 900, ease: 'Sine.easeInOut', onComplete: () => hr.destroy() });
           }
         }
+      }
+
+      // ── Signature-unit per-frame aura systems ─────────────────────────────────
+      // Āšipu / caster aura: periodically buff nearby allies (speed + damage)
+      if (e.ashipuAura) {
+        e.auraPulseTimer = (e.auraPulseTimer || 0) - delta;
+        if (e.auraPulseTimer <= 0) {
+          e.auraPulseTimer = e.auraPulseCooldown || 5000;
+          const r2 = (e.auraRadius || 140) ** 2;
+          for (const ally of this.enemies.getChildren()) {
+            if (!ally.active || ally === e || ally.isBoss) continue;
+            const dx = ally.x - e.x, dy = ally.y - e.y;
+            if (dx * dx + dy * dy <= r2) {
+              ally._ashipuBuffUntil = now + 2500;
+              ally._ashipuDmgBoost  = e.auraDmgBoost  || 1.18;
+              ally._ashipuSpeedBoost = e.auraSpeedBoost || 1.15;
+            }
+          }
+          // Visual: brief gold shockwave ring
+          const ring = this.add.circle(e.x, e.y, e.auraRadius || 140, 0xffd54a, 0)
+            .setDepth(3).setStrokeStyle(2, 0xffd54a, 0.8);
+          this.tweens.add({ targets: ring, scale: 1.1, alpha: 0, duration: 600, ease: 'Quad.easeOut', onComplete: () => ring.destroy() });
+        }
+      }
+
+      // Drummer speed aura: passive, applied every frame to nearby allies
+      if (e.drumAura) {
+        const r2 = (e.auraRadius || 180) ** 2;
+        for (const ally of this.enemies.getChildren()) {
+          if (!ally.active || ally === e || ally.isBoss) continue;
+          const dx = ally.x - e.x, dy = ally.y - e.y;
+          if (dx * dx + dy * dy <= r2) {
+            if (!ally._drumBuffed) {
+              ally._baseSpeed = ally._baseSpeed || ally.speed;
+              ally.speed = ally._baseSpeed * (e.auraSpeedBoost || 1.20);
+              ally._drumBuffed = true;
+            }
+          } else if (ally._drumBuffed) {
+            // Fell out of range: restore
+            if (ally._baseSpeed != null) ally.speed = ally._baseSpeed;
+            ally._drumBuffed = false;
+          }
+        }
+      }
+
+      // Berserkr rage: check HP threshold once per frame (only flips once)
+      if (e.berserkrRage && !e.raging && e.maxHp > 0 && e.hp / e.maxHp < e.rageThreshold) {
+        e.raging = true;
+        e.speed = Math.round(e.speed * 1.45);
+        e.damage = Math.round(e.damage * 1.6);
+        if (e.swingDmgMult != null) e.swingDmgMult *= 1.6;
+        e.swingArc = 2.6;
+        e.armor = 0;
+        e.setTint(0xff2200);
+        // brief pulse effect
+        const rr = this.add.circle(e.x, e.y, (e.displayWidth || 40) * 0.8, 0xff2200, 0)
+          .setDepth(4).setStrokeStyle(3, 0xff2200, 0.9);
+        this.tweens.add({ targets: rr, scale: 1.8, alpha: 0, duration: 400, ease: 'Quad.easeOut', onComplete: () => rr.destroy() });
+        // Contact damage re-baked from new damage value
+        e.contactDamage = Math.max(1, Math.round(e.damage * 0.15));
+        e._baseContactDamage = e.contactDamage;
+      }
+
+      // Norse berserk threshold (civ modifier, applies to non-sig Norse melee)
+      if (this.stageCiv === 'norse' && e.attack === 'melee' && !e._norseRage && !e.berserkrRage
+          && e.maxHp > 0 && e.hp / e.maxHp < 0.30) {
+        e._norseRage = true;
+        e.speed = Math.round(e.speed * 1.20);
+        if (e.swingDmgMult != null) e.swingDmgMult = (e.swingDmgMult || 1.8) * 1.15;
+        e.setTint(0xff4400);
+        this.time.delayedCall(200, () => { if (e.active && !e.isElite) e.clearTint(); });
+      }
+
+      // Ashipu buff: apply per-frame to buffed allies
+      if (e._ashipuBuffUntil && now < e._ashipuBuffUntil) {
+        // damage boost is applied in damageEnemy; speed boost is ephemeral here
+        if (e._ashipuSpeedBoost && !e._ashipuSpeedApplied) {
+          e._ashipuSpeedApplied = true;
+          e._preAshipuSpeed = e._preAshipuSpeed || e.speed;
+          e.speed = Math.round(e._preAshipuSpeed * e._ashipuSpeedBoost);
+        }
+      } else if (e._ashipuBuffUntil && now >= e._ashipuBuffUntil) {
+        e._ashipuBuffUntil = 0;
+        e._ashipuSpeedApplied = false;
+        if (e._preAshipuSpeed != null) { e.speed = e._preAshipuSpeed; e._preAshipuSpeed = null; }
       }
 
       // update overhead elite nameplate (position + visibility follows the sprite)
@@ -989,6 +1082,9 @@ export default class GameScene extends Phaser.Scene {
     p.lifespan = opts.lifespan || 4000;
     p.trailColor = opts.tint || 0xff6b6b; // red-ish glow trail by default
     p._grazed = false; // reset graze flag so recycled projectiles can trigger graze again
+    p.piercing = opts._piercing || false; // scorpio: persists until lifespan
+    p._lastPierceHit = 0;
+    p._shooterId = opts._shooterId || null; // china streak tracking
     return p;
   }
 
@@ -1701,6 +1797,33 @@ export default class GameScene extends Phaser.Scene {
     if (enemy.armor && !opts.armorPierce) dmg *= 1 - enemy.armor; // armored types; Armor-Piercing ignores it
     // Bulwark aura: nearby allies (marked each frame) take 40% less damage
     if (enemy._bulwarkShield) dmg *= 0.6;
+    // ── Signature-unit damage modifiers ───────────────────────────────────────
+    // Testudo / Skjaldborg: frontal arc blocks 95% of damage (1 flat min guaranteed)
+    if (enemy.testudo && !opts.armorPierce) {
+      const faceAng = enemy.swingAng || enemy._moveAng || 0;
+      const hitAng  = Math.atan2(
+        (opts._hitY != null ? opts._hitY : this.player.y) - enemy.y,
+        (opts._hitX != null ? opts._hitX : this.player.x) - enemy.x
+      );
+      const diff = Math.abs(Phaser.Math.Angle.Wrap(hitAng - faceAng));
+      if (diff < (enemy.testudoArc || 1.4) / 2) {
+        dmg = Math.max(1, Math.round(dmg * 0.05)); // 95% DR — nearly immune from front
+      }
+    }
+    // Sumer — Phalanx Solidarity: adjacent melee allies grant up to 30% DR
+    if (this.stageCiv === 'sumer' && enemy.attack === 'melee') {
+      let allies = 0;
+      for (const a of this.enemies.getChildren()) {
+        if (!a.active || a === enemy || a.attack !== 'melee') continue;
+        const dx = a.x - enemy.x, dy = a.y - enemy.y;
+        if (dx * dx + dy * dy < 10000) { allies++; if (allies >= 2) break; }
+      }
+      if (allies > 0) dmg = Math.round(dmg * (1 - Math.min(0.30, allies * 0.15)));
+    }
+    // Ashipu buff: if this enemy has an active ashipu buff, apply its damage boost to
+    // its own attacks (recorded as a multiplier on the enemy, not here — the ashipu buff
+    // actually boosts outgoing damage; for incoming damage on the buffed enemy there's no
+    // additional change, the DR only comes from phalanx solidarity above).
     dmg = Math.round(dmg);
     enemy.hp -= dmg;
     this.fx.damageNumber(enemy.x, enemy.y - enemy.displayHeight * 0.4, dmg,
@@ -1784,6 +1907,15 @@ export default class GameScene extends Phaser.Scene {
     releaseAttackToken(this, obj);
     // tear down any elite nameplate so it doesn't linger after the sprite is pooled
     if (obj._plate) this._destroyElitePlate(obj);
+    // Drummer death: clear drum buff from all allies so speed returns immediately
+    if (obj.drumAura) {
+      for (const e of this.enemies.getChildren()) {
+        if (e.active && e._drumBuffed) {
+          if (e._baseSpeed != null) e.speed = e._baseSpeed;
+          e._drumBuffed = false;
+        }
+      }
+    }
   }
 
   // delegators so external systems keep their stable `scene.X` entry points
@@ -1799,6 +1931,15 @@ export default class GameScene extends Phaser.Scene {
 
   onEnemyProjectileHit(player, proj) {
     if (!proj.active) return;
+    // Scorpio piercing bolt: deal damage but do NOT deactivate — let lifespan expire.
+    // Use a per-projectile hit gate (250ms) so a slow-moving player doesn't eat it every tick.
+    if (proj.piercing) {
+      if (this.time.now - (proj._lastPierceHit || 0) < 250) return;
+      proj._lastPierceHit = this.time.now;
+      const bypassIframes2 = !player.isDashInvuln(this.time.now);
+      this.reactToHit(player.takeDamage(proj.damage, this.time.now, { bypassIframes: bypassIframes2, ranged: true }));
+      return;
+    }
     this.deactivate(proj);
     // Respect dash i-frames so a perfect-dodge through a volley fires the counter window.
     // Regular hurt i-frames are bypassed as before (enemy projectiles always land after the
@@ -1806,6 +1947,14 @@ export default class GameScene extends Phaser.Scene {
     // "caught" by the dodge — bypassIframes:false lets takeDamage check the invuln timestamp.
     const bypassIframes = !player.isDashInvuln(this.time.now);
     this.reactToHit(player.takeDamage(proj.damage, this.time.now, { bypassIframes, ranged: true }));
+    // China — Gunpowder Discipline: successful projectile hit grants all active china
+    // ranged enemies a 4s fire-rate streak bonus (represents disciplined volley training).
+    if (this.stageCiv === 'china') {
+      const now2 = this.time.now;
+      for (const e of this.enemies.getChildren()) {
+        if (e.active && e.attack === 'ranged') e._chinaStreakUntil = now2 + 4000;
+      }
+    }
   }
 
   reactToHit(result) {
