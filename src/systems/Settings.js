@@ -16,6 +16,7 @@ const DEFAULTS = {
     ultimate: 'L',
     dash: 'SHIFT',
     pause: 'ESC',
+    focus: 'F',
   },
 };
 
@@ -26,6 +27,7 @@ export const BINDABLE = [
   { id: 'ultimate', label: 'Ultimate' },
   { id: 'dash', label: 'Dash (2 charges)' },
   { id: 'pause', label: 'Pause' },
+  { id: 'focus', label: 'Focus Aim (lock direction)' },
 ];
 
 function loadRaw() {

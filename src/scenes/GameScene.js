@@ -29,6 +29,13 @@ import { GAME, DUNGEON } from '../config.js';
 import TutorialController from '../systems/TutorialController.js';
 import { HERO_DIALOGUE, BOSS_DIALOGUE, STAGE_INTROS, pickRandom } from '../data/dialogue.js';
 
+// ── Charge attack constants ────────────────────────────────────────────────────
+const CHARGE_FULL_MS  = 900;   // ms to reach heavy shot
+const CHARGE_TAP_MS   = 120;   // release under this = tap (quick shot)
+const CHARGE_TAP_DMG  = 0.60;  // damage mult for tap
+const CHARGE_HEAVY_DMG = 1.80; // damage mult for heavy
+const CHARGE_TAP_CD   = 0.45;  // cooldown mult for tap (shorter inter-shot gap)
+
 export default class GameScene extends Phaser.Scene {
   constructor() {
     super('GameScene');
@@ -87,6 +94,24 @@ export default class GameScene extends Phaser.Scene {
     this._lastMoveDir = 0; // last movement heading (radians); persists while standing still
     this.aimDir = null;    // effective aim each frame = move direction (null in duels → auto-target)
     this._dashAfterimageAcc = 0; // accumulator for cyan afterimage ghost cadence during a dash
+
+    // ── Charge attack state (primary hold) ──────────────────────────────────
+    this._chargeMs = 0;        // ms the primary bind has been held this cycle
+    this._chargeArmed = false; // true once _chargeMs >= CHARGE_FULL_MS
+    this._chargeFired = false; // true after auto-release fires (prevents double-fire on key-up)
+    this._chargeFx = null;     // Phaser.GameObjects.Arc — the charge ring on the player
+
+    // ── Deliberate counter-arm state ─────────────────────────────────────────
+    this._lastPrimaryFireAt = 0;  // timestamp of the last primary shot
+    this._counterArmed = false;   // gold glint appears while true
+    this._counterGlintFx = null;  // subtle gold arc on the player
+
+    // ── Focus aim state (mechanic 4 — included here for completeness) ────────
+    this._focusLockedDir = null;  // snapshot of aimDir when focus was first pressed
+    this._focusAimArrow = null;   // triangle indicator while focus is held
+
+    // ── Dash-strike hit tracking ──────────────────────────────────────────────
+    this._dashStrikeHit = new Set(); // enemies already hit this dash
   }
 
   // CONTINUOUS progress across the WHOLE 7/7 conquest: total floors descended so far
@@ -268,6 +293,9 @@ export default class GameScene extends Phaser.Scene {
       this._stopAmbienceEmitter();
       this.scene.stop('UIScene');
       if (this.tutorial) { this.tutorial.detach(); this.tutorial = null; }
+      if (this._chargeFx) { this._chargeFx.destroy(); this._chargeFx = null; }
+      if (this._counterGlintFx) { this._counterGlintFx.destroy(); this._counterGlintFx = null; }
+      if (this._focusAimArrow) { this._focusAimArrow.destroy(); this._focusAimArrow = null; }
     });
 
     // Tutorial: attach after UIScene is live so tut toasts can use showBanner.
@@ -432,7 +460,58 @@ export default class GameScene extends Phaser.Scene {
       this._lastMoveDir = Math.atan2(dy, dx); // remember heading
       if (this.tutorial) this.events.emit('tut', 'move'); // tut: step (a)
     }
-    this.aimDir = (this.dungeonMode && !this.dueling) ? this._lastMoveDir : null;
+    // ── Focus Aim (mechanic 4): hold focus bind to lock the aim direction ──────
+    if (this.dungeonMode && !this.dueling) {
+      if (this.bindKeys && this.bindKeys.focus && this.bindKeys.focus.isDown) {
+        if (!this._focusLockedDir) {
+          this._focusLockedDir = this._lastMoveDir; // snapshot on first press
+        }
+        this.aimDir = this._focusLockedDir;
+      } else {
+        this._focusLockedDir = null; // release lock
+        this.aimDir = this._lastMoveDir;
+      }
+    } else {
+      this._focusLockedDir = null;
+      this.aimDir = null;
+    }
+    // Aim-direction indicator while focus is locked
+    if (this._focusLockedDir != null) {
+      if (!this._focusAimArrow) {
+        this._focusAimArrow = this.add.triangle(0, 0, 0, -5, 12, 0, 0, 5, 0x00e5ff, 0.85).setDepth(11);
+      }
+      const arrowDist = 26;
+      this._focusAimArrow
+        .setPosition(
+          this.player.x + Math.cos(this._focusLockedDir) * arrowDist,
+          this.player.y + Math.sin(this._focusLockedDir) * arrowDist,
+        )
+        .setRotation(this._focusLockedDir)
+        .setVisible(true);
+    } else {
+      if (this._focusAimArrow) this._focusAimArrow.setVisible(false);
+    }
+
+    // ── Counter-arm logic: counter fires only when player hasn't shot for ≥400ms ──
+    {
+      const COUNTER_ARM_DELAY = 400;
+      const counterNow = this.time.now;
+      const wasArmedPrev = this._counterArmed;
+      this._counterArmed = !this.dueling && (counterNow - (this._lastPrimaryFireAt || 0)) >= COUNTER_ARM_DELAY;
+      if (this._counterArmed && !wasArmedPrev) {
+        // Just became armed: spawn a barely-visible gold pulse ring
+        const g = this.add.arc(this.player.x, this.player.y, 16, 0, 360, false, 0xffd700, 0)
+          .setDepth(11).setStrokeStyle(1, 0xffd700, 0.5);
+        this._counterGlintFx = g;
+      } else if (!this._counterArmed && wasArmedPrev) {
+        if (this._counterGlintFx) { this._counterGlintFx.destroy(); this._counterGlintFx = null; }
+      }
+      if (this._counterGlintFx && this._counterArmed) {
+        this._counterGlintFx.setPosition(this.player.x, this.player.y);
+        this._counterGlintFx.setAlpha(0.30 + 0.20 * Math.sin(counterNow * 0.006));
+      }
+    }
+
     this.player.move(dx, dy);
     // Anti-tunnel guard: at high speed (speed gear/buffs × dash) the arcade body can step
     // clean past a thin wall in a single frame (no continuous collision in Arcade). Track
@@ -1771,7 +1850,7 @@ export default class GameScene extends Phaser.Scene {
     // Only fires on player-sourced hits (opts.fromPlayer = true), not on DoT, hazards,
     // ally damage, or bleed ticks. Not applied to bosses' phase-transition states
     // (they have their own duel parry; isTelegraphing already excludes isBoss).
-    if (opts.fromPlayer && isTelegraphing(enemy)) {
+    if (opts.fromPlayer && isTelegraphing(enemy) && this._counterArmed) {
       counterHit = true;
       dmg *= 1.5;
       // Cancel the windup and apply a brief stun so the attack is genuinely interrupted
@@ -2269,6 +2348,7 @@ export default class GameScene extends Phaser.Scene {
       ultimate: kb.addKey(b.ultimate),
       dash: kb.addKey(b.dash),
       pause: kb.addKey(b.pause),
+      focus: kb.addKey(b.focus),
     };
   }
 
@@ -2304,6 +2384,7 @@ export default class GameScene extends Phaser.Scene {
       if (consumed) {
         Audio.sfx('whoosh');
         this._dashAfterimageAcc = 0; // reset ghost timer so first ghost fires immediately
+        this._dashStrikeHit = new Set(); // fresh hit set for this dash
         if (this.tutorial) this.events.emit('tut', 'dash'); // tut: step (c)
       }
     }
@@ -2316,7 +2397,67 @@ export default class GameScene extends Phaser.Scene {
     }
 
     if (!this.canAct()) return;
-    if (bk.primary.isDown) this.weapons.fireHeld();            // held manual primary (move-aimed)
+
+    // ── CHARGE STATE MACHINE (replaces bare fireHeld) ────────────────────────
+    // Three outcomes: tap (<120ms) → quick shot 0.6×; normal release → 1.0×;
+    // hold-to-full (≥900ms) → heavy auto-release 1.8×. Orbital weapons are
+    // passive (fireHeld already guards them); they get a cosmetic flare instead.
+    {
+      const primaryDown = bk.primary.isDown;
+      const primaryJustUp = Phaser.Input.Keyboard.JustUp(bk.primary);
+
+      if (primaryDown && !this._chargeFired) {
+        // Key held: accumulate charge time
+        this._chargeMs += delta;
+
+        // Draw/update charge ring (render-only, depth 11, follows player)
+        const frac = Math.min(1, this._chargeMs / CHARGE_FULL_MS);
+        if (!this._chargeFx) {
+          this._chargeFx = this.add.arc(
+            this.player.x, this.player.y, 18, 0, 0, false, 0xffd700, 0.0,
+          ).setDepth(11).setStrokeStyle(2, 0xffd700, 0.9);
+        }
+        this._chargeFx.setPosition(this.player.x, this.player.y);
+        this._chargeFx.setStartAngle(270).setEndAngle(270 + 360 * frac);
+        this._chargeFx.setAlpha(0.4 + frac * 0.55);
+
+        // Arm at full charge
+        if (this._chargeMs >= CHARGE_FULL_MS && !this._chargeArmed) {
+          this._chargeArmed = true;
+        }
+        // Auto-release when armed
+        if (this._chargeArmed) {
+          this._fireCharged('heavy');
+          this._chargeArmed = false;
+          this._chargeFired = true;
+        }
+      }
+
+      if (primaryJustUp || (!primaryDown && this._chargeMs > 0 && !this._chargeFired)) {
+        // Key released — decide tap vs normal
+        if (!this._chargeFired) {
+          if (this._chargeMs < CHARGE_TAP_MS) {
+            this._fireCharged('tap');
+          } else {
+            this._fireCharged('normal');
+          }
+        }
+        // Reset charge state
+        this._chargeMs = 0;
+        this._chargeArmed = false;
+        this._chargeFired = false;
+        if (this._chargeFx) { this._chargeFx.destroy(); this._chargeFx = null; }
+      }
+
+      if (!primaryDown && !primaryJustUp) {
+        // Key not held at all
+        this._chargeMs = 0;
+        this._chargeFired = false;
+        this._chargeArmed = false;
+        if (this._chargeFx) { this._chargeFx.destroy(); this._chargeFx = null; }
+      }
+    }
+
     // Tactical Reflex mutation: auto-fire secondary when 4+ enemies are within 220 px.
     if (this.player.mutations && this.player.mutations.secondary_autocast && this.secondary.ready() && !this.dueling) {
       let nearCount = 0;
@@ -2470,6 +2611,121 @@ export default class GameScene extends Phaser.Scene {
     p.pierceWalls = true; // a cavalry charge tramples through walls (not a normal shot)
     p.hitSet = new Set();
     p.lifespan = (s.length / s.speed) * 1000;
+  }
+
+  // ── CHARGE ATTACK helpers ─────────────────────────────────────────────────
+
+  // Fire the primary weapon with the given charge mode ('tap' | 'normal' | 'heavy').
+  // Reads the weapon's ready state, computes stats with charge mods, then fires.
+  _fireCharged(mode) {
+    if (!this.weapons.ready()) return;
+    // Orbital weapons don't enter the normal fire path — cosmetic flare instead.
+    const def = this.weapons.def();
+    if (def.kind === 'orbital') {
+      // Orbital charge flare: gold radial burst from each orbiter position
+      for (const orb of this.weapons._orbiters) {
+        if (orb.sprite && orb.sprite.active) {
+          this.fx.goldenBurst(orb.sprite.x, orb.sprite.y, 5);
+        }
+      }
+      const s = this.weapons.computeStats();
+      this.fx._ring(this.player.x, this.player.y, s.orbitRadius || 62, 0xffd700, 300, 3);
+      Audio.sfx('parry');
+      this.weapons.timer = 800; // brief cooldown so the flare isn't spammable
+      return; // do NOT call fire() — orbiters are passive
+    }
+
+    // Record the fire timestamp and disarm the counter window.
+    this._lastPrimaryFireAt = this.time.now;
+    this._counterArmed = false;
+    if (this._counterGlintFx) { this._counterGlintFx.destroy(); this._counterGlintFx = null; }
+
+    const s = this.weapons.computeStats();
+    this.weapons.lastCooldown = s.cooldown;
+    this.weapons._aimOverride = this.aimDir != null ? this.aimDir : null;
+
+    const chargedS = this._applyChargeToStats(s, mode);
+
+    this.weapons.fire(chargedS);
+
+    // Set the cooldown: tap fires faster, heavy fires at normal cadence.
+    let cdMult = 1.0;
+    if (mode === 'tap') cdMult = CHARGE_TAP_CD;
+    this.weapons.timer = s.cooldown * cdMult;
+
+    this.weapons._aimOverride = null;
+
+    // Heavy shot FX: brief golden screen-flash + ring on the player
+    if (mode === 'heavy') {
+      this.fx._flash(this.player.x, this.player.y, 18, 0xffd700, 0.8, 180);
+      this.fx._ring(this.player.x, this.player.y, 28, 0xffd700, 220, 3);
+      Audio.sfx('parry'); // sharp metallic hit — good "charged release" read
+    }
+  }
+
+  // Apply charge-mode modifiers to a stats object (does NOT mutate the original).
+  _applyChargeToStats(s, mode) {
+    if (mode === 'normal') return s; // unchanged
+    const out = Object.assign({}, s);
+    if (mode === 'tap') {
+      out.damage = s.damage * CHARGE_TAP_DMG;
+      return out;
+    }
+    // mode === 'heavy'
+    out.damage = s.damage * CHARGE_HEAVY_DMG;
+    switch (s.def.kind) {
+      case 'melee_arc':
+        // wider finisher sweep: arc + 50° (capped 360), radius + 20%
+        out.arc = Math.min(360, (s.arc || 200) + 50);
+        out.radius = s.radius * 1.20;
+        break;
+      case 'projectile_aimed':
+      case 'burst_aimed':
+        // +2 pierce, speed unchanged
+        out.pierce = (s.pierce || 0) + 2;
+        break;
+      case 'projectile_radial':
+        // +15% projectile speed
+        out.speed = (s.speed || 300) * 1.15;
+        break;
+      case 'lob_aoe':
+        // +30% pool radius, +25% duration
+        out.radius = s.radius * 1.30;
+        out.duration = (s.duration || 1600) * 1.25;
+        break;
+      case 'orbital':
+        // EXEMPT — handled before this method is called
+        return s;
+      case 'summon':
+        // deploy 2 units instead of 1
+        out.count = (s.count || 1) + 1;
+        break;
+      case 'line_thrust':
+        // +40% length, +20% width
+        out.length = s.length * 1.40;
+        out.width = (s.width || 46) * 1.20;
+        break;
+      case 'ricochet':
+        // +2 bounces
+        out.bounces = (s.bounces || 0) + 2;
+        break;
+      case 'trail':
+        // +60% duration on each caltrop patch
+        out.duration = (s.duration || 2500) * 1.60;
+        break;
+      case 'boomerang':
+        // +40% throw range
+        out.range = s.range * 1.40;
+        break;
+      case 'pike_wall':
+        // +30% span, +25% duration
+        out.span = (s.span || 160) * 1.30;
+        out.duration = (s.duration || 2500) * 1.25;
+        break;
+      default:
+        break;
+    }
+    return out;
   }
 
   // --- modals ---
