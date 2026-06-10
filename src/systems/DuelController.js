@@ -186,7 +186,7 @@ export default class DuelController {
       s.time.delayedCall(80, () => { if (b.active) b.clearTint(); });
       s.fx.shockwave(b.x, b.y, 0xffd700, 140);
       Audio.sfx('parry');
-      s.showBanner('✦ PARRY!', '#ffd700');
+      s.showBanner('✦ PARRY!', '#ffd700', 'critical');
     }
   }
 
@@ -208,7 +208,7 @@ export default class DuelController {
       b.stunUntil = Math.max(b.stunUntil || 0, now + 900); // guard broken + staggered
       s.fx.shockwave(b.x, b.y, s.theme.accent, 260);
       s.cameras.main.shake(140, 0.01);
-      s.showBanner('⚡ ULTIMATE — GUARD BROKEN!', '#ffd700');
+      s.showBanner('⚡ ULTIMATE — GUARD BROKEN!', '#ffd700', 'critical');
     }
     // Ult speech floating text
     const heroId = s.characterDef && s.characterDef.id;
@@ -330,7 +330,7 @@ export default class DuelController {
   decline() {
     this.s.challengePending = false;
     this.clearChallengeUI();
-    this.s.showBanner('You decline — face them amid the horde!', '#c9c4e0');
+    this.s.showBanner('You decline — face them amid the horde!', '#c9c4e0', 'normal');
     this.s.spawnStageBoss(); // boss joins the swarm; no duel, no finisher
   }
 
@@ -401,7 +401,7 @@ export default class DuelController {
     }).setOrigin(0.5).setScrollFactor(0).setDepth(50));
 
     const def = getBoss(s.bossSeq[s.bossPhase]);
-    s.showBanner(`⚔  ${def.name} challenges you!`, '#ff5252');
+    s.showBanner(`⚔  ${def.name} challenges you!`, '#ff5252', 'critical');
     Audio.sfx('boss');
     s.spawnStageBoss();
   }
@@ -453,7 +453,7 @@ export default class DuelController {
     s.fx.shockwave(boss.x, boss.y, s.theme.accent, 300);
     s.physics.world.timeScale = 2.4;
     s.tweens.add({ targets: s.physics.world, timeScale: 1, duration: 750 });
-    s.showBanner(this.clean ? '⚔  FLAWLESS DUEL!' : '⚔  FINISHED!', '#ffd700');
+    s.showBanner(this.clean ? '⚔  FLAWLESS DUEL!' : '⚔  FINISHED!', '#ffd700', 'critical');
   }
 
   // Soft wall keeping the player + boss inside the arena ring.

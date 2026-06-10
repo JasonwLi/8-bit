@@ -27,6 +27,7 @@ import { Audio } from '../systems/AudioManager.js';
 import { Settings } from '../systems/Settings.js';
 import { GAME, DUNGEON } from '../config.js';
 import TutorialController from '../systems/TutorialController.js';
+import BannerQueue from '../systems/BannerQueue.js';
 import { HERO_DIALOGUE, BOSS_DIALOGUE, STAGE_INTROS, pickRandom } from '../data/dialogue.js';
 
 // ── New tier-3 combat mechanics ───────────────────────────────────────────────
@@ -318,10 +319,15 @@ export default class GameScene extends Phaser.Scene {
     this.input.keyboard.on('keydown-DELETE', goBack);
 
     this.scene.launch('UIScene', { gameScene: this });
+
+    // Banner manager — one banner at a time, FIFO with priorities and lanes.
+    this.bannerQueue = new BannerQueue(this);
+
     this.events.once('shutdown', () => {
       this._stopAmbienceEmitter();
       this.scene.stop('UIScene');
       if (this.tutorial) { this.tutorial.detach(); this.tutorial = null; }
+      if (this.bannerQueue) { this.bannerQueue.destroy(); this.bannerQueue = null; }
       if (this._chargeFx) { this._chargeFx.destroy(); this._chargeFx = null; }
       if (this._counterGlintFx) { this._counterGlintFx.destroy(); this._counterGlintFx = null; }
       if (this._focusAimArrow) { this._focusAimArrow.destroy(); this._focusAimArrow = null; }
@@ -390,7 +396,7 @@ export default class GameScene extends Phaser.Scene {
     }
     if (isBossFloor) this.bossPhase = this.bossFloors[floor]; // this floor's champion/lieutenant
 
-    this.showBanner(`Floor ${floor} / ${this.floorsTotal}${isBossFloor ? '   ⚔ boss' : ''}`, '#ffd700');
+    this.showBanner(`Floor ${floor} / ${this.floorsTotal}${isBossFloor ? '   ⚔ boss' : ''}`, '#ffd700', 'normal');
     Audio.setIntensity(isBossFloor ? 1 : 0);
 
     // Hero stage-start flavour line on floor 1 (new stage or resume to floor 1)
@@ -404,7 +410,7 @@ export default class GameScene extends Phaser.Scene {
           ? heroLines.stageStart[civId]
           : heroLines.stageStart.default;
         const line = pickRandom(pool);
-        if (line) this.time.delayedCall(1100, () => { if (!this.gameOver) this.showBanner(`"${line}"`, '#d8d3ee'); });
+        if (line) this.time.delayedCall(1100, () => { if (!this.gameOver) this.showBanner(`"${line}"`, '#d8d3ee', 'normal'); });
       }
       // Stage intro card (Item B) — skip in duelTest mode
       if (!this.duelTest) {
@@ -432,7 +438,7 @@ export default class GameScene extends Phaser.Scene {
       // Place the bonus chest at the stairs so the player sees it immediately
       const st = this.floorSys.stairs;
       if (st) this.drops.spawnChest(st.x, st.y);
-      this.showBanner('Flawless floor — the spoils are yours', '#ffd700');
+      this.showBanner('Flawless floor — the spoils are yours', '#ffd700', 'normal');
       Audio.sfx('levelup');
       if (this.tutorial) this.events.emit('tut', 'flawless'); // tut: flawless toast
     }
@@ -899,7 +905,7 @@ export default class GameScene extends Phaser.Scene {
       const heroLines = heroId && HERO_DIALOGUE[heroId];
       if (heroLines && heroLines.lowHp) {
         const line = pickRandom(heroLines.lowHp);
-        if (line) this.showBanner(`"${line}"`, '#ff8c8c');
+        if (line) this.showBanner(`"${line}"`, '#ff8c8c', 'normal');
       }
     }
   }
@@ -1591,7 +1597,7 @@ export default class GameScene extends Phaser.Scene {
       if (!this._unlockedResonances.has(name)) {
         this._unlockedResonances.add(name);
         Audio.sfx('resonance');
-        this.showBanner(`⟡ Resonance: ${name}`, '#8fe6ff');
+        this.showBanner(`⟡ Resonance: ${name}`, '#8fe6ff', 'normal');
       }
     }
 
@@ -1655,7 +1661,7 @@ export default class GameScene extends Phaser.Scene {
     this.enemies.add(boss);
     this.activeBoss = boss;
     const tag = isLocalFinal ? '⚔  ' : '⚔  General  ';
-    this.showBanner(`${tag}${def.name}`, '#ff5252');
+    this.showBanner(`${tag}${def.name}`, '#ff5252', 'critical');
     this.fx.shockwave(boss.x, boss.y, 0xff5252, 280);
     Audio.sfx('boss');
     Audio.setIntensity(1);
@@ -1672,7 +1678,7 @@ export default class GameScene extends Phaser.Scene {
     const bossDlg = boss.bossId && BOSS_DIALOGUE[boss.bossId];
     if (bossDlg && bossDlg.death) {
       const line = pickRandom(bossDlg.death);
-      if (line) this.showBanner(`"${line}"`, '#ff8c8c');
+      if (line) this.showBanner(`"${line}"`, '#ff8c8c', 'normal');
     }
 
     if (wasDuel) {
@@ -1689,7 +1695,7 @@ export default class GameScene extends Phaser.Scene {
 
     if (this.duelTest) { // test mode: no progression, back to the duel-test picker
       this.registry.set('reopenDuelPanel', true);
-      this.showBanner('⚔  Duel cleared — back to fighter select', '#ffd700');
+      this.showBanner('⚔  Duel cleared — back to fighter select', '#ffd700', 'critical');
       this.time.delayedCall(1700, () => { this.scene.stop('UIScene'); this.scene.start('MenuScene'); });
       return;
     }
@@ -1706,14 +1712,14 @@ export default class GameScene extends Phaser.Scene {
       return;
     }
     // a lieutenant fell — reward the player
-    this.showBanner(`${boss.bossName} falls!`, '#9ef58b');
+    this.showBanner(`${boss.bossName} falls!`, '#9ef58b', 'critical');
     this.drops.spawnChest(boss.x, boss.y);
     this.drops.spawnPowerup(boss.x + 30, boss.y);
     if (wasDuel && clean) { this.drops.spawnChest(boss.x - 40, boss.y); this.drops.spawnPowerup(boss.x - 70, boss.y); } // flawless bonus
     this.player.heal(Math.round(this.player.maxHp * (clean ? 0.2 : 0.12)));
     if (this.dungeonMode) {
       this.floorSys.unlockStairs(); // the boss gate opens — descend to continue
-      this.showBanner('↓  The stairs open', '#ffd700');
+      this.showBanner('↓  The stairs open', '#ffd700', 'normal');
     } else {
       this.bossPhase += 1; // open-world: the next boss arrives on the time schedule
     }
@@ -1779,7 +1785,7 @@ export default class GameScene extends Phaser.Scene {
       homing_shots: 'Seeking', kill_nova: 'Deathburst', speed_on_kill: 'Bloodrush',
       proj_split_on_expire: 'Fragmentation', lifesteal_on_ult: 'Bloodthrone', knockback_chain: 'Billiards',
     };
-    this.showBanner(`✦ Mutation: ${names[mutId] || mutId}`, '#cc88ff');
+    this.showBanner(`✦ Mutation: ${names[mutId] || mutId}`, '#cc88ff', 'normal');
   }
 
   // Called by UpgradeScene when a skill evolves. Fires the golden burst FX on the
@@ -1789,7 +1795,7 @@ export default class GameScene extends Phaser.Scene {
     const evo = sys.def().evolution;
     if (!evo) return;
     this.fx.goldenBurst(this.player.x, this.player.y, 20);
-    this.showBanner(`✦ ${evo.name}`, '#ffd700');
+    this.showBanner(`✦ ${evo.name}`, '#ffd700', 'normal');
   }
 
   conquerStage() {
@@ -1797,7 +1803,7 @@ export default class GameScene extends Phaser.Scene {
     this.stageCleared = true;
     this.physics.pause();
     const civName = this.isFinal ? 'the World' : CIV_NAME[this.run.currentCiv];
-    this.showBanner(`${civName} Conquered!`, '#9ef58b');
+    this.showBanner(`${civName} Conquered!`, '#9ef58b', 'critical');
     this.captureRunState();
     if (!this.isFinal) this.run.conquered.push(this.run.currentCiv);
     // carry forward the total time so the next stage adds on top of it
@@ -1840,13 +1846,16 @@ export default class GameScene extends Phaser.Scene {
 
   // Item B: 2.5s cinematic title card overlay on stage entry. Letterbox bars, big
   // civ name, tagline, year. Fades in + out; does NOT pause gameplay.
+  // While it's on screen normal/low banners are suppressed (see BannerQueue).
   _showStageIntroCard(intro) {
     const W = this.scale.width;
     const H = this.scale.height;
     const DEPTH = 80;
     const FADE = 420;
     const HOLD = 1660;
-    const TOTAL = FADE + HOLD + FADE;
+
+    // Tell the banner queue to hold normal/low items until the card fades.
+    if (this.bannerQueue) this.bannerQueue.setIntroActive(true);
 
     const barH = Math.round(H * 0.18);
     const topBar = this.add.rectangle(0, 0, W, barH, 0x000000, 1)
@@ -1869,33 +1878,27 @@ export default class GameScene extends Phaser.Scene {
     const objs = [topBar, botBar, titleTxt, tagTxt, yearTxt];
     // Fade in
     for (const o of objs) this.tweens.add({ targets: o, alpha: (o === topBar || o === botBar) ? 0.92 : 1, duration: FADE });
-    // Fade out after hold
+    // Fade out after hold; then release the banner queue
     this.time.delayedCall(FADE + HOLD, () => {
       for (const o of objs) {
         this.tweens.add({ targets: o, alpha: 0, duration: FADE, onComplete: () => { if (o && o.active) o.destroy(); } });
       }
+      this.time.delayedCall(FADE, () => {
+        if (this.bannerQueue) this.bannerQueue.setIntroActive(false);
+      });
     });
   }
 
-  showBanner(text, color) {
-    // sits below the top HUD cluster (timer / boss bar / buff row), then drifts up +
-    // fades. Multiple callouts (e.g. "FLAWLESS DUEL!" + "{boss} falls!" on a kill, or a
-    // spawn + phase banner) STACK downward so they never print on top of each other.
-    if (!this._banners) this._banners = [];
-    this._banners = this._banners.filter((b) => b.active);
-    const y = 188 + this._banners.length * 30;
-    const t = this.add
-      .text(this.scale.width / 2, y, text, {
-        fontFamily: 'monospace', fontSize: '24px', color, fontStyle: 'bold',
-      })
-      .setOrigin(0.5)
-      .setScrollFactor(0)
-      .setDepth(50);
-    this._banners.push(t);
-    this.tweens.add({
-      targets: t, y: y - 22, alpha: 0, delay: 900, duration: 1600, ease: 'Quad.easeIn',
-      onComplete: () => { this._banners = this._banners.filter((b) => b !== t); t.destroy(); },
-    });
+  // showBanner — routes through BannerQueue so only ONE banner is visible at a
+  // time in the centre-top lane.  All callers should pass a priority:
+  //   'critical' — boss challenge/duel/death text (bypasses queue, clears it)
+  //   'normal'   — floor, dialogue, flawless, resonance, mutation, boss defeat
+  //   'low'      — tutorial toasts, hazard warning, treasure/trap/ambush notices
+  // (default = 'normal' for backwards-compat with any caller that omits it)
+  showBanner(text, color, priority = 'normal') {
+    if (this.bannerQueue) {
+      this.bannerQueue.push(text, color, priority);
+    }
   }
 
   // ITEM D: create (or recreate) the per-civ ambient particle layer for this floor.
@@ -2017,14 +2020,14 @@ export default class GameScene extends Phaser.Scene {
     e._plate = container;
   }
 
-  // ITEM B: throttled elite-spawn banner (at least 8 s apart so the screen
-  // isn't flooded when a horde of elites spawns simultaneously).
+  // Elite-spawn notice — goes to the compact side lane (right edge) so it never
+  // pollutes the main centre-top lane.  Throttled: at most 1 side notice per 4s.
   showEliteBanner(title) {
     if (!title) return;
     const now = this.time.now;
-    if ((this._lastEliteBannerAt || 0) + 8000 > now) return;
+    if ((this._lastEliteBannerAt || 0) + 4000 > now) return;
     this._lastEliteBannerAt = now;
-    this.showBanner(title, '#ffd54a');
+    if (this.bannerQueue) this.bannerQueue.pushSide(title, '#ffd54a');
   }
 
   // First time the player stands in a damaging zone (map hazard or boss flame
@@ -2032,7 +2035,7 @@ export default class GameScene extends Phaser.Scene {
   warnHazardOnce() {
     if (this._hazardWarned) return;
     this._hazardWarned = true;
-    this.showBanner('⚠  Damage zone — step out!', '#ff7b3a');
+    this.showBanner('⚠  Damage zone — step out!', '#ff7b3a', 'low');
   }
 
   // --- damage / death ---
@@ -2880,7 +2883,7 @@ export default class GameScene extends Phaser.Scene {
         // Ambush: burst-spawn 8–12 enemies around the player and spike the music.
         const count = Phaser.Math.Between(8, 12);
         for (let i = 0; i < count; i++) this.spawner.spawnOne();
-        this.showBanner('⚠ Ambush!', '#ff5252');
+        this.showBanner('⚠ Ambush!', '#ff5252', 'normal');
         Audio.setIntensity(1);
         break;
       }
@@ -2889,7 +2892,7 @@ export default class GameScene extends Phaser.Scene {
         this.drops.spawnChest(w.x, w.y);
         const pu = walkableNear(w.x, w.y, 40);
         this.drops.spawnPowerup(pu.x, pu.y);
-        this.showBanner('✦ Treasure Cache', '#ffd700');
+        this.showBanner('✦ Treasure Cache', '#ffd700', 'low');
         break;
       }
       case 'trap': {
@@ -2907,7 +2910,7 @@ export default class GameScene extends Phaser.Scene {
           this.map._floorProps.push(this.add.image(tx, ty, 'spikes').setDepth(3).setScale(0.9));
           this.map.hazards.push({ x: tx, y: ty, r, dmg: 9, enemyDmg: 16 });
         }
-        this.showBanner('⚠ Trap Field', '#ff8a3a');
+        this.showBanner('⚠ Trap Field', '#ff8a3a', 'low');
         break;
       }
       default:

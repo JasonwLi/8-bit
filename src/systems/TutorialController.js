@@ -224,10 +224,11 @@ export default class TutorialController {
     if (!scene) return;
     const def = this._toastDef(id);
     if (!def) return;
-    // Use GameScene.showBanner — same style as other mid-game feedback.
-    // showBanner queues banners so they stack and don't overlap.
+    // Use GameScene.showBanner — routed through BannerQueue so only one banner
+    // is visible at a time.  Tutorial toasts are low priority: dropped if the
+    // queue is full or a stage-intro card is showing.
     if (typeof scene.showBanner === 'function') {
-      scene.showBanner(def.text, def.color);
+      scene.showBanner(def.text, def.color, 'low');
     }
   }
 
