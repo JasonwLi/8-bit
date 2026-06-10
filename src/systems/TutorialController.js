@@ -195,7 +195,7 @@ export default class TutorialController {
     scene.events.once('resume', () => {
       this._tipOpen = false;
       // Rebuild floor-1 prompt if a step is still pending
-      if (scene.dungeonMode && !this._tipOpen) {
+      if (scene.dungeonMode) {
         this._tickPrompt();
       }
       // Show next queued tip after the cooldown interval
