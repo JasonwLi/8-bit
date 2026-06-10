@@ -580,7 +580,7 @@ export default class GameScene extends Phaser.Scene {
     this.weapons.tick(delta);
     this.secondary.tick(delta); // tick the secondary's ~3s cooldown
     this.ability.update(time, delta); // ultimate cooldown + empower/momentum
-    this.handleCombatInput();
+    this.handleCombatInput(delta);
     if (!this.dueling) this.spawner.update(time, delta); // no swarm during a 1v1 duel
 
     // friendly projectile lifespans (+ glowing trail behind each)
@@ -2689,7 +2689,7 @@ export default class GameScene extends Phaser.Scene {
   // Poll the rebindable combat keys each frame. Primary = HELD (fire at cadence);
   // secondary/ultimate/dash/pause = tap (JustDown). Duels route the same keys to the
   // duel state machine (primary becomes a single swing per press).
-  handleCombatInput() {
+  handleCombatInput(delta) {
     if (this.gameOver) return;
     const bk = this.bindKeys;
     if (!bk) return;
