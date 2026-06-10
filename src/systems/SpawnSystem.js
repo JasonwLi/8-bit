@@ -234,6 +234,8 @@ export default class SpawnSystem {
     e.curseRadius = 0;
     e.casterEvery = 0; // caster elite: periodic ranged volley
     e.volatile = false; // volatile elite: AoE detonation on death
+    e.vampiric = false; // vampiric elite: lifesteal on hit
+    e.bulwarkAuraRadius = 0; // bulwark elite: damage reduction ring for nearby allies
     e.bleedUntil = 0; e.bleedStacks = 0; e.bleedAcc = 0; e.bleedDps = 0; // clear any stale bleed DoT
     e.slowUntil = 0; // clear any stale slow (Alexander's javelins)
     e.stunUntil = 0; // clear any stale stun (Genghis's Khan's Cleave)
@@ -271,6 +273,8 @@ export default class SpawnSystem {
       if (mod.id === 'hex') { e.curseRadius = mod.curseRadius; e.curseSlowAmt = mod.curseSlow; }
       if (mod.id === 'caster') { e.casterEvery = mod.castEvery; e.casterTimer = mod.castEvery; e.castDmg = mod.castDmg; e.castSpeed = mod.castSpeed; }
       if (mod.id === 'volatile') { e.volatile = true; e.blastRadius = mod.blastRadius; e.blastDmgElite = mod.blastDmg; }
+      if (mod.id === 'vampiric') { e.vampiric = true; e.vampiricRate = mod.vampiricRate || 0.25; }
+      if (mod.id === 'bulwark') { e.bulwarkAuraRadius = mod.auraRadius || 110; }
       e.eliteTint = mod.tint;
       // ITEM B: generate a flavoured name for this elite
       e.eliteTitle = generateEliteTitle(civId, mod.name);
@@ -278,6 +282,8 @@ export default class SpawnSystem {
       Audio.sfx('elite'); // menacing low sting (internally throttled to ≤1/s)
       // ITEM B: show a throttled banner for named elites (>=8s apart)
       if (this.scene.showEliteBanner) this.scene.showEliteBanner(e.eliteTitle);
+      // create overhead nameplate for this elite
+      if (this.scene._createElitePlate) this.scene._createElitePlate(e);
     } else {
       e.setScale(1).clearTint();
     }
