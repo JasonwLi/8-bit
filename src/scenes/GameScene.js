@@ -22,6 +22,7 @@ import MapSystem from '../systems/MapSystem.js';
 import DuelController from '../systems/DuelController.js';
 import PickupController from '../systems/PickupController.js';
 import * as EnemyAI from '../systems/EnemyAI.js';
+import { isTelegraphing, releaseAttackToken, resetAttackTokens } from '../systems/EnemyAI.js';
 import { Audio } from '../systems/AudioManager.js';
 import { Settings } from '../systems/Settings.js';
 import { GAME, DUNGEON } from '../config.js';
@@ -302,6 +303,7 @@ export default class GameScene extends Phaser.Scene {
     this.nav = new FlowField(d.cols, d.rows, d.grid);
     this._navAcc = 0;
 
+    resetAttackTokens(this);                          // prevent token leaks across floors
     this.spawner.onFloorStart(floor);                 // sets floorBudget, resets spawnedThisFloor=0
     this.spawner.spawnedThisFloor = resumeSpawned;    // restore the saved budget (runs before captureRunState below)
     const clearedOnResume = resumeSpawned >= this.spawner.floorBudget;
@@ -1122,7 +1124,9 @@ export default class GameScene extends Phaser.Scene {
       e.maxHp = Math.round(def.hp * mult);
       e.hp = e.maxHp;
       e.damage = Math.round(def.damage * (1 + this.spawner.elapsed / 120) * (this.stageScale || 1));
-      e.contactDamage = e.damage;
+      // budget shift: non-swing melee minions at 80% passive contact (matches SpawnSystem)
+      e.contactDamage = Math.max(1, Math.round(e.damage * 0.80));
+      e._baseContactDamage = e.contactDamage;
     }
   }
 
@@ -1578,6 +1582,43 @@ export default class GameScene extends Phaser.Scene {
     if (!enemy.active) return;
     if (enemy.rageInvuln) { this.fx.impact(enemy.x, enemy.y); return; } // boss RAGE musou: untouchable
     let dmg = amount;
+    let counterHit = false;
+    // ── COUNTER-HIT: player attack lands during the enemy's telegraph window ────
+    // ×1.5 damage, cancel the windup + 300ms stun, gold flash + ring.
+    // Only fires on player-sourced hits (opts.fromPlayer = true), not on DoT, hazards,
+    // ally damage, or bleed ticks. Not applied to bosses' phase-transition states
+    // (they have their own duel parry; isTelegraphing already excludes isBoss).
+    if (opts.fromPlayer && isTelegraphing(enemy)) {
+      counterHit = true;
+      dmg *= 1.5;
+      // Cancel the windup and apply a brief stun so the attack is genuinely interrupted
+      if (enemy.swingState === 'wind') {
+        releaseAttackToken(this, enemy);
+        enemy.swingState = null;
+        enemy.swingCd = enemy.swingCooldown; // normal cooldown before it can swing again
+      }
+      if (enemy.winding) {
+        releaseAttackToken(this, enemy);
+        enemy.winding = false;
+        enemy.fireTimer = enemy.fireCooldown;
+      }
+      if (enemy.dashWindTimer > 0) {
+        releaseAttackToken(this, enemy);
+        enemy.dashWindTimer = 0;
+        enemy.dashTimer = enemy.dashCooldown;
+      }
+      if (enemy.lungeWindTimer > 0) {
+        releaseAttackToken(this, enemy);
+        enemy.lungeWindTimer = 0;
+        enemy.lungeTimer = enemy.lungeCooldown;
+      }
+      if (enemy.flyPhase === 'windup') {
+        releaseAttackToken(this, enemy);
+        enemy.flyPhase = 'approach';
+        enemy.flyWindRemain = 0;
+      }
+      enemy.stunUntil = this.time.now + 300; // brief freeze so the player sees the interrupt
+    }
     // crawler attack-softening: weaken all player damage to non-boss enemies (bosses
     // keep their own playerPower-tracked tuning, so duels stay balanced).
     if (this.playerDmgScale !== 1 && !enemy.isBoss) dmg *= this.playerDmgScale;
@@ -1591,8 +1632,17 @@ export default class GameScene extends Phaser.Scene {
     dmg = Math.round(dmg);
     enemy.hp -= dmg;
     this.fx.damageNumber(enemy.x, enemy.y - enemy.displayHeight * 0.4, dmg,
-      enemy.isBoss ? { color: this.theme.accentCss, big: true, fromPlayer: true } : { fromPlayer: true });
-    this.fx.impact(enemy.x, enemy.y);
+      enemy.isBoss ? { color: this.theme.accentCss, big: true, fromPlayer: true }
+                   : { color: counterHit ? '#ffd700' : '#ffffff', fromPlayer: true });
+    if (counterHit) {
+      // Distinctive counter-hit FX: gold flash + outward ring to signal the interrupt
+      this.fx._flash(enemy.x, enemy.y, 14, 0xffd700, 0.9, 200);
+      this.fx._ring(enemy.x, enemy.y, 52, 0xffd700, 280, 3);
+      this.fx._tint(this.fx.spark, 0xffd700);
+      this.fx.spark.emitParticleAt(enemy.x, enemy.y, 6);
+    } else {
+      this.fx.impact(enemy.x, enemy.y);
+    }
     Audio.sfx('hit');
     this.player.lifestealFrom(dmg);
     // Vampiric elite: heals back a fraction of the damage it just took
@@ -1603,13 +1653,18 @@ export default class GameScene extends Phaser.Scene {
         this.fx.impact(enemy.x, enemy.y - (enemy.displayHeight || 30) * 0.5, 0xff44aa);
       }
     }
-    if (!enemy.winding) {
+    if (!enemy.winding && !counterHit) {
       enemy.setTintFill(0xffffff);
       this.time.delayedCall(50, () => {
         if (!enemy.active) return;
         if (enemy.isElite) enemy.setTint(enemy.eliteTint || 0xffd54a);
         else enemy.clearTint();
       });
+    } else if (counterHit) {
+      // Counter-hit: gold tintFill flash; the stun tint (blue) will be applied by
+      // applyStatusTint on the very next frame since stunUntil is now set.
+      enemy.setTintFill(0xffd700);
+      this.time.delayedCall(80, () => { if (enemy.active) enemy.clearTint(); });
     }
     if (enemy.hp <= 0) this.killEnemy(enemy);
   }
@@ -1652,6 +1707,8 @@ export default class GameScene extends Phaser.Scene {
       obj.body.stop();
       obj.body.enable = false;
     }
+    // release any held attack token so the cap never leaks on death / pool recycle
+    releaseAttackToken(this, obj);
     // tear down any elite nameplate so it doesn't linger after the sprite is pooled
     if (obj._plate) this._destroyElitePlate(obj);
   }
@@ -1730,7 +1787,7 @@ export default class GameScene extends Phaser.Scene {
   onProjectileHit(projectile, enemy) {
     if (!projectile.active || !enemy.active) return;
     if (projectile.hitSet && projectile.hitSet.has(enemy)) return;
-    this.damageEnemy(enemy, projectile.damage, { armorPierce: projectile.armorPierce });
+    this.damageEnemy(enemy, projectile.damage, { armorPierce: projectile.armorPierce, fromPlayer: true });
     if (projectile.bleed) this.applyBleed(enemy, projectile.bleed);
     if (projectile.knockback && enemy.active && !enemy.isBoss) { // shove-on-hit
       const ka = Math.atan2(enemy.y - projectile.y, enemy.x - projectile.x);
@@ -2121,7 +2178,7 @@ export default class GameScene extends Phaser.Scene {
       const dx = e.x - x;
       const dy = e.y - y;
       if (dx * dx + dy * dy > radius * radius) continue;
-      this.damageEnemy(e, damage);
+      this.damageEnemy(e, damage, { fromPlayer: true });
       if (knockback && e.active && !e.isBoss) {
         this.knockbackEnemy(e, Math.atan2(dy, dx), knockback);
       }
@@ -2136,7 +2193,7 @@ export default class GameScene extends Phaser.Scene {
         if (!e.active) continue;
         const dx = e.x - x;
         const dy = e.y - y;
-        if (dx * dx + dy * dy <= radius * radius) this.damageEnemy(e, damage);
+        if (dx * dx + dy * dy <= radius * radius) this.damageEnemy(e, damage, { fromPlayer: true });
       }
     };
     if (telegraph) {

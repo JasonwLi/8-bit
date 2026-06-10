@@ -185,7 +185,7 @@ export default class SpawnSystem {
     e.swingActiveT  = def.swingActiveT  || 130;  // strike-active window
     e.swingRecover  = def.swingRecover  || 280;  // recovery hang after the swing
     e.swingCooldown = def.swingCooldown || 1100; // gap between swings
-    e.swingDmgMult  = def.swingDmgMult  || 1.6;  // the swing hits HARD (vs the contact chip)
+    e.swingDmgMult  = def.swingDmgMult  || 1.8;  // SWING hits harder (+0.2 vs old 1.6) — budget shifts to readable attacks
     e.swingState    = null;  // null | 'wind' | 'strike' | 'recover'
     e.swingTimer    = 0;
     e.swingCd       = Phaser.Math.Between(250, 850); // stagger first swing across the swarm
@@ -306,9 +306,22 @@ export default class SpawnSystem {
       if (e.projDamage) e.projDamage = Math.round(e.projDamage * ct.enemyDmgMult);
     }
     e.hp = e.maxHp;
-    // Strikers do their real damage with the telegraphed swing, so passive contact is just
-    // a light chip (brushing past still stings, but the headline hit is dodge-able).
-    e.contactDamage = e.swing ? Math.max(1, Math.round(e.damage * 0.25)) : e.damage;
+    // Damage budget shift: readable/telegraphed attacks carry more weight; passive contact
+    // is softer so ambient chip doesn't punish proximity as hard as the big hit.
+    //   Strikers (swing=true):   contact chip 25% → 15% of base damage
+    //   Non-swing melee:         contact damage -20% (×0.80) vs old full e.damage
+    // Charger/lunger/flyer contactDamage is boosted +25% while their active attack window
+    // fires (handled dynamically in EnemyAI) and stored in e._baseContactDamage for restore.
+    if (e.swing) {
+      e.contactDamage = Math.max(1, Math.round(e.damage * 0.15));
+    } else if (e.attack !== 'ranged') {
+      // non-swing melee: ambient contact down 20%
+      e.contactDamage = Math.max(1, Math.round(e.damage * 0.80));
+    } else {
+      // ranged: contact on a ranged mob that walks into you keeps full damage (shouldn't happen in practice)
+      e.contactDamage = e.damage;
+    }
+    e._baseContactDamage = e.contactDamage; // snapshot for the active-attack boost/restore
   }
 
   update(_time, delta) {

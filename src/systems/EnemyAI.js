@@ -5,6 +5,61 @@
 // Ranged `rangedKind`: 'single' | 'spread' | 'rapid' | 'lob' | 'siege' | 'blink'
 // Projectiles go through scene.spawnHostileProjectile().
 // AoE zones go through scene.spawnHazardZone(x, y, radius, dmg, delay, tick, linger).
+//
+// ── ATTACK TOKEN SYSTEM ─────────────────────────────────────────────────────
+// At most ATTACK_TOKEN_CAP regular enemies may be actively WINDING UP or DASHING/LUNGING/
+// DIVING simultaneously. Elites always bypass the cap; bosses are exempt entirely.
+// Tokens are acquired just before a windup begins and released when the attack resolves,
+// is interrupted by a counter-hit stun, or when the enemy dies/deactivates.
+//
+// Scene entry points (called by GameScene):
+//   acquireAttackToken(scene, e) → true if the enemy may begin its windup
+//   releaseAttackToken(scene, e) → release the token (no-op if not holding one)
+//   resetAttackTokens(scene)     → call at the start of each floor to prevent leaks
+
+const ATTACK_TOKEN_CAP = 5; // max enemies in windup / active-attack at once
+
+export function acquireAttackToken(scene, e) {
+  if (e.isElite || e.isBoss) return true; // elites + bosses always allowed
+  if (e._hasAttackToken) return true;      // already holds a token
+  if ((scene._attackTokens || 0) >= ATTACK_TOKEN_CAP) return false; // cap reached
+  scene._attackTokens = (scene._attackTokens || 0) + 1;
+  e._hasAttackToken = true;
+  return true;
+}
+
+export function releaseAttackToken(scene, e) {
+  if (!e._hasAttackToken) return;
+  e._hasAttackToken = false;
+  scene._attackTokens = Math.max(0, (scene._attackTokens || 0) - 1);
+}
+
+export function resetAttackTokens(scene) {
+  scene._attackTokens = 0;
+  // Also clear any stale token flags on pooled enemies so nothing leaks across floors
+  if (scene.enemies) {
+    for (const e of scene.enemies.getChildren()) e._hasAttackToken = false;
+  }
+}
+
+// ── COUNTER-HIT DETECTION ────────────────────────────────────────────────────
+// Returns true while `e` is in a telegraph / windup state (the window where a well-
+// timed player attack triggers a counter-hit bonus). Excludes bosses in phase transitions
+// (they have their own duel parry system); only tests non-duel field states.
+export function isTelegraphing(e) {
+  if (e.isBoss) return false; // bosses use the duel parry path; never flag here
+  // Melee striker windup
+  if (e.swingState === 'wind') return true;
+  // Ranged windup
+  if (e.winding) return true;
+  // Charger dash windup
+  if (e.dashWindTimer > 0) return true;
+  // Lunger leap windup
+  if (e.lungeWindTimer > 0) return true;
+  // Flyer lock-on windup
+  if (e.flyPhase === 'windup') return true;
+  return false;
+}
 
 export function updateMob(scene, e, delta, dist, ang) {
   if (e.attack === 'ranged') {
@@ -75,6 +130,8 @@ function tickRangedFire(scene, e, delta, ang) {
   if (!e.winding) {
     e.fireTimer -= delta;
     if (e.fireTimer <= 0) {
+      // Gate the windup on the attack-token cap (elites are always exempt)
+      if (!acquireAttackToken(scene, e)) return; // cap full — wait, stay at standoff
       e.winding = true;
       e.windRemain = e.windup;
       e.setTint(0xff5555); // telegraph flash
@@ -86,6 +143,7 @@ function tickRangedFire(scene, e, delta, ang) {
   if (e.windRemain <= 0) {
     fireEnemyShot(scene, e, ang);
     e.winding = false;
+    releaseAttackToken(scene, e); // attack resolved — free the slot
     e.fireTimer = e.fireCooldown;
     // restore tint unless we just kicked off a burst (burst restores internally)
     if (!e.burstActive) {
@@ -273,15 +331,17 @@ function updateMelee(scene, e, delta, dist, ang) {
 
     // ── Charger: slow approach → tint telegraph → fast dash ───────────────
     case 'charger': {
-      // Phase 1: dashing
+      // Phase 1: dashing (active attack window — token held, contactDamage boosted)
       if (e.dashActive) {
         e.dashTimer -= delta;
         if (e.dashTimer > 0) {
           e.setVelocity(e.dashDx * e.dashSpeed, e.dashDy * e.dashSpeed);
         } else {
-          // end dash
+          // end dash — release token and restore passive contact damage
           e.dashActive = false;
           e.dashTimer  = e.dashCooldown;
+          releaseAttackToken(scene, e);
+          e.contactDamage = e._baseContactDamage != null ? e._baseContactDamage : e.damage;
           if (e.isElite) e.setTint(e.eliteTint || 0xffd54a);
           else e.clearTint();
         }
@@ -293,11 +353,13 @@ function updateMelee(scene, e, delta, dist, ang) {
         e.dashWindTimer -= delta;
         e.setVelocity(0, 0); // freeze during windup
         if (e.dashWindTimer <= 0) {
-          // Launch the dash
+          // Launch the dash — boost contactDamage for the active attack window (+25%)
           e.dashDx = Math.cos(ang);
           e.dashDy = Math.sin(ang);
           e.dashActive = true;
           e.dashTimer  = e.dashDuration;
+          if (e._baseContactDamage == null) e._baseContactDamage = e.contactDamage;
+          e.contactDamage = Math.round(e._baseContactDamage * 1.25);
           if (e.isElite) e.setTint(e.eliteTint || 0xffd54a);
           else e.clearTint();
         }
@@ -308,8 +370,9 @@ function updateMelee(scene, e, delta, dist, ang) {
       e.dashTimer -= delta;
       e.setVelocity(Math.cos(ang) * e.speed, Math.sin(ang) * e.speed);
 
-      // Trigger windup when close enough and cooldown has expired
+      // Trigger windup when close enough and cooldown has expired — gate on attack tokens
       if (e.dashTimer <= 0 && dist <= e.dashRange) {
+        if (!acquireAttackToken(scene, e)) break; // cap full — keep approaching
         e.dashWindTimer = e.dashWindup;
         e.setTint(0xff2200); // danger flash during telegraph
         e.dashTimer = 0; // prevent double-trigger
@@ -319,16 +382,18 @@ function updateMelee(scene, e, delta, dist, ang) {
 
     // ── Lunger: approach to mid-range → windup → leap → recover ───────────
     case 'lunger': {
-      // Phase 1: active lunge
+      // Phase 1: active lunge (attack window — contactDamage boosted, token held)
       if (e.lungeActive) {
         e.lungeTimer -= delta;
         if (e.lungeTimer > 0) {
           e.setVelocity(e.lungeDx * e.lungeSpeed, e.lungeDy * e.lungeSpeed);
         } else {
-          // end lunge, enter recovery
+          // end lunge, enter recovery — release token, restore contact damage
           e.lungeActive = false;
           e.lungeRecovering = true;
           e.lungeRecoverTimer = e.recoverTime;
+          releaseAttackToken(scene, e);
+          e.contactDamage = e._baseContactDamage != null ? e._baseContactDamage : e.damage;
           if (e.isElite) e.setTint(e.eliteTint || 0xffd54a);
           else e.clearTint();
         }
@@ -352,22 +417,25 @@ function updateMelee(scene, e, delta, dist, ang) {
         e.lungeWindTimer -= delta;
         e.setVelocity(0, 0);
         if (e.lungeWindTimer <= 0) {
-          // launch
+          // launch — boost contactDamage for the active leap window (+25%)
           e.lungeDx = Math.cos(ang);
           e.lungeDy = Math.sin(ang);
           e.lungeActive = true;
           e.lungeTimer  = e.lungeDuration;
+          if (e._baseContactDamage == null) e._baseContactDamage = e.contactDamage;
+          e.contactDamage = Math.round(e._baseContactDamage * 1.25);
           if (e.isElite) e.setTint(e.eliteTint || 0xffd54a);
           else e.clearTint();
         }
         return;
       }
 
-      // Phase 4: approach and count down to next lunge
+      // Phase 4: approach and count down to next lunge — gate on attack tokens
       e.lungeTimer -= delta;
       e.setVelocity(Math.cos(ang) * e.speed, Math.sin(ang) * e.speed);
 
       if (e.lungeTimer <= 0 && dist <= e.lungeRange) {
+        if (!acquireAttackToken(scene, e)) break; // cap full — keep approaching
         e.lungeWindTimer = e.lungeWindup;
         e.setTint(0x44ff44); // bright green tell for the lunge
         e.lungeTimer = 0;
@@ -385,6 +453,7 @@ function updateMelee(scene, e, delta, dist, ang) {
         // Cruise toward the player at base speed; switch to windup when close
         e.setVelocity(Math.cos(ang) * e.speed, Math.sin(ang) * e.speed);
         if (dist <= (e.diveRange || 260)) {
+          if (!acquireAttackToken(scene, e)) break; // cap full — keep approaching
           e.flyPhase    = 'windup';
           e.flyWindRemain = e.diveWindup || 260;
           e.setTint(0xff8800); // orange lock-on flash
@@ -395,10 +464,12 @@ function updateMelee(scene, e, delta, dist, ang) {
         e.flyWindRemain -= delta;
         e.setVelocity(0, 0);
         if (e.flyWindRemain <= 0) {
-          // Snapshot the dive direction toward the player at launch
+          // Snapshot the dive direction toward the player at launch; boost contact damage
           e.flyDx = Math.cos(ang);
           e.flyDy = Math.sin(ang);
           e.flyPhase = 'dive';
+          if (e._baseContactDamage == null) e._baseContactDamage = e.contactDamage;
+          e.contactDamage = Math.round(e._baseContactDamage * 1.25);
           if (e.isElite) e.setTint(e.eliteTint || 0xffd54a);
           else e.clearTint();
         }
@@ -411,6 +482,8 @@ function updateMelee(scene, e, delta, dist, ang) {
         if (dist > (e.diveRange || 260) * 1.6) {
           e.flyPhase    = 'exit';
           e.flyExitTimer = e.exitDuration || 1200;
+          releaseAttackToken(scene, e); // dive resolved — free the token
+          e.contactDamage = e._baseContactDamage != null ? e._baseContactDamage : e.damage;
         }
 
       } else { // 'exit'
@@ -510,6 +583,7 @@ function handleSwing(scene, e, delta, dist, ang) {
     if (e.swingTimer <= 0) {
       e.swingState = 'recover';
       e.swingTimer = e.swingRecover;
+      releaseAttackToken(scene, e); // strike resolved — free the slot
       if (e.isElite) e.setTint(e.eliteTint || 0xffd54a); else e.clearTint();
     }
     return true;
@@ -527,7 +601,9 @@ function handleSwing(scene, e, delta, dist, ang) {
   }
 
   // Idle: in reach and off cooldown → start the windup (red telegraph, snapshot facing).
+  // Gate on the attack-token cap so only ATTACK_TOKEN_CAP strikers can wind up at once.
   if (e.swingCd <= 0 && dist <= e.swingRange) {
+    if (!acquireAttackToken(scene, e)) return false; // cap full — keep approaching
     e.swingState = 'wind';
     e.swingTimer = e.swingWindup;
     e.swingAng = ang;

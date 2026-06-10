@@ -440,7 +440,7 @@ export default class WeaponSystem {
           const lastHit = orb.hitCooldowns.get(e) || 0;
           if (now - lastHit < 480) continue;
           orb.hitCooldowns.set(e, now);
-          this.scene.damageEnemy(e, dmg);
+          this.scene.damageEnemy(e, dmg, { fromPlayer: true });
           if (Math.random() < 0.3) this.scene.fx.goldenBurst(bx, by, 3); // occasional pop (avoid particle blob)
         }
       }
@@ -754,7 +754,7 @@ export default class WeaponSystem {
       const ang = Math.atan2(dy, dx);
       const diff = Math.abs(Phaser.Math.Angle.Wrap(ang - facing));
       if (s.arc >= 360 || diff <= halfArc) {
-        this.scene.damageEnemy(e, damage, { armorPierce: s.armorPierce });
+        this.scene.damageEnemy(e, damage, { armorPierce: s.armorPierce, fromPlayer: true });
         const kb = (s.knockback != null) ? s.knockback : (s.def.knockback || 0);
         if (kb && e.active && !e.isBoss) this.scene.knockbackEnemy(e, ang, kb);
         const stun = (s.stunMs != null) ? s.stunMs : (s.def.stun || 0);
@@ -860,7 +860,7 @@ export default class WeaponSystem {
         if (!e.active) continue;
         const dx = e.x - tx, dy = e.y - ty;
         if (dx * dx + dy * dy > s.skyRendRadius * s.skyRendRadius) continue;
-        this.scene.damageEnemy(e, Math.round(s.damage));
+        this.scene.damageEnemy(e, Math.round(s.damage), { fromPlayer: true });
         if (s.skyRendBleed) this.scene.applyBleed(e, s.skyRendBleed);
         if (e.active && !e.isBoss) {
           this.scene.knockbackEnemy(e, Math.atan2(dy, dx), s.skyRendKnockback || 28);
@@ -1028,7 +1028,7 @@ export default class WeaponSystem {
           if (!e.active) continue;
           const dx = e.x - x;
           const dy = e.y - y;
-          if (dx * dx + dy * dy <= radius * radius) this.scene.damageEnemy(e, damage);
+          if (dx * dx + dy * dy <= radius * radius) this.scene.damageEnemy(e, damage, { fromPlayer: true });
         }
         done++;
         if (done >= ticks) {
@@ -1116,7 +1116,7 @@ export default class WeaponSystem {
       const kb = s.knockback || 0;
       for (const e of this.scene.enemies.getChildren()) {
         if (e.active && inLane(e)) {
-          this.scene.damageEnemy(e, damage);
+          this.scene.damageEnemy(e, damage, { fromPlayer: true });
           // center lane applies knockback; flanking lanes skip it to avoid chaotic scatter
           if (kb && ang === facing && e.active && !e.isBoss) {
             this.scene.knockbackEnemy(e, Math.atan2(e.y - py, e.x - px), kb);
