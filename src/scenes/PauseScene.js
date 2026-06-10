@@ -136,18 +136,25 @@ export default class PauseScene extends Phaser.Scene {
     this.add.text(rx, 134, arts, { fontFamily: 'monospace', fontSize: '12px', color: '#ffd27a', lineSpacing: 5, wordWrap: { width: 250 } });
 
     // --- buttons ---
-    const resume = this.add.text(width / 2 - 190, height - 50, '[ Resume ]', {
+    const resume = this.add.text(width / 2 - 250, height - 50, '[ Resume ]', {
       fontFamily: 'monospace', fontSize: '20px', color: '#9ef58b', fontStyle: 'bold',
     }).setOrigin(0.5).setInteractive({ useHandCursor: true });
     resume.on('pointerdown', () => this.resumeGame());
 
-    const settings = this.add.text(width / 2, height - 50, '[ Settings ]', {
-      fontFamily: 'monospace', fontSize: '20px', color: '#8fe6ff', fontStyle: 'bold',
+    const manual = this.add.text(width / 2 - 80, height - 50, '[ Combat Manual ]', {
+      fontFamily: 'monospace', fontSize: '16px', color: '#ffd27a', fontStyle: 'bold',
+    }).setOrigin(0.5).setInteractive({ useHandCursor: true });
+    manual.on('pointerover', () => manual.setColor('#ffffff'));
+    manual.on('pointerout', () => manual.setColor('#ffd27a'));
+    manual.on('pointerdown', () => this.scene.start('CombatManualScene', { caller: 'PauseScene', gameScene: this.gs }));
+
+    const settings = this.add.text(width / 2 + 90, height - 50, '[ Settings ]', {
+      fontFamily: 'monospace', fontSize: '18px', color: '#8fe6ff', fontStyle: 'bold',
     }).setOrigin(0.5).setInteractive({ useHandCursor: true });
     settings.on('pointerdown', () => this.scene.start('SettingsScene', { caller: 'PauseScene', gameScene: this.gs }));
 
-    const exit = this.add.text(width / 2 + 190, height - 50, '[ Save & Exit ]', {
-      fontFamily: 'monospace', fontSize: '20px', color: '#ff8a8a', fontStyle: 'bold',
+    const exit = this.add.text(width / 2 + 250, height - 50, '[ Save & Exit ]', {
+      fontFamily: 'monospace', fontSize: '18px', color: '#ff8a8a', fontStyle: 'bold',
     }).setOrigin(0.5).setInteractive({ useHandCursor: true });
     exit.on('pointerdown', () => this.exitToTitle());
 

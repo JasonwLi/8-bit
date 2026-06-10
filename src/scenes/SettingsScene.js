@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { Settings, BINDABLE, keyLabel, eventToKeyName } from '../systems/Settings.js';
 import { Audio } from '../systems/AudioManager.js';
+import { resetTutorial } from '../systems/TutorialController.js';
 
 // Settings: audio volume sliders (Master / Music / SFX) + rebindable combat keys.
 // Reached from the title and from the pause overlay; returns to whichever opened it.
@@ -40,12 +41,23 @@ export default class SettingsScene extends Phaser.Scene {
     BINDABLE.forEach((b, i) => this._addBindRow(96, 340 + i * 30, b));
 
     // ── buttons ──────────────────────────────────────────────────────────────
-    const reset = this.add.text(width / 2 - 140, height - 40, '[ Reset Defaults ]', {
+    const reset = this.add.text(width / 2 - 220, height - 40, '[ Reset Defaults ]', {
       fontFamily: 'monospace', fontSize: '16px', color: '#ff8a8a',
     }).setOrigin(0.5).setInteractive({ useHandCursor: true });
     reset.on('pointerdown', () => { Settings.resetDefaults(); this._refreshAll(); });
 
-    const back = this.add.text(width / 2 + 120, height - 40, '[ Back ]', {
+    const tutReset = this.add.text(width / 2 - 50, height - 40, '[ Reset Tutorial ]', {
+      fontFamily: 'monospace', fontSize: '14px', color: '#b9b3d8',
+    }).setOrigin(0.5).setInteractive({ useHandCursor: true });
+    tutReset.on('pointerover', () => tutReset.setColor('#ffffff'));
+    tutReset.on('pointerout', () => tutReset.setColor('#b9b3d8'));
+    tutReset.on('pointerdown', () => {
+      resetTutorial();
+      tutReset.setColor('#9ef58b');
+      this.time.delayedCall(1200, () => { if (tutReset.active) tutReset.setColor('#b9b3d8'); });
+    });
+
+    const back = this.add.text(width / 2 + 180, height - 40, '[ Back ]', {
       fontFamily: 'monospace', fontSize: '18px', color: '#9ef58b', fontStyle: 'bold',
     }).setOrigin(0.5).setInteractive({ useHandCursor: true });
     back.on('pointerdown', () => this._close());

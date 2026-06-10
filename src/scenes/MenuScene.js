@@ -129,6 +129,14 @@ export default class MenuScene extends Phaser.Scene {
     settings.on('pointerout', () => settings.setColor('#8fe6ff'));
     settings.on('pointerdown', () => this.scene.start('SettingsScene', { caller: 'MenuScene' }));
 
+    // combat manual quick-link
+    const manualLink = this.add.text(width - 14, 48, '? Manual', {
+      fontFamily: 'monospace', fontSize: '12px', color: '#ffd27a', fontStyle: 'bold',
+    }).setOrigin(1, 0).setDepth(150).setInteractive({ useHandCursor: true });
+    manualLink.on('pointerover', () => manualLink.setColor('#ffffff'));
+    manualLink.on('pointerout', () => manualLink.setColor('#ffd27a'));
+    manualLink.on('pointerdown', () => this.scene.start('CombatManualScene', { caller: 'MenuScene' }));
+
     // once discovered this session, a small reopen button stays (no re-typing)
     if (this.registry.get('duelsUnlocked')) {
       const reopen = this.add.text(14, 12, '⚔ Duel Test', {
