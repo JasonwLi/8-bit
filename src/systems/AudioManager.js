@@ -65,14 +65,16 @@ class AudioManager {
   }
 
   // --- low-level voices ---
-  _tone(freq, dur, { type = 'square', vol = 0.2, attack = 0.005, decay = null, sweepTo = null } = {}) {
+  _tone(freq, dur, { type = 'square', vol = 0.2, attack = 0.005, decay = null, sweepTo = null, noJitter = false } = {}) {
     if (!this.ctx || this.muted) return;
     const t = this.ctx.currentTime;
     const osc = this.ctx.createOscillator();
     const g = this.ctx.createGain();
     osc.type = type;
-    // Anti-fatigue pitch jitter: ±8% randomisation so repeated SFX sound varied
-    const jitter = 1 + (Math.random() * 0.16 - 0.08);
+    // Anti-fatigue pitch jitter: ±8% randomisation so repeated combat SFX sound varied.
+    // noJitter=true skips this for tonal/musical events (levelup, bossdown, death arpeggios)
+    // so their chordal intervals remain intact.
+    const jitter = noJitter ? 1 : 1 + (Math.random() * 0.16 - 0.08);
     osc.frequency.setValueAtTime(freq * jitter, t);
     if (sweepTo) osc.frequency.exponentialRampToValueAtTime(Math.max(1, sweepTo * jitter), t + dur);
     const d = decay == null ? dur : decay;
@@ -140,6 +142,14 @@ class AudioManager {
       const target = rate > 6 ? Math.max(0.5, 1 - (rate - 6) * 0.06) : 1.0;
       this.sfxGain.gain.setTargetAtTime(target * this.vol.sfx, this.ctx.currentTime, 0.08);
     }
+    // Schedule a recovery pass 1.1s later (after the sliding window clears) so that
+    // non-combat SFX (pickup, levelup, etc.) are not permanently ducked after a burst.
+    clearTimeout(this._duckRecoveryTimer);
+    this._duckRecoveryTimer = setTimeout(() => {
+      if (this.sfxGain && this.ctx) {
+        this.sfxGain.gain.setTargetAtTime(this.vol.sfx, this.ctx.currentTime, 0.2);
+      }
+    }, 1100);
   }
 
   _noise(dur, { vol = 0.2, lowpass = 2200 } = {}) {
@@ -225,11 +235,11 @@ class AudioManager {
         break;
       case 'levelup':
         [523, 659, 784, 1046].forEach((f, i) =>
-          setTimeout(() => this._tone(f, 0.18, { type: 'square', vol: 0.14 }), i * 70)
+          setTimeout(() => this._tone(f, 0.18, { type: 'square', vol: 0.14, noJitter: true }), i * 70)
         );
         break;
       case 'equip':
-        this._tone(440, 0.1, { type: 'triangle', vol: 0.12, sweepTo: 660 });
+        this._tone(440, 0.1, { type: 'triangle', vol: 0.12, sweepTo: 660, noJitter: true });
         break;
       case 'hurt':
         if (!this._ok('hurt', 200)) return;
@@ -241,18 +251,18 @@ class AudioManager {
         break;
       case 'boss':
         [110, 110, 146, 110].forEach((f, i) =>
-          setTimeout(() => this._tone(f, 0.3, { type: 'square', vol: 0.2 }), i * 180)
+          setTimeout(() => this._tone(f, 0.3, { type: 'square', vol: 0.2, noJitter: true }), i * 180)
         );
         this._noise(0.6, { vol: 0.12, lowpass: 800 });
         break;
       case 'bossdown':
         [784, 659, 523, 392, 523, 784].forEach((f, i) =>
-          setTimeout(() => this._tone(f, 0.22, { type: 'square', vol: 0.16 }), i * 90)
+          setTimeout(() => this._tone(f, 0.22, { type: 'square', vol: 0.16, noJitter: true }), i * 90)
         );
         break;
       case 'death':
         [392, 330, 262, 196].forEach((f, i) =>
-          setTimeout(() => this._tone(f, 0.3, { type: 'triangle', vol: 0.18, sweepTo: f * 0.6 }), i * 140)
+          setTimeout(() => this._tone(f, 0.3, { type: 'triangle', vol: 0.18, sweepTo: f * 0.6, noJitter: true }), i * 140)
         );
         break;
 
@@ -265,13 +275,13 @@ class AudioManager {
       case 'empower':
         // Bright power chord — an ascending triad burst when the musou window opens.
         [330, 415, 523].forEach((f, i) =>
-          setTimeout(() => this._tone(f, 0.28, { type: 'square', vol: 0.15, sweepTo: f * 1.35 }), i * 55)
+          setTimeout(() => this._tone(f, 0.28, { type: 'square', vol: 0.15, sweepTo: f * 1.35, noJitter: true }), i * 55)
         );
         break;
       case 'resonance':
         // Resonance synergy unlock — a shimmering bell arpeggio.
         [880, 1108, 1320, 1760].forEach((f, i) =>
-          setTimeout(() => this._tone(f, 0.22, { type: 'sine', vol: 0.13, attack: 0.02 }), i * 65)
+          setTimeout(() => this._tone(f, 0.22, { type: 'sine', vol: 0.13, attack: 0.02, noJitter: true }), i * 65)
         );
         break;
       case 'elite':
@@ -300,12 +310,12 @@ class AudioManager {
         // Triumphant evolution chord — a rising four-note fanfare followed by a shimmering
         // sustain. Conveys permanent power rather than the brief 'levelup' arpeggio.
         [392, 523, 659, 784].forEach((f, i) =>
-          setTimeout(() => this._tone(f, 0.32, { type: 'square', vol: 0.16, sweepTo: f * 1.25 }), i * 80)
+          setTimeout(() => this._tone(f, 0.32, { type: 'square', vol: 0.16, sweepTo: f * 1.25, noJitter: true }), i * 80)
         );
         setTimeout(() => {
           // sustain: a bright triangle pad ring that fades over ~0.6s
           [784, 988, 1318].forEach((f, j) =>
-            this._tone(f, 0.6, { type: 'triangle', vol: 0.09 - j * 0.02, attack: 0.04 })
+            this._tone(f, 0.6, { type: 'triangle', vol: 0.09 - j * 0.02, attack: 0.04, noJitter: true })
           );
         }, 360);
         break;

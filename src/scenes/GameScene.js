@@ -190,6 +190,12 @@ export default class GameScene extends Phaser.Scene {
     this._slamWindowUntil = 0;   // when slam-combo window closes
     this._slamCdUntil     = 0;   // internal slam cooldown
     this._lastDashing     = false; // edge-detect dash->stop transition
+
+    // ── Juice tween budgets — must reset on restart so stale counts from a
+    // previous run don't permanently reduce the concurrent-tween caps.
+    this._flinchTweenCount = 0;
+    this._corpseTweenCount = 0;
+    this._camBudgetUsed    = 0;
   }
 
   // CONTINUOUS progress across the WHOLE 7/7 conquest: total floors descended so far
