@@ -122,7 +122,7 @@ export const CHARACTERS = [
     startingWeapon: 'composite_bow',
     secondary: 'arrow_storm',
     ultimate: 'sky_arrows',
-    stats: { maxHp: 120, speed: 230, attack: 1.05, defense: 0.02, rangedDefense: 0.06, lifesteal: 0, regen: 0.026, pickup: 114, luck: 2 },
+    stats: { maxHp: 120, speed: 230, attack: 1.05, defense: 0.02, rangedDefense: 0.06, lifesteal: 0, regen: 0.026, pickup: 114, luck: 2, dashCharges: 3 },
     palette: {
       skin: 0xd9a878,
       primary: 0x4a3a28, // dark leather

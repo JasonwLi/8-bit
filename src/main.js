@@ -18,6 +18,9 @@ import CombatManualScene from './scenes/CombatManualScene.js';
 
 const config = {
   type: Phaser.AUTO,
+  // QA harness: ?qa=1 runs the game loop on setTimeout instead of requestAnimationFrame —
+  // headless CDP sessions can lose rAF after a crash, which froze automated playtests.
+  fps: new URLSearchParams(location.search).has('qa') ? { forceSetTimeOut: true } : undefined,
   parent: 'game',
   backgroundColor: GAME.bgColor,
   pixelArt: true,
