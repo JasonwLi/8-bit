@@ -84,6 +84,7 @@ export default class GameScene extends Phaser.Scene {
     this._fogVisAcc = 0; // accumulator for the ~100ms fog-concealment visibility pass
     this._lastMoveDir = 0; // last movement heading (radians); persists while standing still
     this.aimDir = null;    // effective aim each frame = move direction (null in duels → auto-target)
+    this._dashAfterimageAcc = 0; // accumulator for cyan afterimage ghost cadence during a dash
   }
 
   // CONTINUOUS progress across the WHOLE 7/7 conquest: total floors descended so far
@@ -589,6 +590,23 @@ export default class GameScene extends Phaser.Scene {
     this.map.update(delta, time);
     this.player.updateBuffs(time);
     this.player.applyRegen(delta / 1000);
+
+    // Dash tick: advance burst/recharge state; spawn cyan afterimage ghosts during dash.
+    this.player.tickDash(time);
+    if (this.player.dashing) {
+      this._dashAfterimageAcc = (this._dashAfterimageAcc || 0) + delta;
+      // Spawn a ghost every ~55ms during the burst window (matches the swift-elite pattern).
+      if (this._dashAfterimageAcc >= 55) {
+        this._dashAfterimageAcc = 0;
+        const ghost = this.add.image(this.player.x, this.player.y, this.player.texture.key)
+          .setDepth(9)
+          .setScale(this.player.scaleX, this.player.scaleY)
+          .setTint(0x00e5ff)   // cyan
+          .setAlpha(0.5)
+          .setFlipX(this.player.flipX);
+        this.tweens.add({ targets: ghost, alpha: 0, duration: 220, onComplete: () => ghost.destroy() });
+      }
+    }
 
     // Status aura around the player — makes active buffs/debuffs obvious at a glance.
     // Priority: empowered (musou) > berserk (red) > defense/testudo (gold) > speed (green)
@@ -1652,11 +1670,17 @@ export default class GameScene extends Phaser.Scene {
   onEnemyProjectileHit(player, proj) {
     if (!proj.active) return;
     this.deactivate(proj);
-    this.reactToHit(player.takeDamage(proj.damage, this.time.now, { bypassIframes: true, ranged: true }));
+    // Respect dash i-frames so a perfect-dodge through a volley fires the counter window.
+    // Regular hurt i-frames are bypassed as before (enemy projectiles always land after the
+    // initial hit window), but if the player is currently dash-invuln the projectile is
+    // "caught" by the dodge — bypassIframes:false lets takeDamage check the invuln timestamp.
+    const bypassIframes = !player.isDashInvuln(this.time.now);
+    this.reactToHit(player.takeDamage(proj.damage, this.time.now, { bypassIframes, ranged: true }));
   }
 
   reactToHit(result) {
     if (result === 'dodge') Audio.sfx('dodge');
+    else if (result === 'perfect_dodge') this.triggerPerfectDodge();
     else if (result === 'hit') {
       Audio.sfx('hurt');
       // Searing Wounds mutation: drop a fire patch at the player's feet on each hit.
@@ -1665,6 +1689,42 @@ export default class GameScene extends Phaser.Scene {
         this.spawnHazardZone(this.player.x, this.player.y, 48, 6, 80, 280, 1400, 'fire', 'enemies');
       }
     } else if (result === 'dead') this.endRun();
+  }
+
+  // Called when an attack is soaked by dash i-frames — triggers the counter window
+  // (once per 3s): instant secondary cooldown reset + 25% damage buff + visual feedback.
+  triggerPerfectDodge() {
+    const now = this.time.now;
+    if (now < this.player.perfectDodgeCooldownUntil) return; // still on cooldown
+    this.player.perfectDodgeCooldownUntil = now + 3000;
+
+    // Reset secondary cooldown immediately so the counter is usable at once.
+    this.secondary.timer = 0;
+
+    // 25% damage buff for 1.2 s.
+    this.player.addBuff('damage', 1.25, 1200, now);
+
+    // Gold flash on the player.
+    this.player.setTint(0xffd700);
+    this.time.delayedCall(120, () => { if (this.player.active) this.player.clearTint(); });
+
+    // Scale pop: a punchy grow-shrink tween on the sprite (render-only; body unchanged).
+    this.tweens.add({
+      targets: this.player, scaleX: 1.4, scaleY: 1.4, duration: 60, yoyo: true, ease: 'Quad.easeOut',
+      onComplete: () => { if (this.player.active) this.player.setScale(1); },
+    });
+
+    // "PERFECT" floating text above the player (same style as showSpeechText but unthrottled).
+    const t = this.add.text(this.player.x, this.player.y - 48, 'PERFECT', {
+      fontFamily: 'monospace', fontSize: '16px', color: '#ffd700', fontStyle: 'bold',
+      stroke: '#000000', strokeThickness: 3,
+    }).setOrigin(0.5).setDepth(52);
+    this.tweens.add({ targets: t, y: t.y - 26, alpha: 0, duration: 900, ease: 'Quad.easeIn', onComplete: () => t.destroy() });
+
+    // Shockwave ring on the player position.
+    this.fx.shockwave(this.player.x, this.player.y, 0xffd700, 80);
+
+    Audio.sfx('parry'); // the existing 'parry' sfx is a sharp metallic clash — fits perfectly
   }
 
   onProjectileHit(projectile, enemy) {
@@ -1905,12 +1965,13 @@ export default class GameScene extends Phaser.Scene {
       primary: kb.addKey(b.primary),
       secondary: kb.addKey(b.secondary),
       ultimate: kb.addKey(b.ultimate),
+      dash: kb.addKey(b.dash),
       pause: kb.addKey(b.pause),
     };
   }
 
   // Poll the rebindable combat keys each frame. Primary = HELD (fire at cadence);
-  // secondary/ultimate/pause = tap (JustDown). Duels route the same keys to the
+  // secondary/ultimate/dash/pause = tap (JustDown). Duels route the same keys to the
   // duel state machine (primary becomes a single swing per press).
   handleCombatInput() {
     if (this.gameOver) return;
@@ -1923,6 +1984,25 @@ export default class GameScene extends Phaser.Scene {
       this.scene.pause();
       this.scene.launch('PauseScene', { gameScene: this });
       return;
+    }
+
+    // Dash: allowed outside duels AND inside (makes duels more expressive), but NOT when
+    // rooted to an attack-commitment frame — rooted = full body commitment, can't cancel.
+    // In a duel, `rooted` is set by the attack state machine; standing/moving = not rooted,
+    // so the player can dash freely between swings. No dash while the overall game is paused.
+    if (JustDown(bk.dash) && !this.player.rooted && !this.gameOver) {
+      const k = this.keys;
+      let dx = 0;
+      let dy = 0;
+      if (k.A.isDown || k.LEFT.isDown) dx -= 1;
+      if (k.D.isDown || k.RIGHT.isDown) dx += 1;
+      if (k.W.isDown || k.UP.isDown) dy -= 1;
+      if (k.S.isDown || k.DOWN.isDown) dy += 1;
+      const consumed = this.player.startDash(dx, dy, this._lastMoveDir, this.time.now);
+      if (consumed) {
+        Audio.sfx('whoosh');
+        this._dashAfterimageAcc = 0; // reset ghost timer so first ghost fires immediately
+      }
     }
 
     if (this.dueling) {

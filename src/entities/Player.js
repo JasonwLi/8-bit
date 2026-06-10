@@ -42,6 +42,17 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
     this._regenCarry = 0;
     this.rooted = false; // duel: set true during attack-commitment / stun so move() can't walk you out of it
 
+    // dash: 2 independent charges, each recharges in 1.8s
+    this.dashCharges = 2;
+    this.dashChargeMax = 2;
+    this.dashRecharge = [0, 0]; // timestamps at which each spent charge refills
+    this.dashing = false;       // true for the ~240ms burst window
+    this.dashUntil = 0;         // when the burst velocity ends
+    this.dashInvulnUntil = 0;   // i-frames extend 60ms past the burst (separate from takeDamage invuln)
+    this.dashDir = { x: 0, y: 0 }; // normalized dash direction
+    // perfect-dodge counter: one proc per 3s, triggered when an attack is blocked by dash i-frames
+    this.perfectDodgeCooldownUntil = 0;
+
     // per-frame modifiers layered on top of recompute()
     this.buffs = [];
     this.buffDamageMult = 1;
@@ -157,6 +168,8 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
 
   move(dirX, dirY) {
     if (this.rooted) { this.setVelocity(0, 0); return; } // committed to an attack / stunned: input can't move you
+    // During a dash the velocity is owned by the dash burst — don't let normal move() overwrite it.
+    if (this.dashing) return;
     const len = Math.hypot(dirX, dirY) || 1;
     const sp = this.speed * this.buffSpeedMult * this.terrainSpeedMult * this.curseSlow;
     this.setVelocity((dirX / len) * sp, (dirY / len) * sp);
@@ -164,10 +177,89 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
     else if (dirX > 0) this.setFlipX(false);
   }
 
-  // Returns 'dead' | 'hit' | 'dodge'. `ranged` picks ranged vs melee defense.
+  // Attempt a dash in direction (dx, dy). Returns true if a charge was consumed.
+  // `lastMoveDir` (radians) is the fallback when standing still.
+  // Called from GameScene — NOT called when rooted in a duel commitment swing, but
+  // IS allowed during duel movement (rooted only blocks attacks, not dashes there).
+  startDash(dx, dy, lastMoveDir, now) {
+    // Consume a charge (refilling or already available).
+    this._refreshCharges(now);
+    if (this.dashCharges <= 0) return false;
+    // Pick direction: use current movement input, fall back to last known heading.
+    let nx = dx;
+    let ny = dy;
+    if (Math.hypot(nx, ny) < 0.1) {
+      // Standing still — use last move heading.
+      nx = Math.cos(lastMoveDir);
+      ny = Math.sin(lastMoveDir);
+    }
+    const len = Math.hypot(nx, ny) || 1;
+    nx /= len; ny /= len;
+
+    // Mark the consumed charge with a recharge timestamp.
+    this.dashCharges -= 1;
+    for (let i = 0; i < this.dashChargeMax; i++) {
+      if (this.dashRecharge[i] <= now) {
+        this.dashRecharge[i] = now + 1800; // 1.8s per charge
+        break;
+      }
+    }
+
+    const SPEED = this.speed * 3.2; // ~3.2x normal speed
+    const DURATION = 240;           // ms burst window
+    const IFRAME_TAIL = 60;         // extra i-frames after burst ends
+
+    this.dashing = true;
+    this.dashUntil = now + DURATION;
+    this.dashInvulnUntil = now + DURATION + IFRAME_TAIL;
+    // Extend the existing invuln window so both systems agree on immunity.
+    this.invuln = Math.max(this.invuln, this.dashInvulnUntil);
+    this.dashDir.x = nx;
+    this.dashDir.y = ny;
+    this.setVelocity(nx * SPEED, ny * SPEED);
+    if (nx < 0) this.setFlipX(true);
+    else if (nx > 0) this.setFlipX(false);
+    return true;
+  }
+
+  // Called every frame from GameScene.update — ends the burst and ticks charge refills.
+  tickDash(now) {
+    // Tick refills regardless of dashing state.
+    this._refreshCharges(now);
+    // End the burst when the window expires.
+    if (this.dashing && now >= this.dashUntil) {
+      this.dashing = false;
+      // Don't zero velocity — let physics/move take over naturally next frame.
+    }
+  }
+
+  // Promote any timestamps whose recharge time has passed back into available charges.
+  _refreshCharges(now) {
+    for (let i = 0; i < this.dashChargeMax; i++) {
+      if (this.dashCharges < this.dashChargeMax && this.dashRecharge[i] > 0 && now >= this.dashRecharge[i]) {
+        this.dashCharges += 1;
+        this.dashRecharge[i] = 0;
+      }
+    }
+  }
+
+  // True when the player is currently covered by dash i-frames (burst or tail).
+  isDashInvuln(now) {
+    return now < this.dashInvulnUntil;
+  }
+
+  // Returns 'dead' | 'hit' | 'dodge' | 'perfect_dodge'. `ranged` picks ranged vs melee defense.
+  // When the damage would be blocked by dash i-frames (not regular i-frames and not bypassIframes),
+  // the result is 'perfect_dodge' so GameScene can trigger the counter-window.
   takeDamage(amount, time, { bypassIframes = false, ranged = false } = {}) {
     if (this.invulnBuff) return 'hit'; // invulnerability power-up: ignore all damage
-    if (!bypassIframes && time < this.invuln) return 'hit';
+    if (!bypassIframes && time < this.invuln) {
+      // Check whether the active protection is specifically from a dash (not generic hurt i-frames).
+      // Dash i-frames are always >= the regular invuln so if dashInvulnUntil is still active AND
+      // the regular hurt window would NOT cover it, we know the dash is doing the blocking.
+      const dashCovering = this.isDashInvuln(time);
+      return dashCovering ? 'perfect_dodge' : 'hit';
+    }
     if (Math.random() < this.dodge) {
       this.showDodge();
       return 'dodge';

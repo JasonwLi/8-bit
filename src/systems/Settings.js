@@ -14,6 +14,7 @@ const DEFAULTS = {
     primary: 'J',
     secondary: 'K',
     ultimate: 'L',
+    dash: 'SHIFT',
     pause: 'ESC',
   },
 };
@@ -23,6 +24,7 @@ export const BINDABLE = [
   { id: 'primary', label: 'Primary attack (hold)' },
   { id: 'secondary', label: 'Secondary' },
   { id: 'ultimate', label: 'Ultimate' },
+  { id: 'dash', label: 'Dash (2 charges)' },
   { id: 'pause', label: 'Pause' },
 ];
 

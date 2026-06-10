@@ -198,6 +198,12 @@ class AudioManager {
         this._tone(1480, 0.06, { type: 'square', vol: 0.14, sweepTo: 880, decay: 0.14 });
         this._noise(0.06, { vol: 0.08, lowpass: 5000 });
         break;
+      case 'whoosh':
+        // Dash whoosh — a quick high-pitched air burst sweep.
+        if (!this._ok('whoosh', 80)) return;
+        this._tone(1200, 0.12, { type: 'sine', vol: 0.11, sweepTo: 320, decay: 0.10 });
+        this._noise(0.08, { vol: 0.05, lowpass: 6000 });
+        break;
       case 'evolve':
         // Triumphant evolution chord — a rising four-note fanfare followed by a shimmering
         // sustain. Conveys permanent power rather than the brief 'levelup' arpeggio.

@@ -103,10 +103,10 @@ export default class MenuScene extends Phaser.Scene {
     }
     renderPage();
 
-    const kP = keyLabel(Settings.binds.primary), kS = keyLabel(Settings.binds.secondary), kU = keyLabel(Settings.binds.ultimate);
+    const kP = keyLabel(Settings.binds.primary), kS = keyLabel(Settings.binds.secondary), kU = keyLabel(Settings.binds.ultimate), kD = keyLabel(Settings.binds.dash);
     this.add
       .text(width / 2, height - 22,
-        `Move: WASD / Arrows  ·  attacks fire where you move  •  ${kP} attack · ${kS} secondary · ${kU} ultimate`,
+        `Move: WASD / Arrows  ·  ${kP} attack · ${kS} secondary · ${kU} ultimate · ${kD} dash`,
         { fontFamily: 'monospace', fontSize: '13px', color: '#7d7896' })
       .setOrigin(0.5);
 

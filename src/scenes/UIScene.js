@@ -178,6 +178,22 @@ export default class UIScene extends Phaser.Scene {
     // Overheal: a yellow-gold stripe overlaying the red fill (capped at bar width)
     if (overhealPct > 0) g.fillStyle(0xffd700, 0.7).fillRect(hx, hy, hw * overhealPct, Math.ceil(hh * 0.4));
     this.hpText.setPosition(hx + hw + 8, hy + 1).setText(`${Math.max(0, Math.ceil(p.hp))}/${p.maxHp}`);
+
+    // Dash charge pips: two small squares below the right edge of the HP bar.
+    // Filled = charge ready (cyan), empty = recharging (dark). Positioned just right
+    // of the HP bar so they're always visible without cluttering the left column.
+    {
+      const pipW = 8, pipH = 8, pipGap = 3;
+      const px0 = hx + hw + 8;  // starts at the same X as the HP number's right offset
+      const py0 = hy + hh + 4;  // just below the HP bar
+      for (let i = 0; i < p.dashChargeMax; i++) {
+        const cx = px0 + i * (pipW + pipGap);
+        // Dark border/bg
+        g.fillStyle(0x000000, 0.6).fillRect(cx - 1, py0 - 1, pipW + 2, pipH + 2);
+        const filled = i < p.dashCharges;
+        g.fillStyle(filled ? 0x00e5ff : 0x112222, filled ? 0.92 : 0.7).fillRect(cx, py0, pipW, pipH);
+      }
+    }
     const extra = [];
     if (p.meleeDR > 0) extra.push(`DEF ${Math.round(p.meleeDR * 100)}`);
     if (p.rangedDR > 0) extra.push(`RDEF ${Math.round(p.rangedDR * 100)}`);
