@@ -181,6 +181,23 @@ const ENEMY_DESC = {
   cannoneer: 'a grim black-armoured heavy cannoneer hauling a short stubby hand-cannon pointed forward, smoke and sparks at the muzzle, menacing bulk',
   acolyte: 'a robed dark cult acolyte in deep purple robes with glowing violet eyes and outstretched hands crackling with dark magic energy, unsettling and sinister',
   wraith: 'a translucent ghostly void wraith in dark navy-blue tattered robes with glowing white eyes, partially fading into shadow, ethereal and threatening',
+  // ── 16 civ signature units ──────────────────────────────────────────────────
+  china_bolt_cart: 'a wooden two-wheeled cart lacquered red-and-black with a mounted chu-ko-nu repeating crossbow on top, a Han-era soldier in bronze lamellar armour crouching behind it operating a hand crank, warm amber torchlight',
+  china_fire_lance: 'a Song-dynasty foot soldier in dark padded armour holding a thick bamboo tube-spear with the tip trailing orange sparks and grey smoke, belt pouch of ignition powder, rust-red tunic',
+  japan_shinobi: 'a Sengoku shinobi in ash-grey kosode and black tabi, half-face wrapped in dark cloth, gripping a straight ninjato at low guard, faint purple smoke trail at feet suggesting teleport residue',
+  japan_yari_ashigaru: 'three Ashigaru foot-soldiers in straw-yellow do-maru armour advancing shoulder-to-shoulder, gripping long yari spears at a consistent forward angle, sashimono clan-flag banners on their backs, muted ochre and indigo palette',
+  rome_testudo: 'four Roman legionaries in lorica segmentata locked shoulder-to-shoulder beneath a canopy of overlapping scutum shields, visible only from chest-down, iron-red tunics, polished boss ornaments catching light',
+  rome_scorpio: 'a heavy Roman iron-shod scorpio bolt-thrower on a low wooden tripod, two legionaries in segmented armour operating the windlass crank, bolt resting in the groove glinting silver, stone-coloured background',
+  byzantium_siphon: 'two Byzantine siphonarioi in dark lamellar armour operating a bronze-nozzle pressurised siphon mounted on a two-wheel cart, nozzle glowing orange-red, dark olive uniforms trimmed gold, Greek fire splashing amber',
+  byzantium_kataphraktoi: 'a Byzantine cataphract on an armoured horse, rider and mount fully encased in klivanion lamellar plates, kontos lance levelled forward, gold-trimmed purple pennant, deep maroon and burnished-iron palette',
+  sumer_war_chariot: 'an Early Dynastic Sumerian war chariot with solid disc wheels, two onager asses in copper-studded harness, a spearman in a fleece-bordered helmet standing on the platform, earth-ochre and copper palette',
+  sumer_ashipu: 'an Akkadian ashipu exorcist priest in fringed wool kaunakes robe, bald-shaved head, holding a clay ritual tablet aloft and a lapis-lazuli staff, golden incantation smoke rising around him, lapis-blue and ochre palette',
+  macedon_phalangite: 'a Macedonian phalangite in bronze thorax and Macedonian-style helmet with forward-angled crest, gripping a long sarissa pike at low port arms, linothorax shoulder guards, classic bronze and deep-blue palette',
+  macedon_peltast: 'an Agrianian javelin skirmisher in short Greek chiton, light leather pelta shield slung on left arm, right arm cocked back mid-throw, sandalled and bareheaded, terracotta and earthy-brown palette with olive shield',
+  mongolia_horse_archer: 'a Mongol composite-bow horse archer at full gallop on a stocky steppe pony, torso twisted backward in the Parthian shot, deel coat flaring, recurve bow drawn, earth-brown and rust-red felt palette',
+  mongolia_drummer: 'a Mongol naccara drummer astride a painted warhorse, two large copper kettledrums strapped to the horse flanks, drummer striking with curved mallets, silk-wrapped drums bearing tugh insignia, deep red and brass palette',
+  norse_berserkr: 'a Norse berserkr in bear-pelt cloak with no armour, bare-chested above tattered trews, dual axes, wild matted beard and hair, eyes wide, body covered in rune-carved self-inflicted cuts, iron-grey and blood-red palette',
+  norse_skjaldborg: 'two Norse huscarls shoulder-to-shoulder, round painted shields interlocked edge-to-edge forming a wall, iron-rimmed with knotwork, long spears angled forward above the shield rim, iron byrnies chainmail, blue-grey and forest-green palette',
 };
 
 export function buildManifest() {
