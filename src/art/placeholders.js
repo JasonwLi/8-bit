@@ -138,148 +138,9 @@ export function generatePlaceholders(scene) {
     bake(scene, `boss_${b.id}`, b.size, b.size, (g) => drawFigure(g, b.size, b.palette, opts));
   }
 
-  // --- Enemies ---
-  for (const key of Object.keys(ENEMIES)) {
-    const e = ENEMIES[key];
-    const pal = { skin: 0xd8b08a, ...e.palette };
-    bake(scene, `enemy_${e.id}`, e.size, e.size, (g) => {
-      if (e.id === 'machine' || e.id === 'ballista') {
-        // a boxy siege engine instead of a humanoid
-        const u = e.size / 16;
-        g.fillStyle(0x000000, 0.25);
-        g.fillEllipse(e.size / 2, e.size - u, u * 9, u * 2.5);
-        g.fillStyle(e.palette.primary, 1);
-        g.fillRect(u * 2, u * 5, u * 12, u * 8);
-        g.fillStyle(e.palette.secondary, 1);
-        g.fillRect(u * 3, u * 3, u * 10, u * 2.5); // arm
-        g.fillStyle(e.palette.accent, 1);
-        g.fillCircle(u * 4, u * 13, u * 2.2);
-        g.fillCircle(u * 12, u * 13, u * 2.2);
-
-      } else if (e.id === 'harpy') {
-        // Winged aerial unit: small body + two swept wings
-        const u = e.size / 16;
-        g.fillStyle(0x000000, 0.25);
-        g.fillEllipse(e.size / 2, e.size - u * 0.5, u * 7, u * 1.8);
-        // left wing (swept back triangle)
-        g.fillStyle(e.palette.secondary, 1);
-        g.fillTriangle(
-          Math.round(u * 8), Math.round(u * 7),   // body centre
-          Math.round(u * 0.5), Math.round(u * 3), // wingtip upper
-          Math.round(u * 2), Math.round(u * 10)   // wingtip lower
-        );
-        // right wing
-        g.fillTriangle(
-          Math.round(u * 8), Math.round(u * 7),
-          Math.round(u * 15.5), Math.round(u * 3),
-          Math.round(u * 14), Math.round(u * 10)
-        );
-        // wing accent edge stripes
-        g.fillStyle(e.palette.accent, 1);
-        g.fillTriangle(
-          Math.round(u * 7.5), Math.round(u * 7.5),
-          Math.round(u * 1), Math.round(u * 3.5),
-          Math.round(u * 2.5), Math.round(u * 10)
-        );
-        g.fillTriangle(
-          Math.round(u * 8.5), Math.round(u * 7.5),
-          Math.round(u * 15), Math.round(u * 3.5),
-          Math.round(u * 13.5), Math.round(u * 10)
-        );
-        // compact body
-        g.fillStyle(e.palette.primary, 1);
-        g.fillRect(Math.round(u * 6), Math.round(u * 6), Math.round(u * 4), Math.round(u * 6));
-        // head
-        g.fillStyle(0xd8b08a, 1);
-        g.fillRect(Math.round(u * 6.5), Math.round(u * 3.5), Math.round(u * 3), Math.round(u * 3));
-        // beak
-        g.fillStyle(e.palette.secondary, 1);
-        g.fillTriangle(
-          Math.round(u * 7), Math.round(u * 5),
-          Math.round(u * 9), Math.round(u * 5),
-          Math.round(u * 8), Math.round(u * 6.5)
-        );
-
-      } else if (e.id === 'catapult') {
-        // Siege catapult: wide frame, long throwing arm, bucket
-        const u = e.size / 16;
-        g.fillStyle(0x000000, 0.3);
-        g.fillEllipse(e.size / 2, e.size - u * 0.5, u * 14, u * 2.5);
-        // base frame
-        g.fillStyle(e.palette.primary, 1);
-        g.fillRect(Math.round(u * 1), Math.round(u * 9), Math.round(u * 14), Math.round(u * 5));
-        // crossbeam
-        g.fillStyle(e.palette.secondary, 1);
-        g.fillRect(Math.round(u * 0.5), Math.round(u * 8), Math.round(u * 15), Math.round(u * 1.5));
-        // throwing arm (long diagonal beam)
-        g.fillStyle(e.palette.secondary, 1);
-        g.fillRect(Math.round(u * 7), Math.round(u * 2), Math.round(u * 1.5), Math.round(u * 7));
-        g.fillRect(Math.round(u * 2), Math.round(u * 7), Math.round(u * 5), Math.round(u * 1.5));
-        // counterweight box on short end
-        g.fillStyle(e.palette.accent, 1);
-        g.fillRect(Math.round(u * 1.5), Math.round(u * 5), Math.round(u * 3), Math.round(u * 2.5));
-        // projectile bucket / sling on long end
-        g.fillStyle(e.palette.secondary, 1);
-        g.fillCircle(Math.round(u * 8), Math.round(u * 1.5), Math.round(u * 1.5));
-        // wheels
-        g.fillStyle(e.palette.accent, 1);
-        g.fillCircle(Math.round(u * 3), Math.round(u * 13.5), Math.round(u * 2));
-        g.fillCircle(Math.round(u * 13), Math.round(u * 13.5), Math.round(u * 2));
-        // wheel spokes
-        g.fillStyle(e.palette.primary, 1);
-        g.fillRect(Math.round(u * 2.6), Math.round(u * 11.8), Math.round(u * 0.8), Math.round(u * 3.4));
-        g.fillRect(Math.round(u * 1.5), Math.round(u * 13), Math.round(u * 3), Math.round(u * 0.8));
-        g.fillRect(Math.round(u * 12.6), Math.round(u * 11.8), Math.round(u * 0.8), Math.round(u * 3.4));
-        g.fillRect(Math.round(u * 11.5), Math.round(u * 13), Math.round(u * 3), Math.round(u * 0.8));
-
-      } else if (e.id === 'bomber') {
-        // Round bomb body with a lit fuse on top; squat legs
-        const u = e.size / 16;
-        g.fillStyle(0x000000, 0.3);
-        g.fillEllipse(e.size / 2, e.size - u * 0.5, u * 9, u * 2);
-        // bomb body (large dark circle)
-        g.fillStyle(e.palette.primary, 1);
-        g.fillCircle(Math.round(u * 8), Math.round(u * 8.5), Math.round(u * 5.5));
-        // sheen highlight
-        g.fillStyle(e.palette.secondary, 0.7);
-        g.fillCircle(Math.round(u * 6.5), Math.round(u * 6.5), Math.round(u * 2));
-        // fuse stub at top
-        g.fillStyle(e.palette.secondary, 1);
-        g.fillRect(Math.round(u * 7.5), Math.round(u * 2.5), Math.round(u * 1), Math.round(u * 1));
-        g.fillRect(Math.round(u * 8), Math.round(u * 1.5), Math.round(u * 1.2), Math.round(u * 1));
-        g.fillRect(Math.round(u * 7.5), Math.round(u * 0.8), Math.round(u * 1), Math.round(u * 1));
-        // fuse spark
-        g.fillStyle(0xffee00, 1);
-        g.fillCircle(Math.round(u * 8), Math.round(u * 0.7), Math.round(u * 0.8));
-        // stubby legs
-        g.fillStyle(e.palette.accent, 1);
-        g.fillRect(Math.round(u * 5), Math.round(u * 13), Math.round(u * 2), Math.round(u * 2.5));
-        g.fillRect(Math.round(u * 9), Math.round(u * 13), Math.round(u * 2), Math.round(u * 2.5));
-
-      } else if (e.id === 'blinker') {
-        // Mystical robed caster with a glowing void-purple aura ring
-        const u = e.size / 16;
-        // outer aura glow ring
-        g.fillStyle(e.palette.secondary, 0.25);
-        g.fillCircle(Math.round(u * 8), Math.round(u * 8), Math.round(u * 7.5));
-        // draw base humanoid figure in dark robes
-        drawFigure(g, e.size, pal, {});
-        // overlay void-rune glyph in the chest area
-        g.fillStyle(e.palette.secondary, 0.9);
-        g.fillCircle(Math.round(u * 8), Math.round(u * 9.5), Math.round(u * 1.2));
-        // blink-charge ring around the body
-        g.lineStyle(Math.round(u * 0.8), e.palette.secondary, 0.7);
-        g.strokeCircle(Math.round(u * 8), Math.round(u * 8), Math.round(u * 6));
-
-      } else {
-        drawFigure(g, e.size, pal, {});
-      }
-    });
-  }
-
   // ── Signature unit placeholders ────────────────────────────────────────────
-  // Each is a distinctive silhouette so it's visually distinct from stock enemies
-  // while staying readable at 36–54px. Real AI art replaces these next slice.
+  // Baked BEFORE the generic ENEMIES loop so these distinctive silhouettes win
+  // the textures.exists guard — the loop below skips keys already registered.
 
   // china_bolt_cart — two-wheeled cart with a crossbow mount on top
   bake(scene, 'enemy_china_bolt_cart', 48, 48, (g) => {
@@ -585,6 +446,145 @@ export function generatePlaceholders(scene) {
       g.fillStyle(0xd4af37, 1); g.fillTriangle(25 + ox, Math.round(u*1.5), 25 + ox + Math.round(u*0.6), Math.round(u*3.5), 25 + ox - Math.round(u*0.6), Math.round(u*3.5));
     }
   });
+
+  // --- Enemies ---
+  for (const key of Object.keys(ENEMIES)) {
+    const e = ENEMIES[key];
+    const pal = { skin: 0xd8b08a, ...e.palette };
+    bake(scene, `enemy_${e.id}`, e.size, e.size, (g) => {
+      if (e.id === 'machine' || e.id === 'ballista') {
+        // a boxy siege engine instead of a humanoid
+        const u = e.size / 16;
+        g.fillStyle(0x000000, 0.25);
+        g.fillEllipse(e.size / 2, e.size - u, u * 9, u * 2.5);
+        g.fillStyle(e.palette.primary, 1);
+        g.fillRect(u * 2, u * 5, u * 12, u * 8);
+        g.fillStyle(e.palette.secondary, 1);
+        g.fillRect(u * 3, u * 3, u * 10, u * 2.5); // arm
+        g.fillStyle(e.palette.accent, 1);
+        g.fillCircle(u * 4, u * 13, u * 2.2);
+        g.fillCircle(u * 12, u * 13, u * 2.2);
+
+      } else if (e.id === 'harpy') {
+        // Winged aerial unit: small body + two swept wings
+        const u = e.size / 16;
+        g.fillStyle(0x000000, 0.25);
+        g.fillEllipse(e.size / 2, e.size - u * 0.5, u * 7, u * 1.8);
+        // left wing (swept back triangle)
+        g.fillStyle(e.palette.secondary, 1);
+        g.fillTriangle(
+          Math.round(u * 8), Math.round(u * 7),   // body centre
+          Math.round(u * 0.5), Math.round(u * 3), // wingtip upper
+          Math.round(u * 2), Math.round(u * 10)   // wingtip lower
+        );
+        // right wing
+        g.fillTriangle(
+          Math.round(u * 8), Math.round(u * 7),
+          Math.round(u * 15.5), Math.round(u * 3),
+          Math.round(u * 14), Math.round(u * 10)
+        );
+        // wing accent edge stripes
+        g.fillStyle(e.palette.accent, 1);
+        g.fillTriangle(
+          Math.round(u * 7.5), Math.round(u * 7.5),
+          Math.round(u * 1), Math.round(u * 3.5),
+          Math.round(u * 2.5), Math.round(u * 10)
+        );
+        g.fillTriangle(
+          Math.round(u * 8.5), Math.round(u * 7.5),
+          Math.round(u * 15), Math.round(u * 3.5),
+          Math.round(u * 13.5), Math.round(u * 10)
+        );
+        // compact body
+        g.fillStyle(e.palette.primary, 1);
+        g.fillRect(Math.round(u * 6), Math.round(u * 6), Math.round(u * 4), Math.round(u * 6));
+        // head
+        g.fillStyle(0xd8b08a, 1);
+        g.fillRect(Math.round(u * 6.5), Math.round(u * 3.5), Math.round(u * 3), Math.round(u * 3));
+        // beak
+        g.fillStyle(e.palette.secondary, 1);
+        g.fillTriangle(
+          Math.round(u * 7), Math.round(u * 5),
+          Math.round(u * 9), Math.round(u * 5),
+          Math.round(u * 8), Math.round(u * 6.5)
+        );
+
+      } else if (e.id === 'catapult') {
+        // Siege catapult: wide frame, long throwing arm, bucket
+        const u = e.size / 16;
+        g.fillStyle(0x000000, 0.3);
+        g.fillEllipse(e.size / 2, e.size - u * 0.5, u * 14, u * 2.5);
+        // base frame
+        g.fillStyle(e.palette.primary, 1);
+        g.fillRect(Math.round(u * 1), Math.round(u * 9), Math.round(u * 14), Math.round(u * 5));
+        // crossbeam
+        g.fillStyle(e.palette.secondary, 1);
+        g.fillRect(Math.round(u * 0.5), Math.round(u * 8), Math.round(u * 15), Math.round(u * 1.5));
+        // throwing arm (long diagonal beam)
+        g.fillStyle(e.palette.secondary, 1);
+        g.fillRect(Math.round(u * 7), Math.round(u * 2), Math.round(u * 1.5), Math.round(u * 7));
+        g.fillRect(Math.round(u * 2), Math.round(u * 7), Math.round(u * 5), Math.round(u * 1.5));
+        // counterweight box on short end
+        g.fillStyle(e.palette.accent, 1);
+        g.fillRect(Math.round(u * 1.5), Math.round(u * 5), Math.round(u * 3), Math.round(u * 2.5));
+        // projectile bucket / sling on long end
+        g.fillStyle(e.palette.secondary, 1);
+        g.fillCircle(Math.round(u * 8), Math.round(u * 1.5), Math.round(u * 1.5));
+        // wheels
+        g.fillStyle(e.palette.accent, 1);
+        g.fillCircle(Math.round(u * 3), Math.round(u * 13.5), Math.round(u * 2));
+        g.fillCircle(Math.round(u * 13), Math.round(u * 13.5), Math.round(u * 2));
+        // wheel spokes
+        g.fillStyle(e.palette.primary, 1);
+        g.fillRect(Math.round(u * 2.6), Math.round(u * 11.8), Math.round(u * 0.8), Math.round(u * 3.4));
+        g.fillRect(Math.round(u * 1.5), Math.round(u * 13), Math.round(u * 3), Math.round(u * 0.8));
+        g.fillRect(Math.round(u * 12.6), Math.round(u * 11.8), Math.round(u * 0.8), Math.round(u * 3.4));
+        g.fillRect(Math.round(u * 11.5), Math.round(u * 13), Math.round(u * 3), Math.round(u * 0.8));
+
+      } else if (e.id === 'bomber') {
+        // Round bomb body with a lit fuse on top; squat legs
+        const u = e.size / 16;
+        g.fillStyle(0x000000, 0.3);
+        g.fillEllipse(e.size / 2, e.size - u * 0.5, u * 9, u * 2);
+        // bomb body (large dark circle)
+        g.fillStyle(e.palette.primary, 1);
+        g.fillCircle(Math.round(u * 8), Math.round(u * 8.5), Math.round(u * 5.5));
+        // sheen highlight
+        g.fillStyle(e.palette.secondary, 0.7);
+        g.fillCircle(Math.round(u * 6.5), Math.round(u * 6.5), Math.round(u * 2));
+        // fuse stub at top
+        g.fillStyle(e.palette.secondary, 1);
+        g.fillRect(Math.round(u * 7.5), Math.round(u * 2.5), Math.round(u * 1), Math.round(u * 1));
+        g.fillRect(Math.round(u * 8), Math.round(u * 1.5), Math.round(u * 1.2), Math.round(u * 1));
+        g.fillRect(Math.round(u * 7.5), Math.round(u * 0.8), Math.round(u * 1), Math.round(u * 1));
+        // fuse spark
+        g.fillStyle(0xffee00, 1);
+        g.fillCircle(Math.round(u * 8), Math.round(u * 0.7), Math.round(u * 0.8));
+        // stubby legs
+        g.fillStyle(e.palette.accent, 1);
+        g.fillRect(Math.round(u * 5), Math.round(u * 13), Math.round(u * 2), Math.round(u * 2.5));
+        g.fillRect(Math.round(u * 9), Math.round(u * 13), Math.round(u * 2), Math.round(u * 2.5));
+
+      } else if (e.id === 'blinker') {
+        // Mystical robed caster with a glowing void-purple aura ring
+        const u = e.size / 16;
+        // outer aura glow ring
+        g.fillStyle(e.palette.secondary, 0.25);
+        g.fillCircle(Math.round(u * 8), Math.round(u * 8), Math.round(u * 7.5));
+        // draw base humanoid figure in dark robes
+        drawFigure(g, e.size, pal, {});
+        // overlay void-rune glyph in the chest area
+        g.fillStyle(e.palette.secondary, 0.9);
+        g.fillCircle(Math.round(u * 8), Math.round(u * 9.5), Math.round(u * 1.2));
+        // blink-charge ring around the body
+        g.lineStyle(Math.round(u * 0.8), e.palette.secondary, 0.7);
+        g.strokeCircle(Math.round(u * 8), Math.round(u * 8), Math.round(u * 6));
+
+      } else {
+        drawFigure(g, e.size, pal, {});
+      }
+    });
+  }
 
   // --- XP gem ---
   bake(scene, 'gem', SPRITE.gem, SPRITE.gem, (g) => {
