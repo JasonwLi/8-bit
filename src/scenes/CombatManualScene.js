@@ -75,6 +75,9 @@ function buildPages(binds) {
             '',
             'Dash preserves string depth — the chain window keeps ticking.',
             'Taking a real hit resets the string to neutral.',
+            '',
+            '→ See per-hero move names, effect tags, and live demos:',
+            '  open the full Combo List from the Pause menu.',
           ],
         },
         {

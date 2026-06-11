@@ -269,7 +269,20 @@ export default class MenuScene extends Phaser.Scene {
       align: 'center', lineSpacing: 2, wordWrap: { width: w - 18 },
     }).setOrigin(0.5, 0));
 
-    const zone = reg(this.add.zone(cx, cy, w, h).setInteractive({ useHandCursor: true }));
+    // "moves" link at the bottom of each card — opens the ComboCodex for this hero
+    const movesBtn = reg(this.add.text(cx, top + h - 12, '⚔ moves', {
+      fontFamily: 'monospace', fontSize: '10px', color: '#8fe6ff',
+    }).setOrigin(0.5, 1).setDepth(10).setInteractive({ useHandCursor: true }));
+    movesBtn.on('pointerover', () => movesBtn.setColor('#ffffff'));
+    movesBtn.on('pointerout', () => movesBtn.setColor('#8fe6ff'));
+    movesBtn.on('pointerdown', (ptr) => {
+      // prevent the card zone below from also firing a start()
+      ptr.event && ptr.event.stopPropagation && ptr.event.stopPropagation();
+      this.registry.set('lastHeroId', c.id);
+      this.scene.start('ComboCodexScene', { heroId: c.id });
+    });
+
+    const zone = reg(this.add.zone(cx, cy, w, h - 20).setInteractive({ useHandCursor: true }));
     zone.on('pointerover', () => { g.setAlpha(0.85); portrait.setScale(2.4); });
     zone.on('pointerout', () => { g.setAlpha(1); portrait.setScale(2.1); });
     zone.on('pointerdown', () => this.start(c));

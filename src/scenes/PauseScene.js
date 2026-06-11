@@ -141,20 +141,29 @@ export default class PauseScene extends Phaser.Scene {
     }).setOrigin(0.5).setInteractive({ useHandCursor: true });
     resume.on('pointerdown', () => this.resumeGame());
 
-    const manual = this.add.text(width / 2 - 80, height - 50, '[ Combat Manual ]', {
-      fontFamily: 'monospace', fontSize: '16px', color: '#ffd27a', fontStyle: 'bold',
+    const manual = this.add.text(width / 2 - 165, height - 50, '[ Combat Manual ]', {
+      fontFamily: 'monospace', fontSize: '14px', color: '#ffd27a', fontStyle: 'bold',
     }).setOrigin(0.5).setInteractive({ useHandCursor: true });
     manual.on('pointerover', () => manual.setColor('#ffffff'));
     manual.on('pointerout', () => manual.setColor('#ffd27a'));
     manual.on('pointerdown', () => this.scene.start('CombatManualScene', { caller: 'PauseScene', gameScene: this.gs }));
 
-    const settings = this.add.text(width / 2 + 90, height - 50, '[ Settings ]', {
-      fontFamily: 'monospace', fontSize: '18px', color: '#8fe6ff', fontStyle: 'bold',
+    const comboList = this.add.text(width / 2 + 3, height - 50, '[ Combo List ]', {
+      fontFamily: 'monospace', fontSize: '14px', color: '#c0e8ff', fontStyle: 'bold',
+    }).setOrigin(0.5).setInteractive({ useHandCursor: true });
+    comboList.on('pointerover', () => comboList.setColor('#ffffff'));
+    comboList.on('pointerout', () => comboList.setColor('#c0e8ff'));
+    comboList.on('pointerdown', () => {
+      this.scene.start('ComboCodexScene', { gameScene: this.gs });
+    });
+
+    const settings = this.add.text(width / 2 + 150, height - 50, '[ Settings ]', {
+      fontFamily: 'monospace', fontSize: '14px', color: '#8fe6ff', fontStyle: 'bold',
     }).setOrigin(0.5).setInteractive({ useHandCursor: true });
     settings.on('pointerdown', () => this.scene.start('SettingsScene', { caller: 'PauseScene', gameScene: this.gs }));
 
-    const exit = this.add.text(width / 2 + 250, height - 50, '[ Save & Exit ]', {
-      fontFamily: 'monospace', fontSize: '18px', color: '#ff8a8a', fontStyle: 'bold',
+    const exit = this.add.text(width / 2 + 290, height - 50, '[ Save & Exit ]', {
+      fontFamily: 'monospace', fontSize: '14px', color: '#ff8a8a', fontStyle: 'bold',
     }).setOrigin(0.5).setInteractive({ useHandCursor: true });
     exit.on('pointerdown', () => this.exitToTitle());
 
