@@ -3704,7 +3704,7 @@ export default class GameScene extends Phaser.Scene {
     if (depth >= 2) this.screenKick(this.aimDir != null ? this.aimDir : 0, JUICE_CAM.heavyPower);
 
     // Grand finisher bonus effect (C4)
-    if (fd && fd.grandFinisher) this._triggerGrandFinisherFx(finS);
+    if (fd && fd.grandFinisher) this._triggerGrandFinisherFx(finS, fd);
 
     // Finisher label float
     if (fd && fd.label) this._showFinisherLabel(fd.label, ringColor, depth);
@@ -3740,14 +3740,27 @@ export default class GameScene extends Phaser.Scene {
   }
 
   // Grand finisher bonus FX for C4 (hero-specific flair reusing existing hazard/burst calls).
-  _triggerGrandFinisherFx(s) {
+  _triggerGrandFinisherFx(s, fd = null) {
     const px = this.player.x, py = this.player.y;
     // Generic: golden burst ring at the player
     this.fx.goldenBurst(px, py, 14);
     this.fx._ring(px, py, 80, 0xff2222, 400, 6);
-    // Spawn a brief fire hazard zone at the player location (matches Lü Bu "Wrath Nova" feel)
-    const r = s.radius ? s.radius * 0.6 : 70;
-    this.spawnHazardZone(px, py, r, Math.round(s.damage * 0.3), 80, 300, 1200, 'fire', 'enemies');
+    if (fd && fd.noFireZone) {
+      // Fire-free grand finisher (Nobunaga's precision identity — fire belongs to
+      // Belisarius): a concussive shock nova that hurls the pack outward instead.
+      this.fx._ring(px, py, 110, 0xffffff, 320, 3);
+      const R2 = 110 * 110;
+      for (const e of this.enemies.getChildren()) {
+        if (!e.active || e.isBoss) continue;
+        const dx = e.x - px, dy = e.y - py;
+        if (dx * dx + dy * dy > R2) continue;
+        this.knockbackEnemy(e, Math.atan2(dy, dx), 70, { _sourceDmg: Math.round(s.damage * 0.3) });
+      }
+    } else {
+      // Default: a brief fire hazard zone at the player (Lü Bu "Wrath Nova" feel)
+      const r = s.radius ? s.radius * 0.6 : 70;
+      this.spawnHazardZone(px, py, r, Math.round(s.damage * 0.3), 80, 300, 1200, 'fire', 'enemies');
+    }
     Audio.sfx('hit_heavy');
   }
 

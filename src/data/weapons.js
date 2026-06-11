@@ -95,7 +95,7 @@ export const WEAPONS = {
     chargeFinishers: {
       C2: { kind: 'projectile_aimed',   dmgMult: 1.5, countAdd: 0,  spreadOverride: 0,  pierceMod: 2, launcher: true,  motionKind: 'charge_heavy', ringColor: 0x00ccff, label: 'CONCUSSIVE ROUND' },
       C3: { kind: 'projectile_aimed',   dmgMult: 1.2, countAdd: 3,  spreadOverride: 35, knockbackOverride: 40,          motionKind: 'charge_heavy', ringColor: 0xff8800, label: 'DEMOLITION BARRAGE' },
-      C4: { kind: 'kings_fusillade',    dmgMult: 2.2, countAdd: 4,  spreadOverride: 0,  pierceMod: 6, knockbackOverride: 50, grandFinisher: true, motionKind: 'charge_heavy', ringColor: 0xff2222, label: "KING'S FUSILLADE" },
+      C4: { kind: 'kings_fusillade',    dmgMult: 2.2, countAdd: 4,  spreadOverride: 0,  pierceMod: 6, knockbackOverride: 50, grandFinisher: true, noFireZone: true, motionKind: 'charge_heavy', ringColor: 0xff2222, label: "KING'S FUSILLADE" },
     },
     // EVOLVE — Demon King's Fusillade: each shot detonates a fire zone at impact.
     // Rewarded for long-range placement — the shell pierces everything AND leaves
