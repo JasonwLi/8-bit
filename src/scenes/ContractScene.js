@@ -52,10 +52,21 @@ export default class ContractScene extends Phaser.Scene {
       }).setOrigin(0.5);
     }
 
-    const cardW = 220;
-    const gap = 14;
-    const perRow = 5;
+    // Lay the contract grid out so it always fits the 960×540 viewport regardless
+    // of pool size (5 base contracts → one row; 10 mandates → two rows of five).
+    // The full mandate pool overflowed at the old 220px width / 5-per-row, clipping
+    // the outer cards off-screen — size the cards to the available width instead.
+    const perRow = this.pool.length > 5 ? 5 : this.pool.length;
     const rows = Math.ceil(this.pool.length / perRow);
+    const sideMargin = 12;
+    const gap = 12;
+    // Fit perRow cards + gaps into the usable width.
+    const cardW = Math.min(220, Math.floor((width - sideMargin * 2 - gap * (perRow - 1)) / perRow));
+    // Card height: shorter in two-row mode so both rows clear the heat/begin footer.
+    const cardH = rows > 1 ? 104 : 118;
+    const topOffset = this.mandateMode ? 104 : 104;
+    const rowGap = rows > 1 ? cardH + 40 : 0;
+    this._cardH = cardH;
     this.cards = [];
     this.pool.forEach((c, i) => {
       const row = Math.floor(i / perRow);
@@ -64,8 +75,7 @@ export default class ContractScene extends Phaser.Scene {
       const rowW = inRow * cardW + (inRow - 1) * gap;
       const startX = (width - rowW) / 2 + cardW / 2;
       const cx = startX + col * (cardW + gap);
-      const topOffset = this.mandateMode ? 108 : 104;
-      const cy = topOffset + row * 140 + (rows === 1 ? 40 : 0);
+      const cy = topOffset + cardH / 2 + row * rowGap + (rows === 1 ? 34 : 0);
       this.buildCard(cx, cy, cardW, c, i);
     });
 
@@ -118,34 +128,37 @@ export default class ContractScene extends Phaser.Scene {
   }
 
   buildCard(cx, cy, w, c, i) {
-    const h = 118;
+    const h = this._cardH || 118;
+    const compact = h < 112; // two-row mandate layout
     const top = cy - h / 2;
     const g = this.add.graphics();
     const ref = { c, g, cx, cy, w, h };
     this.cards.push(ref);
     // Small icon on the left side of the header
-    const iconX = cx - w / 2 + 22;
+    const iconX = cx - w / 2 + 18;
     const contractIconKey = (c.icon && this.textures.exists(c.icon)) ? c.icon
       : (c.iconFallback && this.textures.exists(c.iconFallback)) ? c.iconFallback
       : null;
     if (contractIconKey) {
-      this.add.image(iconX, top + 18, contractIconKey).setScale(0.45);
+      this.add.image(iconX, top + 16, contractIconKey).setScale(0.4);
     }
     // Heat pip(s) top-right
     if (this.mandateMode && c.heat) {
       const heatStr = '🔥'.repeat(c.heat);
-      this.add.text(cx + w / 2 - 8, top + 6, heatStr, {
-        fontFamily: 'monospace', fontSize: '10px',
+      this.add.text(cx + w / 2 - 6, top + 5, heatStr, {
+        fontFamily: 'monospace', fontSize: '9px',
       }).setOrigin(1, 0);
     }
-    this.add.text(cx + (contractIconKey ? 8 : 0), top + 10, `${i + 1}. ${c.name}`, {
-      fontFamily: 'monospace', fontSize: '13px', color: '#ffffff', fontStyle: 'bold',
+    this.add.text(cx + (contractIconKey ? 6 : 0), top + 10, `${i + 1}. ${c.name}`, {
+      fontFamily: 'monospace', fontSize: compact ? '11px' : '13px', color: '#ffffff', fontStyle: 'bold',
     }).setOrigin(0.5, 0);
-    this.add.text(cx, top + 36, `− ${c.penalty}`, {
-      fontFamily: 'monospace', fontSize: '11px', color: '#ff8a8a', align: 'center', wordWrap: { width: w - 20 },
+    this.add.text(cx, top + (compact ? 32 : 36), `− ${c.penalty}`, {
+      fontFamily: 'monospace', fontSize: compact ? '10px' : '11px', color: '#ff8a8a',
+      align: 'center', wordWrap: { width: w - 16 },
     }).setOrigin(0.5, 0);
-    this.add.text(cx, top + 74, `+ ${c.reward}`, {
-      fontFamily: 'monospace', fontSize: '11px', color: '#9ef58b', align: 'center', wordWrap: { width: w - 20 },
+    this.add.text(cx, top + (compact ? 66 : 74), `+ ${c.reward}`, {
+      fontFamily: 'monospace', fontSize: compact ? '10px' : '11px', color: '#9ef58b',
+      align: 'center', wordWrap: { width: w - 16 },
     }).setOrigin(0.5, 0);
     const zone = this.add.zone(cx, cy, w, h).setInteractive({ useHandCursor: true });
     zone.on('pointerdown', () => this.toggle(c.id));

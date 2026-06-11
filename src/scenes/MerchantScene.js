@@ -175,15 +175,16 @@ export default class MerchantScene extends Phaser.Scene {
     if (this.textures.exists(ikey)) {
       reg(this.add.image(cx, cy - 32, ikey).setScale(1.1).setDepth(2).setAlpha(sold ? 0.35 : 1));
     }
-    // Item name
-    reg(this.add.text(cx, cy + 6, item.name || '?', {
+    // Item name — top-anchored so long legendary names that wrap to two lines grow
+    // downward into the free space above the price instead of overlapping the slot.
+    const nameText = reg(this.add.text(cx, cy - 6, item.name || '?', {
       fontFamily: 'monospace', fontSize: '12px', color: sold ? '#555566' : (item.textColor || '#ffffff'),
-      fontStyle: 'bold', align: 'center', wordWrap: { width: w - 16 },
-    }).setOrigin(0.5).setDepth(2));
-    // Slot
-    reg(this.add.text(cx, cy + 22, item.slot || '', {
+      fontStyle: 'bold', align: 'center', wordWrap: { width: w - 12 },
+    }).setOrigin(0.5, 0).setDepth(2));
+    // Slot — placed just below whatever height the (possibly two-line) name took.
+    reg(this.add.text(cx, cy - 6 + nameText.height + 4, item.slot || '', {
       fontFamily: 'monospace', fontSize: '10px', color: '#7a7896', align: 'center',
-    }).setOrigin(0.5).setDepth(2));
+    }).setOrigin(0.5, 0).setDepth(2));
     // Price
     const priceColor = sold ? '#555566' : (gold >= price ? '#ffd700' : '#ff5252');
     reg(this.add.text(cx, cy + h / 2 - 18, sold ? 'SOLD' : `$ ${price}`, {

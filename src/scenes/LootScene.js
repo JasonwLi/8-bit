@@ -62,7 +62,9 @@ export default class LootScene extends Phaser.Scene {
 
   buildItemPanel(cx, cy, label, item) {
     const w = 260;
-    const h = 190;
+    // High-rarity items roll up to 4 stat lines — size the panel so they always
+    // stay inside the border (4-stat rings used to spill the last line below it).
+    const h = 216;
     const g = this.add.graphics();
     const border = item ? item.color : 0x3a3556;
     drawPanel(g, cx - w / 2, cy - h / 2, w, h, border, { header: 28 });
@@ -82,18 +84,18 @@ export default class LootScene extends Phaser.Scene {
 
     const ikey = this.textures.exists(item.icon) ? item.icon : item.baseIcon;
     if (this.textures.exists(ikey)) {
-      this.add.image(cx, cy - 36, ikey).setScale(1.2);
+      this.add.image(cx, cy - h / 2 + 64, ikey).setScale(1.2);
     }
     this.add
-      .text(cx, cy + 6, item.name, {
+      .text(cx, cy - h / 2 + 100, item.name, {
         fontFamily: 'monospace', fontSize: '15px', color: item.textColor, fontStyle: 'bold',
         align: 'center', wordWrap: { width: w - 24 },
       })
       .setOrigin(0.5);
     this.add
-      .text(cx, cy + 44, describeMods(item.mods), {
-        fontFamily: 'monospace', fontSize: '12px', color: '#c9c4e0', align: 'center',
-        lineSpacing: 4,
+      .text(cx, cy - h / 2 + 132, describeMods(item.mods), {
+        fontFamily: 'monospace', fontSize: '11px', color: '#c9c4e0', align: 'center',
+        lineSpacing: 3,
       })
       .setOrigin(0.5, 0);
   }

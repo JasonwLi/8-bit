@@ -57,17 +57,29 @@ export default class ArtifactScene extends Phaser.Scene {
     const reg = (o) => { this._cardObjs.push(o); return o; };
 
     const choices = this._choices;
-    const cardW = 250;
-    const gap = 22;
-    const total = choices.length * cardW + (choices.length - 1) * gap;
+    // Size the cards to fit the 960-wide viewport — with up to three contracts the
+    // artifact draft can offer 5–6 cards, which overflowed at the old fixed 250px width.
+    const n = choices.length;
+    const sideMargin = 16;
+    const gap = n > 4 ? 14 : 22;
+    const cardW = Math.min(250, Math.floor((width - sideMargin * 2 - gap * (n - 1)) / n));
+    const total = n * cardW + (n - 1) * gap;
     const startX = (width - total) / 2 + cardW / 2;
-    const cy = height / 2 + 30;
-    choices.forEach((a, i) => this.buildCard(startX + i * (cardW + gap), cy, cardW, a, i + 1, reg));
+    // Centre the card row a touch higher than mid-screen so even the tallest
+    // (lore-bearing) card clears the reroll prompt pinned near the bottom edge.
+    const cy = height / 2 + 18;
+    this._cardW = cardW;
+    // Pass 1: measure the tallest card so the whole row shares a uniform height
+    // (ragged card tops/bottoms look broken). Pass 2: render them all at that height.
+    const cardH = choices.reduce((mx, a) => Math.max(mx, this._measureCardH(cardW, a)), 0);
+    choices.forEach((a, i) => this.buildCard(startX + i * (cardW + gap), cy, cardW, a, i + 1, reg, cardH));
+    const maxBottom = cy + cardH / 2;
 
-    // reroll button — one-use
+    // reroll button — one-use; placed just below the tallest card (clamped to the viewport)
     const rerollColor = this._rerolled ? '#555566' : '#9a93c0';
     const rerollLabel = this._rerolled ? '↻ rerolled' : '↻ reroll  [R]';
-    const rb = reg(this.add.text(width / 2, cy + 128, rerollLabel, {
+    const rerollY = Math.min(maxBottom + 18, height - 16);
+    const rb = reg(this.add.text(width / 2, rerollY, rerollLabel, {
       fontFamily: 'monospace', fontSize: '13px', color: rerollColor,
     }).setOrigin(0.5));
     if (!this._rerolled) {
@@ -96,42 +108,65 @@ export default class ArtifactScene extends Phaser.Scene {
     this._buildCards(width, height);
   }
 
-  buildCard(cx, cy, w, a, num, reg = (o) => o) {
-    const hasLore = !!a.lore;
-    const h = hasLore ? 260 : 230; // taller cards for relics with lore
-    const top = cy - h / 2;
-    const g = reg(this.add.graphics());
-    drawPanel(g, cx - w / 2, top, w, h, a.color || 0xffd700, { radius: 12, header: 32 });
-
-    reg(this.add.text(cx, top + 22, `${num}. ${a.name}`, {
-      fontFamily: 'monospace', fontSize: '17px', color: '#ffffff', fontStyle: 'bold',
-      align: 'center', wordWrap: { width: w - 24 },
-    }).setOrigin(0.5, 0));
-    // Artifact icon centred in the card body (reg'd so a reroll cleans it up)
-    // Use the dedicated artifact icon if generated; fall back to the legacy key.
+  // Card layout constants shared by the measure + render passes.
+  _cardStyle(w, a, num) {
+    const compact = w < 210; // narrower cards (5–6 choices) use smaller type
     const iconKey = (a.icon && this.textures.exists(a.icon)) ? a.icon
       : (a.iconFallback && this.textures.exists(a.iconFallback)) ? a.iconFallback
       : null;
-    if (iconKey) {
-      reg(this.add.image(cx, top + 100, iconKey).setScale(0.9));
-    }
-    reg(this.add.text(cx, cy + 46, a.desc, {
-      fontFamily: 'monospace', fontSize: '13px', color: '#ffd27a',
-      align: 'center', wordWrap: { width: w - 30 },
-    }).setOrigin(0.5, 0));
+    const iconScale = compact ? 0.72 : 0.9;
+    const iconH = iconKey ? this.textures.get(iconKey).getSourceImage().height * iconScale : 0;
+    return {
+      compact, iconKey, iconScale, iconH,
+      nameStyle: { fontFamily: 'monospace', fontSize: compact ? '14px' : '17px', color: '#ffffff', fontStyle: 'bold', align: 'center', wordWrap: { width: w - 20 } },
+      descStyle: { fontFamily: 'monospace', fontSize: compact ? '11px' : '13px', color: '#ffd27a', align: 'center', wordWrap: { width: w - 22 }, lineSpacing: 1 },
+      loreStyle: { fontFamily: 'monospace', fontSize: compact ? '10px' : '11px', color: '#9a9aaa', fontStyle: 'italic', align: 'center', wordWrap: { width: w - 22 }, lineSpacing: 1 },
+      pad: { top: 18, afterName: 10, afterIcon: 10, afterDesc: 8, bottom: 16 },
+    };
+  }
 
-    // ITEM C: lore line in italic-grey under the description (champion relics only)
-    if (hasLore) {
-      reg(this.add.text(cx, cy + 92, a.lore, {
-        fontFamily: 'monospace', fontSize: '11px', color: '#9a9aaa', fontStyle: 'italic',
-        align: 'center', wordWrap: { width: w - 30 },
-      }).setOrigin(0.5, 0));
-    }
+  // Measure the content height a card needs (off-screen temp text, destroyed after).
+  _measureCardH(w, a) {
+    const num = 1; // numbering doesn't change height
+    const s = this._cardStyle(w, a, num);
+    const name = this.add.text(0, 0, `${num}. ${a.name}`, s.nameStyle).setVisible(false);
+    const desc = this.add.text(0, 0, a.desc, s.descStyle).setVisible(false);
+    const lore = a.lore ? this.add.text(0, 0, a.lore, s.loreStyle).setVisible(false) : null;
+    const contentH = s.pad.top + name.height + s.pad.afterName + s.iconH + s.pad.afterIcon
+      + desc.height + (lore ? s.pad.afterDesc + lore.height : 0) + s.pad.bottom;
+    name.destroy(); desc.destroy(); if (lore) lore.destroy();
+    return Math.max(a.lore ? 260 : 230, contentH);
+  }
+
+  buildCard(cx, cy, w, a, num, reg = (o) => o, forcedH = null) {
+    const s = this._cardStyle(w, a, num);
+    const g = reg(this.add.graphics());
+
+    const name = reg(this.add.text(cx, 0, `${num}. ${a.name}`, s.nameStyle).setOrigin(0.5, 0));
+    const desc = reg(this.add.text(cx, 0, a.desc, s.descStyle).setOrigin(0.5, 0));
+    const lore = a.lore ? reg(this.add.text(cx, 0, a.lore, s.loreStyle).setOrigin(0.5, 0)) : null;
+
+    const contentH = s.pad.top + name.height + s.pad.afterName + s.iconH + s.pad.afterIcon
+      + desc.height + (lore ? s.pad.afterDesc + lore.height : 0) + s.pad.bottom;
+    const h = forcedH || Math.max(a.lore ? 260 : 230, contentH);
+    const top = cy - h / 2;
+
+    drawPanel(g, cx - w / 2, top, w, h, a.color || 0xffd700, { radius: 12, header: 32 });
+
+    let y = top + s.pad.top;
+    name.setY(y);
+    y += name.height + s.pad.afterName;
+    if (s.iconKey) { reg(this.add.image(cx, y + s.iconH / 2, s.iconKey).setScale(s.iconScale)); }
+    y += s.iconH + s.pad.afterIcon;
+    desc.setY(y);
+    y += desc.height + s.pad.afterDesc;
+    if (lore) lore.setY(y);
 
     const zone = reg(this.add.zone(cx, cy, w, h).setInteractive({ useHandCursor: true }));
     zone.on('pointerover', () => g.setAlpha(0.82));
     zone.on('pointerout', () => g.setAlpha(1));
     zone.on('pointerdown', () => this.pick(a));
+    return h;
   }
 
   pick(a) {
