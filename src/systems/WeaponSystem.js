@@ -19,6 +19,9 @@ export default class WeaponSystem {
     this.scene = scene;
     this.player = player;
     this.weaponId = weaponId;
+    // Set to true on scene.weapons (the primary slot) by GameScene after construction.
+    // Iron Spine omen applies its cadence penalty to the primary weapon only.
+    this.isPrimary = false;
     // Per-skill upgrade points. New skills declare their own 4 `axes` (data-driven,
     // flavored); legacy skills fall back to the fixed damage/reach/speed/effect.
     const ax = this.def().axes;
@@ -121,8 +124,10 @@ export default class WeaponSystem {
     const damage =
       b.damage * (1 + pt.damage * pp.damage) * this.player.damageMult * this.player.buffDamageMult
       * (1 + this.player.streakDamageMult) * empDmg; // MOMENTUM bonus
+    // Iron Spine omen: primary weapon attacks 12% slower (cadence ×1.12)
+    const ironSpineMult = (this.isPrimary && this.scene.run && this.scene.run._omenIronSpine) ? 1.12 : 1;
     const cooldown =
-      b.cooldown * this.player.cooldownMult * Math.pow(1 - pp.speed, pt.speed) * empCd;
+      b.cooldown * this.player.cooldownMult * Math.pow(1 - pp.speed, pt.speed) * empCd * ironSpineMult;
     const reachMult = (1 + pt.reach * pp.reach) * this.player.reachMult;
     const fx = pt.effect * this.player.effectMult + empFx; // effective "effect" magnitude
 
@@ -239,7 +244,9 @@ export default class WeaponSystem {
     const reachMult = (1 + sizePts * M('size', 0.12)) * p.reachMult;
     const damage = b.damage * (1 + P('dmg') * M('dmg', 0.16)) * p.damageMult * p.buffDamageMult
       * (1 + p.streakDamageMult) * empDmg; // MOMENTUM bonus
-    const cooldown = b.cooldown * p.cooldownMult * Math.pow(1 - M('cadence', 0.07), P('cadence')) * empCd;
+    // Iron Spine omen: primary weapon attacks 12% slower (cadence ×1.12)
+    const ironSpineMult = (this.isPrimary && this.scene.run && this.scene.run._omenIronSpine) ? 1.12 : 1;
+    const cooldown = b.cooldown * p.cooldownMult * Math.pow(1 - M('cadence', 0.07), P('cadence')) * empCd * ironSpineMult;
     const bonusProj = p.bonusProjectiles || 0;
     const s = { def, damage, cooldown, reachMult };
 

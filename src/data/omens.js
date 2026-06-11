@@ -122,10 +122,19 @@ export const OMENS = [
   {
     id: 'shattered_sky',
     name: 'Shattered Sky',
-    desc: 'All ability cooldowns −20%. Secondary ability recharge cap reduced by 1 charge.',
+    desc: 'All weapon and ability cooldowns −20%.',
     color: 0xc0a0ff,
-    apply(run) {
-      run._omenUltCdMult = 0.80; // applied in OmenScene._pick via player.cooldownMult
+    apply(run, player) {
+      run._omenUltCdMult = 0.80; // persisted flag — used by the resume path to guard double-apply
+      // Bake -20% cooldown into levelMods so it survives recompute() and stage transitions.
+      // Guard against double-application if apply() is somehow called twice.
+      if (!run._omenShatteredSkyApplied) {
+        run._omenShatteredSkyApplied = true;
+        if (player) {
+          player.levelMods.cooldownMult = (player.levelMods.cooldownMult || 0) - 0.20;
+          if (typeof player.recompute === 'function') player.recompute();
+        }
+      }
     },
   },
 ];

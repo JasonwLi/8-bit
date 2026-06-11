@@ -16,7 +16,7 @@ import FloorSystem from '../systems/FloorSystem.js';
 import FlowField from '../systems/FlowField.js';
 import { getArtifact } from '../data/artifacts.js';
 import { contractEffects } from '../data/contracts.js';
-import { CIV_AMBIENCE } from '../data/civFlavour.js';
+import { CIV_AMBIENCE, KIND_CLASS } from '../data/civFlavour.js';
 import { Save, Legacy } from '../systems/SaveSystem.js';
 import Fx from '../systems/Fx.js';
 import MapSystem from '../systems/MapSystem.js';
@@ -291,6 +291,7 @@ export default class GameScene extends Phaser.Scene {
     // player + systems
     this.player = new Player(this, 0, 0, this.characterDef);
     this.weapons = new WeaponSystem(this, this.player, this.characterDef.startingWeapon); // primary (auto)
+    this.weapons.isPrimary = true; // iron_spine omen targets primary cadence only
     this.secondary = new WeaponSystem(this, this.player, this.characterDef.secondary); // secondary (K, ~3s)
     this.ability = new AbilitySystem(this, this.player, this.characterDef.ultimate); // ultimate (SPACE, ~10s)
     this.spawner = new SpawnSystem(this, this.player);
@@ -323,6 +324,20 @@ export default class GameScene extends Phaser.Scene {
     if (r.weaponEvolved) this.weapons.evolved = true;
     if (r.secondaryEvolved) this.secondary.evolved = true;
     this.updateResonances(); // recomputes from carried weapon/ability points
+
+    // ── Omen resume path ─────────────────────────────────────────────────────────
+    // On a stage transition or Continue the omen flags are already on `r` (captureRunState
+    // persists them all). Effects baked into levelMods (iron_spine HP, shattered_sky
+    // cooldownMult) survive because levelMods is saved/restored.
+    // Guard: shattered_sky was previously a direct cooldownMult assignment (lost on
+    // recompute). If the saved run has _omenUltCdMult but not _omenShatteredSkyApplied,
+    // apply the -20% to levelMods now (one-time migration for saves from before this fix).
+    if (r._omenUltCdMult && !r._omenShatteredSkyApplied) {
+      r._omenShatteredSkyApplied = true;
+      this.player.levelMods.cooldownMult = (this.player.levelMods.cooldownMult || 0) - 0.20;
+      this.player.recompute();
+    }
+
     if (this.contract.playerHpMult !== 1) this.player.maxHp = Math.round(this.player.maxHp * this.contract.playerHpMult);
     this.player.contractXpMult = 1 + this.contract.xpBonus;
     this.player.hp = this.player.maxHp; // full heal at each stage start
@@ -1350,7 +1365,7 @@ export default class GameScene extends Phaser.Scene {
           if (e.casterTimer <= 0) {
             e.casterTimer = e.casterEvery;
             const base = Math.atan2(py - e.y, px - e.x);
-            for (let i = -1; i <= 1; i++) this.spawnHostileProjectile(e.x, e.y, base + i * 0.22, e.castSpeed, e.castDmg, { tint: e.eliteTint });
+            for (let i = -1; i <= 1; i++) this.spawnHostileProjectile(e.x, e.y, base + i * 0.22, e.castSpeed, e.castDmg, { tint: e.eliteTint, kindClass: (e.typeId && KIND_CLASS[e.typeId]) || null });
           }
         }
         // Berserker: rage visual — pulsing red ring drawn each frame (cheap line-circle; reuses existing arc fx)
@@ -1724,6 +1739,8 @@ export default class GameScene extends Phaser.Scene {
     p.piercing = opts._piercing || false; // scorpio: persists until lifespan
     p._lastPierceHit = 0;
     p._shooterId = opts._shooterId || null; // china streak tracking
+    // Beast Tongue omen: shooter's kindClass carried on the projectile for intake modifier lookup
+    p.kindClass = opts.kindClass || null;
     return p;
   }
 
@@ -2611,7 +2628,7 @@ export default class GameScene extends Phaser.Scene {
       '_omenGoldMult', '_omenEliteHpMult', '_omenOldWounds', '_omenBeastReduction',
       '_omenHumanoidBoost', '_omenFloorGoldTax', '_omenIronSpine', '_omenBloodDebtKillInterval',
       '_omenBloodDebtHeal', '_omenBloodDebtKillCount', '_omenXpPenalty', '_omenUltCdMult',
-      '_omenMutationId', '_bloodShrineUsed',
+      '_omenMutationId', '_bloodShrineUsed', '_omenShatteredSkyApplied',
     ];
     for (const f of omenFlags) {
       if (this.run[f] !== undefined) r[f] = this.run[f];
@@ -3293,22 +3310,46 @@ export default class GameScene extends Phaser.Scene {
   spawnChest(x, y) { this.drops.spawnChest(x, y); } // SpawnSystem field chests
   damageBreakable(b, amount) { this.drops.damageBreakable(b, amount); } // WeaponSystem melee sweep
 
+  // Compute omen-driven damage multiplier at player intake sites.
+  // beast_tongue: beasts+spirits deal -15%, humanoids deal +8% (constructs unaffected).
+  // old_wounds:   stage-1 foes deal +10% (expires naturally on stage advance).
+  // Hazard ticks and boss contact use this too — but boss contact has no typeId so
+  // kindClass will be null and only old_wounds may apply (stage 1 boss is intentional).
+  _omenIntakeMult(kindClass) {
+    let mult = 1;
+    const run = this.run;
+    if (run._omenBeastReduction && (kindClass === 'beast' || kindClass === 'spirit')) {
+      mult *= run._omenBeastReduction; // 0.85
+    } else if (run._omenHumanoidBoost && kindClass === 'humanoid') {
+      mult *= run._omenHumanoidBoost; // 1.08
+    }
+    if (run._omenOldWounds && stageIndex(run) === 0) {
+      mult *= 1.10;
+    }
+    return mult;
+  }
+
   // --- overlap callbacks ---
   onPlayerHit(player, enemy) {
     if (!enemy.active) return;
     if (enemy.stunUntil && this.time.now < enemy.stunUntil) return; // stunned foes can't hit
-    this.reactToHit(player.takeDamage(enemy.contactDamage, this.time.now));
+    const kindClass = (enemy.typeId && KIND_CLASS[enemy.typeId]) || null;
+    const omenMult = this._omenIntakeMult(kindClass);
+    const dmg = omenMult !== 1 ? Math.round(enemy.contactDamage * omenMult) : enemy.contactDamage;
+    this.reactToHit(player.takeDamage(dmg, this.time.now));
   }
 
   onEnemyProjectileHit(player, proj) {
     if (!proj.active) return;
+    const omenMult = this._omenIntakeMult(proj.kindClass || null);
     // Scorpio piercing bolt: deal damage but do NOT deactivate — let lifespan expire.
     // Use a per-projectile hit gate (250ms) so a slow-moving player doesn't eat it every tick.
     if (proj.piercing) {
       if (this.time.now - (proj._lastPierceHit || 0) < 250) return;
       proj._lastPierceHit = this.time.now;
       const bypassIframes2 = !player.isDashInvuln(this.time.now);
-      this.reactToHit(player.takeDamage(proj.damage, this.time.now, { bypassIframes: bypassIframes2, ranged: true }));
+      const dmg2 = omenMult !== 1 ? Math.round(proj.damage * omenMult) : proj.damage;
+      this.reactToHit(player.takeDamage(dmg2, this.time.now, { bypassIframes: bypassIframes2, ranged: true }));
       return;
     }
     this.deactivate(proj);
@@ -3317,7 +3358,8 @@ export default class GameScene extends Phaser.Scene {
     // initial hit window), but if the player is currently dash-invuln the projectile is
     // "caught" by the dodge — bypassIframes:false lets takeDamage check the invuln timestamp.
     const bypassIframes = !player.isDashInvuln(this.time.now);
-    this.reactToHit(player.takeDamage(proj.damage, this.time.now, { bypassIframes, ranged: true }));
+    const dmg = omenMult !== 1 ? Math.round(proj.damage * omenMult) : proj.damage;
+    this.reactToHit(player.takeDamage(dmg, this.time.now, { bypassIframes, ranged: true }));
     // China — Gunpowder Discipline: successful projectile hit grants all active china
     // ranged enemies a 4s fire-rate streak bonus (represents disciplined volley training).
     if (this.stageCiv === 'china') {

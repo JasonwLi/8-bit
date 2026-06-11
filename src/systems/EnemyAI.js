@@ -1,3 +1,5 @@
+import { KIND_CLASS } from '../data/civFlavour.js';
+
 // Per-mob AI for non-boss enemies. GameScene.updateEnemies() handles boss
 // routing, curse/elite hooks, then delegates each mob's movement + attack here.
 //
@@ -290,6 +292,9 @@ function fireEnemyShot(scene, e, ang) {
   // (e._chinaStreakUntil is set on hit — see GameScene projectile overlap handler)
 
   const lifespan = (e.projSpeed > 0) ? (e.range / e.projSpeed) * 1000 * 2.4 : 4000;
+  // Beast Tongue omen: carry the shooter's kindClass on every projectile so the
+  // intake handler in GameScene.onEnemyProjectileHit can apply the modifier.
+  const kindClass = (e.typeId && KIND_CLASS[e.typeId]) || null;
 
   switch (e.rangedKind) {
 
@@ -297,7 +302,9 @@ function fireEnemyShot(scene, e, ang) {
     case 'single':
     default: {
       // Scorpio: piercing bolt — passes through player, deactivates on lifespan only
-      const piercingOpts = e.piercing ? { lifespan: 3600, scale: 1.4, tint: 0xd0d0ff, _piercing: true } : { lifespan };
+      const piercingOpts = e.piercing
+        ? { lifespan: 3600, scale: 1.4, tint: 0xd0d0ff, _piercing: true, kindClass }
+        : { lifespan, kindClass };
       const proj = scene.spawnHostileProjectile(e.x, e.y, a, e.projSpeed, e.projDamage, piercingOpts);
       if (proj && e.piercing) proj.piercing = true;
       break;
@@ -321,7 +328,7 @@ function fireEnemyShot(scene, e, ang) {
       }
       for (let i = 0; i < n; i++) {
         const offset = n === 1 ? 0 : -half + (i / (n - 1)) * half * 2;
-        scene.spawnHostileProjectile(e.x, e.y, a + offset, e.projSpeed, dmg, { lifespan });
+        scene.spawnHostileProjectile(e.x, e.y, a + offset, e.projSpeed, dmg, { lifespan, kindClass });
       }
       // Peltast: reposition after firing
       if (e.peltastRepos) {
@@ -354,7 +361,7 @@ function fireEnemyShot(scene, e, ang) {
       e.rapidIntervalTimer = 0;
       e._burstDmg = dmg; // store boosted dmg for the burst
       // fire first shot immediately
-      scene.spawnHostileProjectile(e.x, e.y, a, e.projSpeed, dmg, { lifespan });
+      scene.spawnHostileProjectile(e.x, e.y, a, e.projSpeed, dmg, { lifespan, kindClass });
       e.rapidShotsFired = 1;
       e._burstAng = a; // lock aim direction for the burst
       break;
@@ -366,6 +373,7 @@ function fireEnemyShot(scene, e, ang) {
         lifespan: lifespan * 1.4,
         scale: 1.6,
         tint: 0xffaa00,
+        kindClass,
       });
       break;
 
@@ -393,6 +401,7 @@ function fireEnemyShot(scene, e, ang) {
         lifespan,
         scale: 1.3,
         tint: 0x8888ff,
+        kindClass,
       });
       // TWEAK 8: capture departure position BEFORE teleporting
       const oldX = e.x;
@@ -460,7 +469,8 @@ function tickRapidBurst(scene, e, delta, ang) {
     const a = e._burstAng; // use locked aim
     const lifespan = (e.range / e.projSpeed) * 1000 * 2.4;
     const dmg = e._burstDmg != null ? e._burstDmg : e.projDamage;
-    scene.spawnHostileProjectile(e.x, e.y, a, e.projSpeed, dmg, { lifespan });
+    const kindClass = (e.typeId && KIND_CLASS[e.typeId]) || null;
+    scene.spawnHostileProjectile(e.x, e.y, a, e.projSpeed, dmg, { lifespan, kindClass });
     e.rapidShotsFired++;
   }
 

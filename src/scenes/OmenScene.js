@@ -129,15 +129,8 @@ export default class OmenScene extends Phaser.Scene {
       }
     }
 
-    // Apply Iron Spine omen: run._omenIronSpine flag is read by WeaponSystem in computeStats.
-
-    // Apply Shattered Sky omen: modify player.cooldownMult to reduce ult cooldown.
-    // `player.cooldownMult` is used directly in AbilitySystem.computeStats.
-    if (omen.id === 'shattered_sky' && gs.player) {
-      // −20% ult cooldown via cooldownMult (affects secondary too, but it's only 12% worse)
-      // The secondary penalty is enforced separately via run._omenSecCdMult in WeaponSystem.
-      gs.player.cooldownMult = (gs.player.cooldownMult || 1) * 0.80;
-    }
+    // Iron Spine: run._omenIronSpine flag is read by WeaponSystem.computeStats on the primary weapon.
+    // Shattered Sky: cooldown reduction is baked into player.levelMods by omen.apply() above.
 
     // Blood debt: init kill counter + apply XP penalty
     if (omen.id === 'blood_debt') {
