@@ -8,7 +8,8 @@ import { drawPanel } from '../art/ui.js';
 // Toggle up to 3, then begin the invasion.
 // After the first full conquest (hasWonRun), this scene rebrands as
 // MANDATE OF HEAVEN and also offers the harder mandate contracts.
-const MAX_ACTIVE = 3;
+const MAX_ACTIVE = 3;        // pre-win contract cap
+const MAX_ACTIVE_MANDATE = 6; // post-win: stack deeper — Crown of Heaven (heat 10) must be reachable
 
 // Heat thresholds for mandate-exclusive artifact injection.
 export const MANDATE_ARTIFACT_HEAT = 5;
@@ -46,7 +47,7 @@ export default class ContractScene extends Phaser.Scene {
       this.add.text(width / 2, 36, 'HEAT OF CONQUEST', {
         fontFamily: 'monospace', fontSize: '34px', color: '#ff7b3a', fontStyle: 'bold',
       }).setOrigin(0.5);
-      this.add.text(width / 2, 74, `Bind up to ${MAX_ACTIVE} contracts — harder stage, richer spoils. Or take none.`, {
+      this.add.text(width / 2, 74, `Bind up to ${this._cap()} ${this.mandateMode ? 'mandates' : 'contracts'} — harder stage, richer spoils. Or take none.`, {
         fontFamily: 'monospace', fontSize: '14px', color: '#c9c4e0',
       }).setOrigin(0.5);
     }
@@ -160,11 +161,13 @@ export default class ContractScene extends Phaser.Scene {
 
   toggle(id) {
     if (this.selected.has(id)) this.selected.delete(id);
-    else if (this.selected.size < MAX_ACTIVE) this.selected.add(id);
+    else if (this.selected.size < this._cap()) this.selected.add(id);
     this.cards.forEach((r) => this.drawCard(r));
     this._updateHeatDisplay();
     Audio.sfx('pickup');
   }
+
+  _cap() { return this.mandateMode ? MAX_ACTIVE_MANDATE : MAX_ACTIVE; }
 
   begin() {
     const run = this.registry.get('run');
