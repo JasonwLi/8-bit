@@ -144,6 +144,8 @@ export default class GameScene extends Phaser.Scene {
     });
     this.bossPhase = this.run.bossPhase || 0; // resume support
     this.contract = contractEffects(this.run.contracts || []); // active difficulty contracts
+    // Mandate of Heaven: heat-scaled loot luck (stacks with player luck in PickupController)
+    this._mandateLootLuck = this.run.mandateLootLuck || 0;
 
     this.pendingLevels = 0;
     this.levelingUp = false;
@@ -2043,6 +2045,13 @@ export default class GameScene extends Phaser.Scene {
     boss.isStageBoss = true;
     boss.isLocalFinal = isLocalFinal;
     boss.duelBlockChance = Math.min(0.6, 0.32 + 0.06 * stageIndex(this.run)); // blocks more on later stages
+    // Enrage Protocol mandate: inject a 50% HP phase threshold if none exists below 0.6
+    if (this.contract && this.contract.bossEnrageAt > 0) {
+      const thresh = this.contract.bossEnrageAt;
+      if (!boss.phaseThresholds.some((t) => t <= thresh + 0.05)) {
+        boss.phaseThresholds = [...boss.phaseThresholds, thresh].sort((a, b) => b - a);
+      }
+    }
     this.enemies.add(boss);
     this.activeBoss = boss;
     const tag = isLocalFinal ? '⚔  ' : '⚔  General  ';
@@ -2622,6 +2631,10 @@ export default class GameScene extends Phaser.Scene {
     r.gold = this.run.gold || 0;
     r.merchantRerolls = this.run.merchantRerolls || 0;
     r.banishesUsed = this.run.banishesUsed || 0;
+    // Mandate of Heaven — persist heat fields across stage transitions
+    if (this.run.mandateHeat) r.mandateHeat = this.run.mandateHeat;
+    if (this.run.mandateLootLuck) r.mandateLootLuck = this.run.mandateLootLuck;
+    if (this.run.mandateGoldMult) r.mandateGoldMult = this.run.mandateGoldMult;
     // War Omen (chosen once at run start; persisted for all stages)
     if (this.run.omen) r.omen = this.run.omen;
     // Omen-derived run flags (persisted so they survive stage transitions)
@@ -2675,6 +2688,22 @@ export default class GameScene extends Phaser.Scene {
     this.run.currentCiv = null;
     this.run.stageTime = 0;
     this.run.bossPhase = 0;
+
+    // Mandate of Heaven: on a FINAL stage win, mark first win and record hero best heat.
+    if (this.isFinal) {
+      const heat = this.run.mandateHeat || 0;
+      Legacy.markWonRun();
+      Legacy.recordHeroHeat(this.run.characterId, heat);
+      // Apply heat-scaled legacy coins for a win
+      const heatCoinMult = 1 + heat * 0.15;
+      Legacy.awardCoins(
+        this.player.kills,
+        Math.max(0, (this.floor || 1) - 1),
+        this.run.conquered ? this.run.conquered.length : 0,
+        heatCoinMult,
+      );
+    }
+
     Save.save(this.run);
     this.time.delayedCall(1500, () => {
       this.scene.stop('UIScene');
@@ -4504,11 +4533,15 @@ export default class GameScene extends Phaser.Scene {
       return;
     }
     // award legacy coins before clearing the save
+    // Mandate heat multiplies legacy coin earnings on death too (1 + heat*0.15)
     const floorsDescended = Math.max(0, (this.floor || 1) - 1);
+    const mandateHeat = this.run.mandateHeat || 0;
+    const heatCoinMult = 1 + mandateHeat * 0.15;
     const coinsEarned = Legacy.awardCoins(
       this.player.kills,
       floorsDescended,
       this.run.conquered ? this.run.conquered.length : 0,
+      heatCoinMult,
     );
     Save.clear(); // death ends the run
     this.cameras.main.flash(300, 120, 0, 0);

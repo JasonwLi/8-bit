@@ -147,6 +147,21 @@ export default class PauseScene extends Phaser.Scene {
       }
     }
 
+    // --- Mandate of Heaven heat display ---
+    const mandateHeat = gs.run && gs.run.mandateHeat;
+    if (mandateHeat > 0) {
+      const mhY = gs.run.omen ? 398 : 330;
+      this.add.text(rx, mhY, 'MANDATE OF HEAVEN', { fontFamily: 'monospace', fontSize: '13px', color: '#ff8c00', fontStyle: 'bold' });
+      const flames = '🔥'.repeat(Math.min(mandateHeat, 10));
+      this.add.text(rx, mhY + 18, `${flames} Heat ${mandateHeat}`, { fontFamily: 'monospace', fontSize: '12px', color: '#ffb347' });
+      const coinBonus = Math.round(mandateHeat * 15);
+      const luckBonus = Math.round(mandateHeat * 1.5);
+      const goldBonus = Math.round(mandateHeat * 5);
+      this.add.text(rx, mhY + 34, `+${luckBonus} Loot Luck  +${goldBonus}% Gold  Coins +${coinBonus}%`, {
+        fontFamily: 'monospace', fontSize: '10px', color: '#c9c4e0', lineSpacing: 3, wordWrap: { width: 250 },
+      });
+    }
+
     // --- buttons ---
     const resume = this.add.text(width / 2 - 250, height - 50, '[ Resume ]', {
       fontFamily: 'monospace', fontSize: '20px', color: '#9ef58b', fontStyle: 'bold',

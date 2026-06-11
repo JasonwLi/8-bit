@@ -55,7 +55,9 @@ export default class MerchantScene extends Phaser.Scene {
     // Compute prices
     const depth = gs.conquestDepth || 0;
     const omenDiscount = (gs.run && gs.run._omenMerchantDiscount) || 1; // Iron Frugality omen
-    const priceMult = (gs._cursedPriceMult || 1) * (1 + depth * 0.04) * omenDiscount; // deeper = pricier
+    // War Tithe mandate: merchants charge +50% (or whatever merchantPriceMult is set to)
+    const mandatePriceMult = (gs.contract && gs.contract.merchantPriceMult) || 1;
+    const priceMult = (gs._cursedPriceMult || 1) * (1 + depth * 0.04) * omenDiscount * mandatePriceMult; // deeper = pricier
 
     // Roll 3 gear items
     const luck = depth * 0.3 + (gs.player.luck || 0);

@@ -197,6 +197,29 @@ export const ARTIFACTS = [
     iconFallback: 'icon_armor_legendary',
     mods: { damageReduction: 0.12, defense: 0.15, maxHpFlat: 30 },
   },
+  // ── Mandate of Heaven exclusives (heat threshold relics) ─────────────────
+  {
+    id: 'seal_of_the_mandate',
+    name: 'Seal of the Mandate',
+    desc: '+20% Attack, +20% Effect Power, +10% Dodge — the imperial seal granting divine authority over war.',
+    lore: '"Heaven grants the right to rule; this seal is its proof. Its enemies have no argument."',
+    color: 0xff8c00,
+    icon: 'artifact_jade_seal',          // reuse existing jade-seal icon
+    iconFallback: 'icon_pendant_legendary',
+    mandateOnly: true,                   // injected at heat >= 5; not in the normal pool
+    mods: { damageMult: 0.20, effectMult: 0.20, dodge: 0.10 },
+  },
+  {
+    id: 'crown_of_heaven',
+    name: 'Crown of Heaven',
+    desc: '+35% Max HP, +0.6 HP/s Regen, +18% Defense — the crown worn only by the conqueror of all worlds.',
+    lore: '"The stars themselves bowed; the rivers reversed course; the age of man was over."',
+    color: 0xffd700,
+    icon: 'artifact_philosophers_crown',  // reuse philosopher crown icon
+    iconFallback: 'icon_hat_legendary',
+    mandateOnly: true,                    // injected at heat >= 10; not in the normal pool
+    mods: { maxHpMult: 0.35, regen: 0.6, defense: 0.18 },
+  },
 ];
 
 /** Look up a single artifact by id. Returns undefined if not found. */
@@ -209,30 +232,39 @@ export function getArtifact(id) {
  * If `civId` is supplied, the champion relic for that civ is ALWAYS injected as
  * one of the choices (if not already owned) — replacing a random slot so the
  * total stays at `count`.
+ * `mandateArtifacts` is an optional array of artifact objects to prepend
+ * (Seal / Crown earned via mandate heat) — they occupy leading slots.
  * If fewer than `count` artifacts remain after filtering, returns all remaining.
  */
-export function rollArtifacts(count, excludeIds = [], civId = null) {
+export function rollArtifacts(count, excludeIds = [], civId = null, mandateArtifacts = []) {
   // Resolve the civ relic for this conquest (if any and not already owned)
   const civRelic = civId
     ? ARTIFACTS.find((a) => a.civId === civId && !excludeIds.includes(a.id))
     : null;
 
-  // Build the general pool: exclude civ-tagged relics + already-owned
+  // Build the general pool: exclude civ-tagged relics + mandate-only relics + already-owned
   const generalPool = ARTIFACTS.filter(
-    (a) => !a.civId && !excludeIds.includes(a.id),
+    (a) => !a.civId && !a.mandateOnly && !excludeIds.includes(a.id),
   );
   const result = [];
   const available = generalPool.slice();
 
-  // Fill up to `count` slots from the general pool
-  const generalSlots = civRelic ? count - 1 : count;
+  // Reserve leading slots for mandate artifacts + civ relic
+  const reserved = mandateArtifacts.length + (civRelic ? 1 : 0);
+  const generalSlots = Math.max(0, count - reserved);
   for (let i = 0; i < Math.min(generalSlots, available.length); i++) {
     const idx = Math.floor(Math.random() * available.length);
     result.push(available.splice(idx, 1)[0]);
   }
 
-  // Inject the civ relic as the first choice so it's always visible
+  // Inject the civ relic before the random choices
   if (civRelic) result.unshift(civRelic);
+
+  // Mandate artifacts sit at the very front (most prominent)
+  for (let i = mandateArtifacts.length - 1; i >= 0; i--) {
+    const ma = mandateArtifacts[i];
+    if (ma && !excludeIds.includes(ma.id)) result.unshift(ma);
+  }
 
   return result;
 }

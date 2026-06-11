@@ -45,7 +45,9 @@ export default class SpawnSystem {
     this.accum = 0;
     this.spawnedThisFloor = 0;
     // deeper floors field a larger horde before they run dry (bumped — game was too easy)
-    this.floorBudget = Math.round(85 + (floor - 1) * 16);
+    // Heavy Reinforcement mandate: floor budget +30%
+    const budgetMult = (this.scene.contract && this.scene.contract.floorBudgetMult) || 1;
+    this.floorBudget = Math.round((85 + (floor - 1) * 16) * budgetMult);
   }
 
   // Pre-place ~45% of the floor budget as DORMANT GARRISON clusters spread across
@@ -462,7 +464,9 @@ export default class SpawnSystem {
       e.eliteMod = mod.id;
       e.eliteName = mod.name;
       const eliteOmenMult = (this.scene.run && this.scene.run._omenEliteHpMult) || 1;
-      e.maxHp = Math.round(e.maxHp * mod.hpMult * eliteOmenMult);
+      // Iron Elite mandate: elite enemies have +25% HP
+      const eliteMandateMult = (this.scene.contract && this.scene.contract.eliteHpMult) || 1;
+      e.maxHp = Math.round(e.maxHp * mod.hpMult * eliteOmenMult * eliteMandateMult);
       e.speed *= mod.speedMult;
       e.damage = Math.round(e.damage * mod.dmgMult);
       if (e.projDamage) e.projDamage = Math.round(e.projDamage * mod.dmgMult);

@@ -65,6 +65,8 @@ export default class PickupController {
   }
 
   spawnHeart(x, y) {
+    // Famine mandate: hearts never drop
+    if (this.s.contract && this.s.contract.noHearts) return;
     ({ x, y } = this._snap(x, y));
     const h = this.s.pickups.get(x, y, 'pickup_heart');
     if (!h) return;
@@ -134,7 +136,9 @@ export default class PickupController {
     const depth = s.conquestDepth;
     // VAULT mod: +8 loot luck for treasure opened on this floor
     const vaultBonus = (s.activeFloorMod && s.activeFloorMod.type === 'VAULT') ? 8 : 0;
-    const luck = depth * 0.3 + (s.player.luck || 0) + vaultBonus;
+    // Mandate of Heaven: heat*1.5 additional loot luck
+    const mandateLuck = s._mandateLootLuck || 0;
+    const luck = depth * 0.3 + (s.player.luck || 0) + vaultBonus + mandateLuck;
     const powerMult = 1 + depth * 0.012; // deeper floors → bigger stat rolls (≈2.6× by the end)
     const item = rollItem(luck, null, powerMult);
     s.scene.pause();
@@ -202,7 +206,10 @@ export default class PickupController {
     Audio.sfx('pickup');
     // Accumulate gold on the run object
     if (!s.run.gold) s.run.gold = 0;
-    s.run.gold += coin.value || 1;
+    // Mandate of Heaven: gold income scaled by mandateGoldMult (heat*5%)
+    const goldMult = (s.run && s.run.mandateGoldMult) || 1;
+    const earned = Math.round((coin.value || 1) * goldMult);
+    s.run.gold += earned;
   }
 
   onHeart(player, heart) {

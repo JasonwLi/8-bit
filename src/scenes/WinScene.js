@@ -6,6 +6,7 @@ import { Audio } from '../systems/AudioManager.js';
 import { CIV_NAME } from '../data/campaign.js';
 import { HERO_DIALOGUE, pickRandom } from '../data/dialogue.js';
 import { getOmen } from '../data/omens.js';
+import { Legacy } from '../systems/SaveSystem.js';
 
 // Victory: the champion has conquered every civilization and the final warlord.
 export default class WinScene extends Phaser.Scene {
@@ -111,6 +112,30 @@ export default class WinScene extends Phaser.Scene {
           `War Omen: ${omenDef.name} — ${omenDef.desc}`, {
             fontFamily: 'monospace', fontSize: '10px', color: '#b080e8', align: 'center',
             wordWrap: { width: width - 120 },
+          }).setOrigin(0.5, 0);
+        winY += 16;
+      }
+    }
+
+    // ── Mandate of Heaven heat recap
+    const heat = this.run.mandateHeat || 0;
+    if (heat > 0) {
+      const flames = '🔥'.repeat(Math.min(heat, 10));
+      this.add.text(width / 2, winY,
+        `${flames} Mandate Heat ${heat}  ·  +${Math.round(heat * 15)}% Legacy Coins  ·  +${Math.round(heat * 5)}% Gold  ·  +${Math.round(heat * 1.5)} Loot Luck`, {
+          fontFamily: 'monospace', fontSize: '11px', color: '#ff8c00', fontStyle: 'bold',
+          align: 'center', wordWrap: { width: width - 120 },
+        }).setOrigin(0.5, 0);
+      winY += 18;
+
+      // Show personal-best heat for this hero (conquerStage already called recordHeroHeat)
+      const heroId = this.run.characterId;
+      const bestHeat = Legacy.getHeroBestHeat(heroId);
+      if (bestHeat > 0) {
+        const newRecord = heat >= bestHeat;
+        this.add.text(width / 2, winY,
+          `Personal Best: Heat ${bestHeat}${newRecord ? '  ★ NEW RECORD!' : ''}`, {
+            fontFamily: 'monospace', fontSize: '10px', color: '#ffd700', align: 'center',
           }).setOrigin(0.5, 0);
       }
     }

@@ -1,8 +1,9 @@
 import Phaser from 'phaser';
-import { rollArtifacts } from '../data/artifacts.js';
+import { rollArtifacts, getArtifact } from '../data/artifacts.js';
 import { Save } from '../systems/SaveSystem.js';
 import { Audio } from '../systems/AudioManager.js';
 import { drawPanel } from '../art/ui.js';
+import { MANDATE_ARTIFACT_HEAT, MANDATE_CROWN_HEAT } from './ContractScene.js';
 
 // After conquering a civilization, claim one permanent artifact to carry forward.
 export default class ArtifactScene extends Phaser.Scene {
@@ -27,7 +28,19 @@ export default class ArtifactScene extends Phaser.Scene {
     this._rerolled = false;
     // ITEM C: pass the just-conquered civ so its relic is always offered
     this._civId = this._run.currentCiv; // null if this is reached from somewhere else
-    this._choices = rollArtifacts(3 + (this._run.artifactBonus || 0), this._run.artifacts, this._civId);
+
+    // Mandate of Heaven: at heat >= 5 inject Seal; at heat >= 10 also inject Crown.
+    const heat = this._run.mandateHeat || 0;
+    const mandateArtifacts = [];
+    if (heat >= MANDATE_CROWN_HEAT) {
+      const crown = getArtifact('crown_of_heaven');
+      if (crown && !this._run.artifacts.includes(crown.id)) mandateArtifacts.push(crown);
+    }
+    if (heat >= MANDATE_ARTIFACT_HEAT) {
+      const seal = getArtifact('seal_of_the_mandate');
+      if (seal && !this._run.artifacts.includes(seal.id)) mandateArtifacts.push(seal);
+    }
+    this._choices = rollArtifacts(3 + (this._run.artifactBonus || 0), this._run.artifacts, this._civId, mandateArtifacts);
     this._cardObjs = [];
     this._buildCards(width, height);
 
@@ -68,7 +81,18 @@ export default class ArtifactScene extends Phaser.Scene {
   _doReroll(width, height) {
     if (this._rerolled) return;
     this._rerolled = true;
-    this._choices = rollArtifacts(3 + (this._run.artifactBonus || 0), this._run.artifacts, this._civId);
+    // Preserve mandate artifacts on reroll so heat rewards are never lost
+    const heat = this._run.mandateHeat || 0;
+    const mandateArtifacts = [];
+    if (heat >= MANDATE_CROWN_HEAT) {
+      const crown = getArtifact('crown_of_heaven');
+      if (crown && !this._run.artifacts.includes(crown.id)) mandateArtifacts.push(crown);
+    }
+    if (heat >= MANDATE_ARTIFACT_HEAT) {
+      const seal = getArtifact('seal_of_the_mandate');
+      if (seal && !this._run.artifacts.includes(seal.id)) mandateArtifacts.push(seal);
+    }
+    this._choices = rollArtifacts(3 + (this._run.artifactBonus || 0), this._run.artifacts, this._civId, mandateArtifacts);
     this._buildCards(width, height);
   }
 

@@ -39,13 +39,33 @@ export const Save = {
 // Stored as plain JSON (small object, no encoding needed).
 const LEGACY_KEY = '8bit_dynasties_legacy_v1';
 
+// Versioned defaults: if a saved profile is missing any key it gets filled in
+// so that old saves migrate forward cleanly without losing existing data.
+const LEGACY_DEFAULTS = {
+  coins: 0,
+  boons: {},
+  hasWonRun: false,    // set to true when the player wins a full conquest
+  heroBestHeat: {},    // heroId -> highest mandateHeat cleared in a win
+};
+
+function applyLegacyDefaults(data) {
+  const out = { ...data };
+  for (const [k, v] of Object.entries(LEGACY_DEFAULTS)) {
+    if (out[k] === undefined || out[k] === null) {
+      out[k] = Array.isArray(v) ? [] : (typeof v === 'object' ? { ...v } : v);
+    }
+  }
+  return out;
+}
+
 export const Legacy = {
   load() {
     try {
       const raw = localStorage.getItem(LEGACY_KEY);
-      return raw ? JSON.parse(raw) : { coins: 0, boons: {} };
+      const parsed = raw ? JSON.parse(raw) : {};
+      return applyLegacyDefaults(parsed);
     } catch (e) {
-      return { coins: 0, boons: {} };
+      return applyLegacyDefaults({});
     }
   },
 
@@ -59,8 +79,10 @@ export const Legacy = {
 
   // Award coins at end of run and return the amount earned.
   // Formula: floor(kills/10) + total floors descended + 5 per conquered civ.
-  awardCoins(kills, floorsDescended, conqueredCount) {
-    const earned = Math.floor(kills / 10) + floorsDescended + conqueredCount * 5;
+  // heatMult: legacy coin multiplier from mandate heat (1 + heat*0.15).
+  awardCoins(kills, floorsDescended, conqueredCount, heatMult = 1) {
+    const base = Math.floor(kills / 10) + floorsDescended + conqueredCount * 5;
+    const earned = Math.round(base * heatMult);
     if (earned > 0) {
       const data = this.load();
       data.coins = (data.coins || 0) + earned;
@@ -92,5 +114,36 @@ export const Legacy = {
     delete data.boons[boonId];
     this.save(data);
     return true;
+  },
+
+  // Mark that the player has completed a full conquest (enables MANDATE OF HEAVEN).
+  markWonRun() {
+    const data = this.load();
+    if (!data.hasWonRun) {
+      data.hasWonRun = true;
+      this.save(data);
+    }
+  },
+
+  // Check if the player has ever won a full run.
+  hasWonRun() {
+    return !!(this.load().hasWonRun);
+  },
+
+  // Record a win at a given mandate heat for a hero. Updates if heat > previous best.
+  recordHeroHeat(heroId, heat) {
+    const data = this.load();
+    data.heroBestHeat = data.heroBestHeat || {};
+    const prev = data.heroBestHeat[heroId] || 0;
+    if (heat > prev) {
+      data.heroBestHeat[heroId] = heat;
+      this.save(data);
+    }
+  },
+
+  // Get the best mandate heat cleared by a hero (0 if never won with this hero).
+  getHeroBestHeat(heroId) {
+    const data = this.load();
+    return (data.heroBestHeat && data.heroBestHeat[heroId]) || 0;
   },
 };

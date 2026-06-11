@@ -106,6 +106,14 @@ export default class UIScene extends Phaser.Scene {
       .text(width - 14, 38, `🏛 ${p.civTrait.name}\n👤 ${p.personalTrait.name}`,
         { fontFamily: 'monospace', fontSize: '11px', color: '#9a93c0', align: 'right', lineSpacing: 2 })
       .setOrigin(1, 0).setDepth(101);
+    // Mandate of Heaven: flame icon + heat number (only when heat > 0)
+    const runHeat = (this.gs.run && this.gs.run.mandateHeat) || 0;
+    if (runHeat > 0) {
+      this.add.text(width - 14, 62, `🔥 Heat ${runHeat}`, {
+        fontFamily: 'monospace', fontSize: '11px', color: '#ff8c00', align: 'right', fontStyle: 'bold',
+      }).setOrigin(1, 0).setDepth(101);
+    }
+    this._mandateHeat = runHeat; // save for pause hint
     const arts = this.gs.run.artifacts || [];
     if (arts.length) {
       this.add.text(width - 14, 74, arts.map((id) => `✦ ${getArtifact(id).name}`).join('\n'), {
