@@ -42,15 +42,15 @@ export const WEAPONS = {
     ],
     // DW string: S1 wide sweep, S2 reverse sweep, S3 forward thrust, S4 full spin
     string: [
-      { stepId: 'S1', kind: 'melee_arc',   dmgMult: 0.65, arcOverride: 200, radiusMult: 1.00, offsetAngle: 0,        motionKind: 'charge_tap',   sfxPitchMult: 1.00 },
-      { stepId: 'S2', kind: 'melee_arc',   dmgMult: 0.70, arcOverride: 240, radiusMult: 1.05, offsetAngle: Math.PI,  motionKind: 'charge_tap',   sfxPitchMult: 1.10, offsetX: 12 },
-      { stepId: 'S3', kind: 'line_thrust', dmgMult: 0.80, lengthMult: 1.00, widthMult: 0.90, offsetAngle: 0,        motionKind: 'charge_heavy', sfxPitchMult: 1.20 },
-      { stepId: 'S4', kind: 'melee_arc',   dmgMult: 0.90, arcOverride: 360, radiusMult: 1.10, offsetAngle: 0,        motionKind: 'charge_heavy', sfxPitchMult: 1.30, radial: true },
+      { stepId: 'S1', kind: 'melee_arc',   dmgMult: 0.65, arcOverride: 200, radiusMult: 1.00, offsetAngle: 0,        motionKind: 'charge_tap',   sfxPitchMult: 1.00, desc: 'Wide 200° sweep — knocks back, steals life on hit' },
+      { stepId: 'S2', kind: 'melee_arc',   dmgMult: 0.70, arcOverride: 240, radiusMult: 1.05, offsetAngle: Math.PI,  motionKind: 'charge_tap',   sfxPitchMult: 1.10, offsetX: 12, desc: 'Reverse sweep — 240° arc behind you, wider reach' },
+      { stepId: 'S3', kind: 'line_thrust', dmgMult: 0.80, lengthMult: 1.00, widthMult: 0.90, offsetAngle: 0,        motionKind: 'charge_heavy', sfxPitchMult: 1.20, desc: 'Driving thrust — pierces in a forward line, heavy knock' },
+      { stepId: 'S4', kind: 'melee_arc',   dmgMult: 0.90, arcOverride: 360, radiusMult: 1.10, offsetAngle: 0,        motionKind: 'charge_heavy', sfxPitchMult: 1.30, radial: true, desc: 'Full 360° spin — hits every enemy around you' },
     ],
     chargeFinishers: {
-      C2: { kind: 'melee_arc',   dmgMult: 1.4, arcOverride: 240, radiusMult: 1.15, knockbackOverride: 28, launcher: true,  motionKind: 'charge_heavy', ringColor: 0x00ccff, label: 'HEAVEN LAUNCHER' },
-      C3: { kind: 'melee_arc',   dmgMult: 1.7, arcOverride: 300, radiusMult: 1.40, knockbackOverride: 55,                 motionKind: 'charge_heavy', ringColor: 0xff8800, label: 'SKY PIERCER WAVE' },
-      C4: { kind: 'melee_arc',   dmgMult: 2.5, arcOverride: 360, radiusMult: 1.55, knockbackOverride: 60, grandFinisher: true, motionKind: 'charge_heavy', ringColor: 0xff2222, label: 'WRATH NOVA' },
+      C2: { kind: 'melee_arc',   dmgMult: 1.4, arcOverride: 240, radiusMult: 1.15, knockbackOverride: 28, launcher: true,  motionKind: 'charge_heavy', ringColor: 0x00ccff, label: 'HEAVEN LAUNCHER', desc: 'LAUNCHER — pops enemies airborne 0.9s, +30% damage while aloft' },
+      C3: { kind: 'melee_arc',   dmgMult: 1.7, arcOverride: 300, radiusMult: 1.40, knockbackOverride: 55,                 motionKind: 'charge_heavy', ringColor: 0xff8800, label: 'SKY PIERCER WAVE', desc: 'SWEEP WAVE — 300° arc, 55px knockback, slam foes into walls' },
+      C4: { kind: 'melee_arc',   dmgMult: 2.5, arcOverride: 360, radiusMult: 1.55, knockbackOverride: 60, grandFinisher: true, motionKind: 'charge_heavy', ringColor: 0xff2222, label: 'WRATH NOVA', desc: 'WRATH NOVA — full 360° eruption, massive knockback, lifesteal burst' },
     },
     // EVOLVE — Wrath of Heaven: double sweep + full 360° second spin, every hit burns
     // the ground, lifesteal doubled. Lü Bu becomes a blazing blender.
@@ -87,15 +87,15 @@ export const WEAPONS = {
     // DW string: S1 single rail; S2 tight double; S3 disciplined 3-shot line burst (no spread);
     // S4 deep piercing rail. No fan spread — Nobunaga is a precision marksman, not an area suppressor.
     string: [
-      { stepId: 'S1', kind: 'projectile_aimed', dmgMult: 0.65, countAdd: 0,  spreadOverride: 0,    pierceMod: 0,  motionKind: 'charge_tap',   sfxPitchMult: 1.00 },
-      { stepId: 'S2', kind: 'projectile_aimed', dmgMult: 0.55, countAdd: 1,  spreadOverride: 8,    pierceMod: 0,  motionKind: 'charge_tap',   sfxPitchMult: 1.10 },
-      { stepId: 'S3', kind: 'burst_line_volley', dmgMult: 0.50, countAdd: 2,  spreadOverride: 0,   pierceMod: 0,  burstDelay: 70, motionKind: 'charge_tap',   sfxPitchMult: 1.20 },
-      { stepId: 'S4', kind: 'projectile_aimed', dmgMult: 0.85, countAdd: 0,  spreadOverride: 0,    pierceMod: 4,  motionKind: 'charge_heavy', sfxPitchMult: 1.30 },
+      { stepId: 'S1', kind: 'projectile_aimed', dmgMult: 0.65, countAdd: 0,  spreadOverride: 0,    pierceMod: 0,  motionKind: 'charge_tap',   sfxPitchMult: 1.00, desc: 'Single rifle shot — pierces the whole line, high range' },
+      { stepId: 'S2', kind: 'projectile_aimed', dmgMult: 0.55, countAdd: 1,  spreadOverride: 8,    pierceMod: 0,  motionKind: 'charge_tap',   sfxPitchMult: 1.10, desc: 'Double shot — tight 8° spread, both bolts pierce' },
+      { stepId: 'S3', kind: 'burst_line_volley', dmgMult: 0.50, countAdd: 2,  spreadOverride: 0,   pierceMod: 0,  burstDelay: 70, motionKind: 'charge_tap',   sfxPitchMult: 1.20, desc: '3-round burst — staggered 70ms, drills a single lane' },
+      { stepId: 'S4', kind: 'projectile_aimed', dmgMult: 0.85, countAdd: 0,  spreadOverride: 0,    pierceMod: 4,  motionKind: 'charge_heavy', sfxPitchMult: 1.30, desc: 'Deep rail — +4 pierce, punches through tight formations' },
     ],
     chargeFinishers: {
-      C2: { kind: 'projectile_aimed',   dmgMult: 1.5, countAdd: 0,  spreadOverride: 0,  pierceMod: 2, launcher: true,  motionKind: 'charge_heavy', ringColor: 0x00ccff, label: 'CONCUSSIVE ROUND' },
-      C3: { kind: 'projectile_aimed',   dmgMult: 1.2, countAdd: 3,  spreadOverride: 35, knockbackOverride: 40,          motionKind: 'charge_heavy', ringColor: 0xff8800, label: 'DEMOLITION BARRAGE' },
-      C4: { kind: 'kings_fusillade',    dmgMult: 2.2, countAdd: 4,  spreadOverride: 0,  pierceMod: 6, knockbackOverride: 50, grandFinisher: true, noFireZone: true, motionKind: 'charge_heavy', ringColor: 0xff2222, label: "KING'S FUSILLADE" },
+      C2: { kind: 'projectile_aimed',   dmgMult: 1.5, countAdd: 0,  spreadOverride: 0,  pierceMod: 2, launcher: true,  motionKind: 'charge_heavy', ringColor: 0x00ccff, label: 'CONCUSSIVE ROUND', desc: 'LAUNCHER — high-velocity round pops target airborne on impact' },
+      C3: { kind: 'projectile_aimed',   dmgMult: 1.2, countAdd: 3,  spreadOverride: 35, knockbackOverride: 40,          motionKind: 'charge_heavy', ringColor: 0xff8800, label: 'DEMOLITION BARRAGE', desc: 'DEMOLITION BARRAGE — 4-shot 35° spread, 40px blast knockback' },
+      C4: { kind: 'kings_fusillade',    dmgMult: 2.2, countAdd: 4,  spreadOverride: 0,  pierceMod: 6, knockbackOverride: 50, grandFinisher: true, noFireZone: true, motionKind: 'charge_heavy', ringColor: 0xff2222, label: "KING'S FUSILLADE", desc: "KING'S FUSILLADE — 5 full-pierce shots, 50px knockback, huge damage" },
     },
     // EVOLVE — Demon King's Fusillade: each shot detonates a fire zone at impact.
     // Rewarded for long-range placement — the shell pierces everything AND leaves
@@ -134,15 +134,15 @@ export const WEAPONS = {
     // from any straight volley — one forward, one left, one right in a triangle pattern),
     // S4 conflagration mega-pot.
     string: [
-      { stepId: 'S1', kind: 'lob_aoe', dmgMult: 0.65, countAdd: 0,  radiusMult: 0.85, motionKind: 'charge_tap',   sfxPitchMult: 1.00 },
-      { stepId: 'S2', kind: 'lob_aoe', dmgMult: 0.60, countAdd: 1,  radiusMult: 0.90, motionKind: 'charge_tap',   sfxPitchMult: 1.10 },
-      { stepId: 'S3', kind: 'lob_triangle', dmgMult: 0.55, countAdd: 2,  radiusMult: 1.00, motionKind: 'charge_tap',   sfxPitchMult: 1.20 },
-      { stepId: 'S4', kind: 'lob_aoe', dmgMult: 0.70, countAdd: 1,  radiusMult: 1.25, durationMult: 1.3, motionKind: 'charge_heavy', sfxPitchMult: 1.30 },
+      { stepId: 'S1', kind: 'lob_aoe', dmgMult: 0.65, countAdd: 0,  radiusMult: 0.85, motionKind: 'charge_tap',   sfxPitchMult: 1.00, desc: 'Single fire pot — arcs forward, leaves a burn pool' },
+      { stepId: 'S2', kind: 'lob_aoe', dmgMult: 0.60, countAdd: 1,  radiusMult: 0.90, motionKind: 'charge_tap',   sfxPitchMult: 1.10, desc: 'Double pot lob — two pools overlap into a larger fire zone' },
+      { stepId: 'S3', kind: 'lob_triangle', dmgMult: 0.55, countAdd: 2,  radiusMult: 1.00, motionKind: 'charge_tap',   sfxPitchMult: 1.20, desc: 'Triangle scatter — 3 pots (fwd, left, right) form a fire cage' },
+      { stepId: 'S4', kind: 'lob_aoe', dmgMult: 0.70, countAdd: 1,  radiusMult: 1.25, durationMult: 1.3, motionKind: 'charge_heavy', sfxPitchMult: 1.30, desc: 'Mega-pot — huge 125% radius pool, burn lingers 30% longer' },
     ],
     chargeFinishers: {
-      C2: { kind: 'lob_aoe', dmgMult: 1.4, countAdd: 0, radiusMult: 1.20, launcher: true,  motionKind: 'charge_heavy', ringColor: 0x00ccff, label: 'SHOCKPOT' },
-      C3: { kind: 'lob_aoe', dmgMult: 1.5, countAdd: 3, radiusMult: 1.10,                  motionKind: 'charge_heavy', ringColor: 0xff8800, label: 'NAPALM CURTAIN' },
-      C4: { kind: 'lob_aoe', dmgMult: 2.0, countAdd: 4, radiusMult: 1.35, grandFinisher: true, motionKind: 'charge_heavy', ringColor: 0xff2222, label: 'HELLFIRE DELUGE' },
+      C2: { kind: 'lob_aoe', dmgMult: 1.4, countAdd: 0, radiusMult: 1.20, launcher: true,  motionKind: 'charge_heavy', ringColor: 0x00ccff, label: 'SHOCKPOT', desc: 'SHOCKPOT — explosive pot, blast radius launches enemies airborne' },
+      C3: { kind: 'lob_aoe', dmgMult: 1.5, countAdd: 3, radiusMult: 1.10,                  motionKind: 'charge_heavy', ringColor: 0xff8800, label: 'NAPALM CURTAIN', desc: 'NAPALM CURTAIN — 4 pots rain down, carpeting area with fire' },
+      C4: { kind: 'lob_aoe', dmgMult: 2.0, countAdd: 4, radiusMult: 1.35, grandFinisher: true, motionKind: 'charge_heavy', ringColor: 0xff2222, label: 'HELLFIRE DELUGE', desc: 'HELLFIRE DELUGE — 5 overlapping mega-pools, corridor denied for 2s' },
     },
     // EVOLVE — Napalm Tide: each pot splits into THREE sub-pools on landing, covering
     // a wide triangle of overlapping burn zones in addition to the central pool.
@@ -175,15 +175,15 @@ export const WEAPONS = {
     ],
     // DW string: orbital burst salvos with increasing count/pierce
     string: [
-      { stepId: 'S1', kind: 'projectile_radial', dmgMult: 0.55, countAdd: 4,  pierceMod: 1, motionKind: 'charge_tap',   sfxPitchMult: 1.00 },
-      { stepId: 'S2', kind: 'projectile_radial', dmgMult: 0.60, countAdd: 6,  pierceMod: 2, motionKind: 'charge_tap',   sfxPitchMult: 1.10 },
-      { stepId: 'S3', kind: 'projectile_radial', dmgMult: 0.65, countAdd: 8,  pierceMod: 2, motionKind: 'charge_tap',   sfxPitchMult: 1.20 },
-      { stepId: 'S4', kind: 'projectile_radial', dmgMult: 0.80, countAdd: 12, pierceMod: 3, motionKind: 'charge_heavy', sfxPitchMult: 1.30 },
+      { stepId: 'S1', kind: 'projectile_radial', dmgMult: 0.55, countAdd: 4,  pierceMod: 1, motionKind: 'charge_tap',   sfxPitchMult: 1.00, desc: 'Orbital burst — ejects 5+ blades radially, pierce 1 each' },
+      { stepId: 'S2', kind: 'projectile_radial', dmgMult: 0.60, countAdd: 6,  pierceMod: 2, motionKind: 'charge_tap',   sfxPitchMult: 1.10, desc: '7+ blade volley — denser spread, pierce 2, safe at range' },
+      { stepId: 'S3', kind: 'projectile_radial', dmgMult: 0.65, countAdd: 8,  pierceMod: 2, motionKind: 'charge_tap',   sfxPitchMult: 1.20, desc: '9+ blade eruption — even denser halo, covers all angles' },
+      { stepId: 'S4', kind: 'projectile_radial', dmgMult: 0.80, countAdd: 12, pierceMod: 3, motionKind: 'charge_heavy', sfxPitchMult: 1.30, desc: 'Treasury fusillade — 13+ blades, pierce 3, high single-target' },
     ],
     chargeFinishers: {
-      C2: { kind: 'projectile_radial', dmgMult: 1.4, countAdd: 8,  launcher: true,     motionKind: 'charge_heavy', ringColor: 0x00ccff, label: 'ARSENAL BURST' },
-      C3: { kind: 'projectile_radial', dmgMult: 1.6, countAdd: 16, knockbackOverride: 50, motionKind: 'charge_heavy', ringColor: 0xff8800, label: 'BLADE HURRICANE' },
-      C4: { kind: 'projectile_radial', dmgMult: 2.2, countAdd: 20, grandFinisher: true, motionKind: 'charge_heavy', ringColor: 0xff2222, label: 'DIVINE JUDGMENT' },
+      C2: { kind: 'projectile_radial', dmgMult: 1.4, countAdd: 8,  launcher: true,     motionKind: 'charge_heavy', ringColor: 0x00ccff, label: 'ARSENAL BURST', desc: 'ARSENAL BURST — 9+ blades, launcher: strikes pop enemies airborne' },
+      C3: { kind: 'projectile_radial', dmgMult: 1.6, countAdd: 16, knockbackOverride: 50, motionKind: 'charge_heavy', ringColor: 0xff8800, label: 'BLADE HURRICANE', desc: 'BLADE HURRICANE — 17+ blades at once, 50px knockback, wall-crunch risk' },
+      C4: { kind: 'projectile_radial', dmgMult: 2.2, countAdd: 20, grandFinisher: true, motionKind: 'charge_heavy', ringColor: 0xff2222, label: 'DIVINE JUDGMENT', desc: 'DIVINE JUDGMENT — 21+ blade ring, obliterates clustered swarms' },
     },
     // EVOLVE — Treasury Unleashed: every 3 seconds the ring of blades fires outward as
     // homing seeking projectiles, then immediately re-forms. Orbital grinder ↔ seeking salvo.
@@ -220,15 +220,15 @@ export const WEAPONS = {
     ],
     // DW string: Caesar uses melee slashes (bypass summon — string steps are direct melee)
     string: [
-      { stepId: 'S1', kind: 'melee_arc',   dmgMult: 0.60, arcOverride: 180, radiusMult: 0.80, offsetAngle: 0, motionKind: 'charge_tap',   sfxPitchMult: 1.00 },
-      { stepId: 'S2', kind: 'melee_arc',   dmgMult: 0.65, arcOverride: 200, radiusMult: 0.85, offsetAngle: 0, knockbackOverride: 30, motionKind: 'charge_tap',   sfxPitchMult: 1.10 },
-      { stepId: 'S3', kind: 'line_thrust', dmgMult: 0.75, lengthMult: 0.80, widthMult: 1.00, offsetAngle: 0, motionKind: 'charge_tap',   sfxPitchMult: 1.20 },
-      { stepId: 'S4', kind: 'melee_arc',   dmgMult: 0.85, arcOverride: 260, radiusMult: 1.05, offsetAngle: 0, knockbackOverride: 25, motionKind: 'charge_heavy', sfxPitchMult: 1.30 },
+      { stepId: 'S1', kind: 'melee_arc',   dmgMult: 0.60, arcOverride: 180, radiusMult: 0.80, offsetAngle: 0, motionKind: 'charge_tap',   sfxPitchMult: 1.00, desc: 'Short gladius slash — 180° clean arc, quick gap-closer' },
+      { stepId: 'S2', kind: 'melee_arc',   dmgMult: 0.65, arcOverride: 200, radiusMult: 0.85, offsetAngle: 0, knockbackOverride: 30, motionKind: 'charge_tap',   sfxPitchMult: 1.10, desc: 'Shield drive — 200° arc, 30px knockback, pushes foes back' },
+      { stepId: 'S3', kind: 'line_thrust', dmgMult: 0.75, lengthMult: 0.80, widthMult: 1.00, offsetAngle: 0, motionKind: 'charge_tap',   sfxPitchMult: 1.20, desc: 'Legionary thrust — forward line strike, good single-target' },
+      { stepId: 'S4', kind: 'melee_arc',   dmgMult: 0.85, arcOverride: 260, radiusMult: 1.05, offsetAngle: 0, knockbackOverride: 25, motionKind: 'charge_heavy', sfxPitchMult: 1.30, desc: 'Formation sweep — 260° wide arc, clears groups, lifesteal' },
     ],
     chargeFinishers: {
-      C2: { kind: 'melee_arc', dmgMult: 1.3, arcOverride: 240, radiusMult: 1.10, launcher: true,  motionKind: 'charge_heavy', ringColor: 0x00ccff, label: 'TESTUDO SLAM' },
-      C3: { kind: 'melee_arc', dmgMult: 1.6, arcOverride: 300, radiusMult: 1.30, knockbackOverride: 50, motionKind: 'charge_heavy', ringColor: 0xff8800, label: 'LEGION PRESS' },
-      C4: { kind: 'melee_arc', dmgMult: 2.2, arcOverride: 360, radiusMult: 1.50, grandFinisher: true, motionKind: 'charge_heavy', ringColor: 0xff2222, label: 'TRIUMPH' },
+      C2: { kind: 'melee_arc', dmgMult: 1.3, arcOverride: 240, radiusMult: 1.10, launcher: true,  motionKind: 'charge_heavy', ringColor: 0x00ccff, label: 'TESTUDO SLAM', desc: 'TESTUDO SLAM — shield charge, 240° launcher: enemies fly up' },
+      C3: { kind: 'melee_arc', dmgMult: 1.6, arcOverride: 300, radiusMult: 1.30, knockbackOverride: 50, motionKind: 'charge_heavy', ringColor: 0xff8800, label: 'LEGION PRESS', desc: 'LEGION PRESS — 300° sweep, 50px shove into walls for wall crunch' },
+      C4: { kind: 'melee_arc', dmgMult: 2.2, arcOverride: 360, radiusMult: 1.50, grandFinisher: true, motionKind: 'charge_heavy', ringColor: 0xff2222, label: 'TRIUMPH', desc: 'TRIUMPH — full 360° crushing blow, highest single-hit damage' },
     },
     // EVOLVE — Testudo Immortalis: legionaries spawn with +80% HP, deal 50% more damage,
     // and each emits a permanent slow-field aura (30px, 40% slow) that grinds the horde
@@ -266,15 +266,15 @@ export const WEAPONS = {
     ],
     // DW string: S1 quick thrust, S2 power thrust, S3 rear butt sweep, S4 phalanx charge
     string: [
-      { stepId: 'S1', kind: 'line_thrust', dmgMult: 0.65, lengthMult: 0.85, widthMult: 0.90, offsetAngle: 0,        motionKind: 'charge_tap',   sfxPitchMult: 1.00 },
-      { stepId: 'S2', kind: 'line_thrust', dmgMult: 0.75, lengthMult: 1.00, widthMult: 1.00, offsetAngle: 0,        motionKind: 'charge_tap',   sfxPitchMult: 1.10 },
-      { stepId: 'S3', kind: 'melee_arc',   dmgMult: 0.70, arcOverride: 220, radiusMult: 0.95, offsetAngle: Math.PI, motionKind: 'charge_tap',   sfxPitchMult: 1.20 },
-      { stepId: 'S4', kind: 'line_thrust', dmgMult: 0.90, lengthMult: 1.30, widthMult: 1.20, offsetAngle: 0, knockbackOverride: 35, motionKind: 'charge_heavy', sfxPitchMult: 1.30 },
+      { stepId: 'S1', kind: 'line_thrust', dmgMult: 0.65, lengthMult: 0.85, widthMult: 0.90, offsetAngle: 0,        motionKind: 'charge_tap',   sfxPitchMult: 1.00, desc: 'Quick jab — fast narrow thrust, low commitment opener' },
+      { stepId: 'S2', kind: 'line_thrust', dmgMult: 0.75, lengthMult: 1.00, widthMult: 1.00, offsetAngle: 0,        motionKind: 'charge_tap',   sfxPitchMult: 1.10, desc: 'Power thrust — full sarissa length, knocks back cleanly' },
+      { stepId: 'S3', kind: 'melee_arc',   dmgMult: 0.70, arcOverride: 220, radiusMult: 0.95, offsetAngle: Math.PI, motionKind: 'charge_tap',   sfxPitchMult: 1.20, desc: 'Butt sweep — 220° arc backward, catches flanking enemies' },
+      { stepId: 'S4', kind: 'line_thrust', dmgMult: 0.90, lengthMult: 1.30, widthMult: 1.20, offsetAngle: 0, knockbackOverride: 35, motionKind: 'charge_heavy', sfxPitchMult: 1.30, desc: 'Phalanx charge — long wide thrust, 35px knockback, wall crunch' },
     ],
     chargeFinishers: {
-      C2: { kind: 'line_thrust', dmgMult: 1.4, lengthMult: 1.10, widthMult: 1.00, launcher: true,  motionKind: 'charge_heavy', ringColor: 0x00ccff, label: 'WARLANCE LAUNCHER' },
-      C3: { kind: 'melee_arc',   dmgMult: 1.6, arcOverride: 320, radiusMult: 1.30, knockbackOverride: 60, motionKind: 'charge_heavy', ringColor: 0xff8800, label: 'MACEDONIAN SHOCKWAVE' },
-      C4: { kind: 'line_thrust', dmgMult: 2.3, lengthMult: 1.50, widthMult: 1.30, grandFinisher: true, motionKind: 'charge_heavy', ringColor: 0xff2222, label: 'SON OF AMUN' },
+      C2: { kind: 'line_thrust', dmgMult: 1.4, lengthMult: 1.10, widthMult: 1.00, launcher: true,  motionKind: 'charge_heavy', ringColor: 0x00ccff, label: 'WARLANCE LAUNCHER', desc: 'WARLANCE LAUNCHER — long thrust pops target airborne, follow-up window' },
+      C3: { kind: 'melee_arc',   dmgMult: 1.6, arcOverride: 320, radiusMult: 1.30, knockbackOverride: 60, motionKind: 'charge_heavy', ringColor: 0xff8800, label: 'MACEDONIAN SHOCKWAVE', desc: 'MACEDONIAN SHOCKWAVE — 320° arc, 60px knockback, likely wall crunch' },
+      C4: { kind: 'line_thrust', dmgMult: 2.3, lengthMult: 1.50, widthMult: 1.30, grandFinisher: true, motionKind: 'charge_heavy', ringColor: 0xff2222, label: 'SON OF AMUN', desc: 'SON OF AMUN — longest thrust, obliterates a full column of enemies' },
     },
     // EVOLVE — Macedonian Onslaught: THREE parallel lanes fire simultaneously — center
     // at full length, left/right at ×0.85 length, staggered 60ms. Total ≈ ×2.1 damage.
@@ -309,15 +309,15 @@ export const WEAPONS = {
     ],
     // DW string: rapid shots with count/spread/pierce variation
     string: [
-      { stepId: 'S1', kind: 'projectile_aimed', dmgMult: 0.65, countAdd: 0, spreadOverride: 2,  pierceMod: 0, motionKind: 'charge_tap',   sfxPitchMult: 1.00 },
-      { stepId: 'S2', kind: 'projectile_aimed', dmgMult: 0.55, countAdd: 1, spreadOverride: 12, pierceMod: 0, motionKind: 'charge_tap',   sfxPitchMult: 1.10 },
-      { stepId: 'S3', kind: 'projectile_aimed', dmgMult: 0.50, countAdd: 2, spreadOverride: 25, pierceMod: 0, motionKind: 'charge_tap',   sfxPitchMult: 1.20 },
-      { stepId: 'S4', kind: 'projectile_aimed', dmgMult: 0.85, countAdd: 0, spreadOverride: 0,  pierceMod: 3, motionKind: 'charge_heavy', sfxPitchMult: 1.30 },
+      { stepId: 'S1', kind: 'projectile_aimed', dmgMult: 0.65, countAdd: 0, spreadOverride: 2,  pierceMod: 0, motionKind: 'charge_tap',   sfxPitchMult: 1.00, desc: 'Single swift arrow — pierces all, stacks bleed on target' },
+      { stepId: 'S2', kind: 'projectile_aimed', dmgMult: 0.55, countAdd: 1, spreadOverride: 12, pierceMod: 0, motionKind: 'charge_tap',   sfxPitchMult: 1.10, desc: 'Twin arrows — 12° split, both bleed; covers a wider lane' },
+      { stepId: 'S3', kind: 'projectile_aimed', dmgMult: 0.50, countAdd: 2, spreadOverride: 25, pierceMod: 0, motionKind: 'charge_tap',   sfxPitchMult: 1.20, desc: '3-arrow fan — 25° spread, blankets a group with bleed stacks' },
+      { stepId: 'S4', kind: 'projectile_aimed', dmgMult: 0.85, countAdd: 0, spreadOverride: 0,  pierceMod: 3, motionKind: 'charge_heavy', sfxPitchMult: 1.30, desc: 'Deep piercer — +3 pierce, drills through a full column' },
     ],
     chargeFinishers: {
-      C2: { kind: 'projectile_aimed',  dmgMult: 1.4, countAdd: 0, spreadOverride: 0,  launcher: true,  motionKind: 'charge_heavy', ringColor: 0x00ccff, label: 'IMPACT ARROW' },
-      C3: { kind: 'projectile_aimed',  dmgMult: 1.3, countAdd: 4, spreadOverride: 40, knockbackOverride: 35, motionKind: 'charge_heavy', ringColor: 0xff8800, label: 'SKY VOLLEY' },
-      C4: { kind: 'projectile_radial', dmgMult: 2.1, countAdd: 8, grandFinisher: true, motionKind: 'charge_heavy', ringColor: 0xff2222, label: "TENGRI'S WRATH" },
+      C2: { kind: 'projectile_aimed',  dmgMult: 1.4, countAdd: 0, spreadOverride: 0,  launcher: true,  motionKind: 'charge_heavy', ringColor: 0x00ccff, label: 'IMPACT ARROW', desc: 'IMPACT ARROW — heavy shot pops target airborne, heavy bleed stack' },
+      C3: { kind: 'projectile_aimed',  dmgMult: 1.3, countAdd: 4, spreadOverride: 40, knockbackOverride: 35, motionKind: 'charge_heavy', ringColor: 0xff8800, label: 'SKY VOLLEY', desc: 'SKY VOLLEY — 5-arrow 40° spread, 35px knockback, mass bleed zone' },
+      C4: { kind: 'projectile_radial', dmgMult: 2.1, countAdd: 8, grandFinisher: true, motionKind: 'charge_heavy', ringColor: 0xff2222, label: "TENGRI'S WRATH", desc: "TENGRI'S WRATH — 9 arrows radially outward, max bleed stacks all sides" },
     },
     // EVOLVE — Blood Sky Barrage: arrows gain homing + tripled bleed stack cap, creating
     // a self-correcting swarm of bloodletting needles that curve into running targets.
@@ -351,15 +351,15 @@ export const WEAPONS = {
     ],
     // DW string: S1 axe throw, S2 double throw, S3 wide spin (melee_arc), S4 berserker hurl
     string: [
-      { stepId: 'S1', kind: 'boomerang', dmgMult: 0.65, countAdd: 0, motionKind: 'charge_tap',   sfxPitchMult: 1.00 },
-      { stepId: 'S2', kind: 'boomerang', dmgMult: 0.55, countAdd: 1, motionKind: 'charge_tap',   sfxPitchMult: 1.10 },
-      { stepId: 'S3', kind: 'melee_arc', dmgMult: 0.70, arcOverride: 280, radiusMult: 1.00, offsetAngle: 0, motionKind: 'charge_tap',   sfxPitchMult: 1.20 },
-      { stepId: 'S4', kind: 'boomerang', dmgMult: 0.85, countAdd: 0, rangeMultAdd: 0.25, motionKind: 'charge_heavy', sfxPitchMult: 1.30 }, // Berserker Hurl — longer throw
+      { stepId: 'S1', kind: 'boomerang', dmgMult: 0.65, countAdd: 0, motionKind: 'charge_tap',   sfxPitchMult: 1.00, desc: 'Single axe — arcs out and returns, hits twice (out + back)' },
+      { stepId: 'S2', kind: 'boomerang', dmgMult: 0.55, countAdd: 1, motionKind: 'charge_tap',   sfxPitchMult: 1.10, desc: 'Twin axes — two return paths crossing, up to 4 hits total' },
+      { stepId: 'S3', kind: 'melee_arc', dmgMult: 0.70, arcOverride: 280, radiusMult: 1.00, offsetAngle: 0, motionKind: 'charge_tap',   sfxPitchMult: 1.20, desc: 'Berserker spin — 280° close-range whirlwind, clears surroundings' },
+      { stepId: 'S4', kind: 'boomerang', dmgMult: 0.85, countAdd: 0, rangeMultAdd: 0.25, motionKind: 'charge_heavy', sfxPitchMult: 1.30, desc: 'Berserker hurl — +25% throw range, hits twice at greater distance' },
     ],
     chargeFinishers: {
-      C2: { kind: 'boomerang', dmgMult: 1.4, countAdd: 0, launcher: true,  motionKind: 'charge_heavy', ringColor: 0x00ccff, label: 'HAMMER THROW' },
-      C3: { kind: 'boomerang', dmgMult: 1.5, countAdd: 2, knockbackOverride: 45, motionKind: 'charge_heavy', ringColor: 0xff8800, label: 'AXE TEMPEST' },
-      C4: { kind: 'melee_arc', dmgMult: 2.2, arcOverride: 360, radiusMult: 1.40, grandFinisher: true, motionKind: 'charge_heavy', ringColor: 0xff2222, label: 'RAGNAROK SPIN' },
+      C2: { kind: 'boomerang', dmgMult: 1.4, countAdd: 0, launcher: true,  motionKind: 'charge_heavy', ringColor: 0x00ccff, label: 'HAMMER THROW', desc: 'HAMMER THROW — heavy axe pops target airborne; return hit also launches' },
+      C3: { kind: 'boomerang', dmgMult: 1.5, countAdd: 2, knockbackOverride: 45, motionKind: 'charge_heavy', ringColor: 0xff8800, label: 'AXE TEMPEST', desc: 'AXE TEMPEST — 3 axes, 45px knockback; wall-crunch on clusters' },
+      C4: { kind: 'melee_arc', dmgMult: 2.2, arcOverride: 360, radiusMult: 1.40, grandFinisher: true, motionKind: 'charge_heavy', ringColor: 0xff2222, label: 'RAGNAROK SPIN', desc: 'RAGNAROK SPIN — full 360° axe vortex, maximum melee radius, devastates crowds' },
     },
     // EVOLVE — Storm of Axes: axes explode at max range spawning a trample zone, then
     // sweep back. Three damage events per throw: outbound + trample zone + return.
