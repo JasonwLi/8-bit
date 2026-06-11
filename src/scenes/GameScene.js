@@ -3,6 +3,7 @@ import Player from '../entities/Player.js';
 import WeaponSystem from '../systems/WeaponSystem.js';
 import AbilitySystem from '../systems/AbilitySystem.js';
 import SpawnSystem from '../systems/SpawnSystem.js';
+import { rollDoors } from '../scenes/DoorScene.js';
 import { getCharacter } from '../data/characters.js';
 import { rollItem } from '../data/equipment.js';
 import Boss from '../entities/Boss.js';
@@ -170,6 +171,11 @@ export default class GameScene extends Phaser.Scene {
     this.floorsTotal = floorsForStage(this.run);
     this.bossFloors = bossFloorsFor(this.run); // { floorNumber: bossIndex }
     this.bossActiveThisFloor = false;
+    // Restore active floor mod (from a mid-floor save/continue).
+    this.activeFloorMod = this.run.activeFloorMod ? { ...this.run.activeFloorMod } : null;
+    // Cursed mod debuff state (derived from activeFloorMod; set in _applyCursedMod).
+    this._cursedPickupMult = 1;
+    this._cursedFogRadius = 0;
     this._navAcc = 0;
     this._lastRevealX = -1e9; this._lastRevealY = -1e9; // force a fog reveal on the first frame
     this._fogVisAcc = 0; // accumulator for the ~100ms fog-concealment visibility pass
@@ -441,6 +447,22 @@ export default class GameScene extends Phaser.Scene {
     this.bossActiveThisFloor = false;
     const isBossFloor = this.bossFloors[floor] !== undefined;
 
+    // ── Consume the floor mod chosen in DoorScene (or restored from a save) ───
+    // On a RESUME (resumeSpawned > 0) the mod was already loaded into this.activeFloorMod
+    // in init() from run.activeFloorMod — don't overwrite it.
+    // On a FRESH floor (resumeSpawned === 0) read nextFloorMod, consume it, and set active.
+    let mod;
+    if (resumeSpawned > 0 && this.activeFloorMod) {
+      mod = this.activeFloorMod; // already restored
+    } else {
+      mod = this.run.nextFloorMod || { type: 'NORMAL' };
+      this.run.nextFloorMod = null; // consumed
+      this.activeFloorMod = mod;   // keep for this floor's lifetime (read by spawner/pickup)
+    }
+    // Reset cursed debuffs; _applyCursedMod below will re-apply them if needed.
+    this._cursedPickupMult = 1;
+    this._cursedFogRadius = 0;
+
     this.floorSys.build(this.run.floorSeed + floor, { lockStairs: isBossFloor });
     const start = this.floorSys.startWorld();
     this._lastSafeX = start.x; this._lastSafeY = start.y; // re-anchor the anti-tunnel guard
@@ -462,6 +484,16 @@ export default class GameScene extends Phaser.Scene {
     resetAttackTokens(this);                          // prevent token leaks across floors
     this.spawner.onFloorStart(floor);                 // sets floorBudget, resets spawnedThisFloor=0
     this.spawner.spawnedThisFloor = resumeSpawned;    // restore the saved budget (runs before captureRunState below)
+
+    // Apply HORDE mod: inflate budget before garrisons are placed.
+    if (mod.type === 'HORDE') {
+      this.spawner.floorBudget = Math.round(this.spawner.floorBudget * 1.6);
+    }
+    // Apply SHRINE mod: reduce budget + add shrines.
+    if (mod.type === 'SHRINE') {
+      this.spawner.floorBudget = Math.round(this.spawner.floorBudget * 0.5);
+    }
+
     this.spawner.placeGarrisons();                    // pre-place ~45% of budget as dormant clusters
     const clearedOnResume = resumeSpawned >= this.spawner.floorBudget;
     if (!clearedOnResume) {
@@ -473,7 +505,23 @@ export default class GameScene extends Phaser.Scene {
     }
     if (isBossFloor) this.bossPhase = this.bossFloors[floor]; // this floor's champion/lieutenant
 
-    this.showBanner(`Floor ${floor} / ${this.floorsTotal}${isBossFloor ? '   ⚔ boss' : ''}`, '#ffd700', 'normal');
+    // Apply VAULT mod: force-spawn 3 elites near a guaranteed chest cluster.
+    if (mod.type === 'VAULT' && !isBossFloor && resumeSpawned === 0) {
+      this._applyVaultMod();
+    }
+    // Apply SHRINE mod: scatter extra shrines.
+    if (mod.type === 'SHRINE' && !isBossFloor && resumeSpawned === 0) {
+      this._applyShrineModExtras();
+    }
+    // Apply CURSED mod: show the curse banner.
+    if (mod.type === 'CURSED' && !isBossFloor) {
+      this._applyCursedMod(mod);
+    }
+
+    // Floor banner — include a small mod tag for non-NORMAL floors.
+    const MOD_TAG = { VAULT: '  [vault]', HORDE: '  [horde]', CURSED: '  [cursed]', SHRINE: '  [shrine]' };
+    const modTag = (mod.type && mod.type !== 'NORMAL') ? (MOD_TAG[mod.type] || '') : '';
+    this.showBanner(`Floor ${floor} / ${this.floorsTotal}${isBossFloor ? '   ⚔ boss' : ''}${modTag}`, '#ffd700', 'normal');
     Audio.setIntensity(isBossFloor ? 1 : 0);
 
     // Hero stage-start flavour line on floor 1 (new stage or resume to floor 1)
@@ -520,6 +568,31 @@ export default class GameScene extends Phaser.Scene {
       if (this.tutorial) this.events.emit('tut', 'flawless'); // tut: flawless toast
     }
 
+    // CURSED floor: drop the stairs reward (powerup + big gold) at the exit.
+    if (this.activeFloorMod && this.activeFloorMod.type === 'CURSED') {
+      this._cursedStairsReward();
+    }
+
+    const nextFloor = this.floor + 1;
+    const nextIsBossFloor = this.bossFloors[nextFloor] !== undefined;
+
+    // Door-choice modal: skip for duelTest and when descending INTO a boss floor.
+    if (!this.duelTest && !nextIsBossFloor) {
+      // Roll door options and show the DoorScene (modal). The actual descent is
+      // committed later in _commitDescent(), called when DoorScene closes.
+      const doors = rollDoors();
+      this.scene.pause();
+      this.scene.launch('DoorScene', { gameScene: this, doors, nextFloor });
+      return;
+    }
+
+    // Boss-floor descents (or duelTest): instant, no choice.
+    this._commitDescent();
+  }
+
+  // Perform the actual floor transition — called directly for boss floors / duelTest,
+  // or via resume-once event after DoorScene is dismissed for normal floors.
+  _commitDescent() {
     this.clearField();
     Audio.sfx('descend'); // low stone-grind sweep (item 5)
 
@@ -918,7 +991,9 @@ export default class GameScene extends Phaser.Scene {
         const dx = this.player.x - this._lastRevealX, dy = this.player.y - this._lastRevealY;
         if (dx * dx + dy * dy > 18 * 18) {
           this._lastRevealX = this.player.x; this._lastRevealY = this.player.y;
-          this.floorSys.revealAt(this.player.x, this.player.y);
+          // CURSED tight_fog mod: reduce reveal radius by 30px
+          const fogAdj = (this._cursedFogRadius || 0);
+          this.floorSys.revealAt(this.player.x, this.player.y, 360 + fogAdj);
         }
       }
 
@@ -1974,6 +2049,95 @@ export default class GameScene extends Phaser.Scene {
     });
   }
 
+  // ── Floor-mod helpers ────────────────────────────────────────────────────────
+
+  // VAULT: spawn 3 elites and a cluster of 2 chests near the middle of the floor.
+  _applyVaultMod() {
+    const fs = this.floorSys;
+    if (!fs) return;
+    const start = fs.startWorld();
+    // Find an anchor point in the middle-ish area of the cavern (not right at start).
+    let anchor = null;
+    for (let i = 0; i < 24; i++) {
+      const cand = fs.randomWalkableNear(start.x, start.y, 600);
+      const dx = cand.x - start.x, dy = cand.y - start.y;
+      if (dx * dx + dy * dy > 200 * 200) { anchor = cand; break; }
+    }
+    if (!anchor) anchor = start;
+
+    // 2 guaranteed chests clustered at the anchor
+    this.drops.spawnChest(anchor.x - 24, anchor.y);
+    this.drops.spawnChest(anchor.x + 24, anchor.y);
+
+    // 3 forced elites near the anchor (override spawn point temporarily)
+    const origFn = this.spawner.spawnPointOnFloor.bind(this.spawner);
+    let useAnchor = true;
+    this.spawner.spawnPointOnFloor = () => {
+      if (!useAnchor) return origFn();
+      const a = Math.random() * Math.PI * 2;
+      const r = 60 + Math.random() * 120;
+      return { x: anchor.x + Math.cos(a) * r, y: anchor.y + Math.sin(a) * r };
+    };
+    for (let i = 0; i < 3; i++) this.spawner.spawnOne(true);
+    useAnchor = false;
+    this.spawner.spawnPointOnFloor = origFn;
+  }
+
+  // SHRINE: scatter 2 extra shrine objects and 1 extra treasure encounter.
+  _applyShrineModExtras() {
+    const fs = this.floorSys;
+    if (!fs) return;
+    const start = fs.startWorld();
+    const civ = (this.theme && this.theme.id) || 'default';
+    const shrineKey = this.textures.exists(`shrine_${civ}`) ? `shrine_${civ}` : 'shrine';
+    // Place 2 extra shrines at walkable locations
+    for (let i = 0; i < 2; i++) {
+      const pt = fs.randomWalkableNear(start.x, start.y, 700);
+      const sh = this.shrines.create(pt.x, pt.y, shrineKey);
+      if (sh) {
+        sh.setDepth(4);
+        sh.used = false;
+        if (sh.body) { sh.body.setImmovable(true); }
+      }
+    }
+  }
+
+  // CURSED: apply the floor-long player debuff and show the curse banner.
+  _applyCursedMod(mod) {
+    if (!mod.curseId) return;
+    // Apply the debuff to the player
+    switch (mod.curseId) {
+      case 'fast_enemies':
+        // Tracked on activeFloorMod; SpawnSystem reads it in spawnOne via scene.activeFloorMod.
+        break; // Applied in SpawnSystem.spawnOne via the scene flag — no direct player change needed.
+      case 'small_pickup':
+        this._cursedPickupMult = 0.80;
+        break;
+      case 'tight_fog':
+        this._cursedFogRadius = -30; // px reduction in fog reveal radius
+        break;
+      default: break;
+    }
+    // Curse notice (red, prominent)
+    this.time.delayedCall(600, () => {
+      if (!this.gameOver) this.showBanner(`✦ Curse: ${mod.curseLabel} — ${mod.curseDesc}`, '#b05aff', 'normal');
+    });
+  }
+
+  // CURSED stairs reward: powerup + big gold drop near the stairs.
+  _cursedStairsReward() {
+    const st = this.floorSys && this.floorSys.stairs;
+    const x = st ? st.x : this.player.x;
+    const y = st ? st.y : this.player.y;
+    this.drops.spawnPowerup(x + 30, y);
+    // 8 big-value gems as the "big gold" reward
+    for (let i = 0; i < 8; i++) {
+      const a = (i / 8) * Math.PI * 2;
+      this.drops.spawnGem(x + Math.cos(a) * 40, y + Math.sin(a) * 40, 4);
+    }
+    this.showBanner('Curse lifted — the stairs yield their bounty', '#b05aff', 'normal');
+  }
+
   // Write current live progression back into the run object.
   captureRunState() {
     const r = this.run;
@@ -1998,6 +2162,10 @@ export default class GameScene extends Phaser.Scene {
     r.secondaryEvolved = this.secondary.evolved;
     // Accumulate total run time across stages for the WinScene recap display
     r.runTimeTotal = (r._stageTimeBase || 0) + this.runTime;
+    // Persist the floor mod so save/continue restores it correctly.
+    // nextFloorMod is already set on r by DoorScene._pick() before captureRunState.
+    // activeFloorMod: if we're mid-floor, persist it too so a resume re-applies it.
+    if (this.activeFloorMod) r.activeFloorMod = { ...this.activeFloorMod };
     this.registry.set('run', r);
   }
 
@@ -2600,7 +2768,9 @@ export default class GameScene extends Phaser.Scene {
       this.fx.shockwave(enemy.x, enemy.y, enemy.eliteTint || 0xff7a2a, enemy.blastRadius || 120);
       this.spawnHazardZone(enemy.x, enemy.y, enemy.blastRadius || 120, enemy.blastDmgElite || 30, 320, 320, 320, 'fire');
     }
-    this.drops.spawnGem(enemy.x, enemy.y, enemy.xpValue);
+    // HORDE mod: gems worth 2× on horde floors
+    const gemMult = (this.activeFloorMod && this.activeFloorMod.type === 'HORDE') ? 2 : 1;
+    this.drops.spawnGem(enemy.x, enemy.y, Math.round(enemy.xpValue * gemMult));
     if (enemy.isElite) {
       // gear/powerups from elites were flooding in and over-powering the build — halve them
       if (Math.random() < 0.5) this.drops.spawnChest(enemy.x, enemy.y);

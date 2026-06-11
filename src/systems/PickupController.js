@@ -102,7 +102,9 @@ export default class PickupController {
     // the (now continuous) difficulty all the way through the 7/7 conquest, and a deep floor
     // rolls richer loot than an early one. Early game still stays common.
     const depth = s.conquestDepth;
-    const luck = depth * 0.3 + (s.player.luck || 0);
+    // VAULT mod: +8 loot luck for treasure opened on this floor
+    const vaultBonus = (s.activeFloorMod && s.activeFloorMod.type === 'VAULT') ? 8 : 0;
+    const luck = depth * 0.3 + (s.player.luck || 0) + vaultBonus;
     const powerMult = 1 + depth * 0.012; // deeper floors → bigger stat rolls (≈2.6× by the end)
     const item = rollItem(luck, null, powerMult);
     s.scene.pause();
@@ -114,7 +116,10 @@ export default class PickupController {
     const s = this.s;
     const px = s.player.x;
     const py = s.player.y;
-    const pr2 = s.player.pickup * s.player.pickup;
+    // CURSED mod: shrink the pickup radius by 20%
+    const cursedMult = (s._cursedPickupMult !== undefined) ? s._cursedPickupMult : 1;
+    const effectivePickup = s.player.pickup * cursedMult;
+    const pr2 = effectivePickup * effectivePickup;
     const pull = (obj) => {
       const ddx = px - obj.x;
       const ddy = py - obj.y;

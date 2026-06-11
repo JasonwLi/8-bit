@@ -520,6 +520,15 @@ export default class SpawnSystem {
       e._baseContactDamage = e.contactDamage;
       if (e.swing) e.swingWindup = Math.round(e.swingWindup * 1.08);
     }
+
+    // ── Floor-mod behavior modifiers ─────────────────────────────────────────────
+    // CURSED — fast_enemies: all spawned enemies on this floor move 15% faster.
+    const floorMod = this.scene.activeFloorMod;
+    if (floorMod && floorMod.type === 'CURSED' && floorMod.curseId === 'fast_enemies') {
+      e.speed = Math.round(e.speed * 1.15);
+      if (e.dashSpeed) e.dashSpeed = Math.round(e.dashSpeed * 1.15);
+      if (e.lungeSpeed) e.lungeSpeed = Math.round(e.lungeSpeed * 1.15);
+    }
   }
 
   update(_time, delta) {
