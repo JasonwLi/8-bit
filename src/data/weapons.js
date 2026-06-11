@@ -29,6 +29,7 @@ export const WEAPONS = {
     name: 'Sky Piercer Sweep',
     kind: 'melee_arc',
     color: 0xd4af37,
+    sweepTex: 'sweep_halberd_sweep', // distinct crescent-halberd slash (falls back to 'sweep')
     base: {
       damage: 22, cooldown: 900, radius: 95, arc: 200,
       lifesteal: 0.02,   // 2% lifesteal default-on; scales with 'lifesteal' axis
@@ -226,6 +227,7 @@ export const WEAPONS = {
     name: 'Legionary Cohort',
     kind: 'summon',
     color: 0xcfd6e0,
+    sweepTex: 'sweep_gladius', // distinct short gladius slash (falls back to 'sweep')
     base: {
       damage: 18, cooldown: 2600, count: 1,
       allyHp: 40, allyLife: 7000, allySpeed: 150, allyRange: 30,
@@ -276,6 +278,7 @@ export const WEAPONS = {
     name: 'Sarissa Phalanx',
     kind: 'line_thrust',
     color: 0xcdb070,
+    sweepTex: 'sweep_sarissa', // distinct pike butt-sweep arc (S3/C3 melee_arc; falls back to 'sweep')
     base: {
       damage: 33, cooldown: 560, length: 150, width: 46,
       knockback: 12,   // 12px knockback default-on; scales with 'knockback' axis
@@ -322,6 +325,7 @@ export const WEAPONS = {
     name: 'Steppe Volley',
     kind: 'projectile_aimed',
     color: 0xb8860b,
+    sweepTex: 'sweep_composite_bow', // distinct curved cleave for the S3 berserker spin (falls back to 'sweep')
     base: {
       damage: 8, cooldown: 200, count: 1, pierce: 1, speed: 780, spread: 0.05,
       pierceAll: true,                             // arrows drill through all foes
@@ -369,6 +373,7 @@ export const WEAPONS = {
     name: 'Boomerang Axe',
     kind: 'boomerang',
     color: 0xb0b0c0,
+    sweepTex: 'sweep_axe_throw', // distinct round axe-whirl for the S3/S6 berserker spins (falls back to 'sweep')
     base: {
       damage: 29, cooldown: 720, count: 1, speed: 560, range: 230, spin: 22,
       pierce: 1,   // 1 pierce default-on; scales with 'pierce' axis

@@ -527,6 +527,24 @@ export function buildManifest() {
   // Genghis's Khan's Cleave — a distinct, heavier saber slash (white so it tints to the
   // weapon colour); a thicker, more aggressive double-edged crescent vs the thin 'sweep'.
   push('fx_cleave', 'effect', { desc: 'ONLY a single bold thick curved SABER SLASH arc — a heavy aggressive crescent blade swoosh with a sharp jagged leading edge and trailing motion-streak lines, bright white energy, oriented as a horizontal crescent, no sword, no hand, no character, just the slash arc shape' }, 128, 128);
+
+  // ── Per-weapon melee SWEEP arcs (PART B visual identity) ─────────────────────
+  // Each melee hero's string-step sweep gets a DISTINCT slash silhouette so the four
+  // sword/polearm/axe heroes don't share one gold crescent. White-cored so the runtime
+  // per-step tint (s.def.color) reads cleanly; fireMeleeArc falls back to 'sweep' if a
+  // key is missing. Oriented as a horizontal crescent (rotated to the swing at runtime).
+  // Bold SATURATED gold/orange fills (NOT white): the runtime tint (s.def.color)
+  // recolours these anyway, and a saturated source survives the matte + reads densely
+  // (a near-white arc gets cut to a faint wisp). Routed through RECRAFT_SOLID below.
+  push('sweep_halberd_sweep', 'effect', { desc: 'ONLY a long sweeping CRESCENT HALBERD ARC — a wide thin elegant curved polearm slash trail, a graceful elongated SOLID bright gold and orange crescent swoosh with a fine tapering tip, densely filled glowing energy, no weapon, no hand, no character, just the arc shape' }, 128, 128);
+  push('sweep_gladius', 'effect', { desc: 'ONLY a short sharp GLADIUS SLASH ARC — a compact tight SOLID bright gold steel sword-cut crescent, a quick clean stabbing slash trail with a hard crisp leading edge, densely filled glowing energy, no sword, no hand, no character, just the slash arc shape' }, 128, 128);
+  push('sweep_composite_bow', 'effect', { desc: 'ONLY a curved CLEAVE SLASH ARC — a heavy aggressive sabre cleave crescent with a thick jagged leading edge and trailing motion-streak lines, SOLID bright gold and amber densely-filled glowing energy oriented as a horizontal crescent, no sword, no hand, no character, just the slash arc shape' }, 128, 128);
+  push('sweep_axe_throw', 'effect', { desc: 'ONLY a round whirling AXE WHIRL ARC — a chunky thick circular SOLID bright gold axe-spin slash trail forming a heavy rounded crescent loop with rough churning motion streaks, densely filled glowing energy, no axe, no hand, no character, just the whirl arc shape' }, 128, 128);
+  push('sweep_sarissa', 'effect', { desc: 'ONLY a sweeping PIKE BUTT-SWEEP ARC — a long thin SOLID bright gold shaft-swing crescent with a sharp leading streak, a fast wide low arc swoosh, densely filled glowing energy, no pike, no hand, no character, just the arc shape' }, 128, 128);
+
+  // Gilgamesh orbital + radial blade projectile (was falling back to the generic
+  // placeholder blade): a single SOLID golden divine sword from the Gate of Babylon.
+  push('proj_divine_arsenal', 'prop', { desc: 'ONLY a single ornate golden divine sword blade pointing RIGHT — a SOLID FILLED gleaming gold short-sword with a jewelled cross-guard and a glowing lapis-blue gem in the pommel, a Mesopotamian treasury weapon, fully gold-filled NOT hollow, just the blade, no hand, no portal' }, 22, 22);
   push('flame_pool', 'effect', { desc: 'a top-down pool of burning orange fire on the ground' }, 64, 64);
   // Green toxic hazard pool — enemy/boss/siege/trap zones (distinct from the fiery effects).
   push('acid_pool', 'effect', { desc: 'a top-down circular pool of bubbling sickly-green toxic acid sludge — glowing radioactive green ooze with bright lime bubbles, froth and a corrosive caustic glow, seen from directly above, a poisonous hazard zone' }, 64, 64);
