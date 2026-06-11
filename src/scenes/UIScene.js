@@ -225,9 +225,9 @@ export default class UIScene extends Phaser.Scene {
       }
     }
     // ── DW string depth pips ────────────────────────────────────────────────────
-    // 4 small gold squares on the pip row to the RIGHT of the HP bar, just after the
-    // dash pips. (They used to sit left-aligned under the HP bar, where they collided
-    // with the DEF/LS stats line and the [K] finisher glyph overlapped the stats text.)
+    // 6 small gold squares on the pip row to the RIGHT of the HP bar, just after the
+    // dash pips (left-aligned they collided with the DEF/LS stats line). Filled squares
+    // = steps fired; pips 5 & 6 glow hotter to signal the deep C5/C6 finishers.
     // When depth >= 1 AND the finisher CD is clear, a [K] glyph pulses to the
     // right of the pips, teaching the player they can branch now.
     {
@@ -235,19 +235,22 @@ export default class UIScene extends Phaser.Scene {
       const winMs    = gs._stringWindowMs || 0;
       const cdUntil  = gs._finisherCdUntil || 0;
       const nowMs    = gs.time ? gs.time.now : 0;
+      const PIPS = 6;
       const pipW = 7, pipH = 7, pipGap = 3;
       // Start just past the dash pips (which begin at hx+hw+8 and run dashChargeMax wide).
       const dashEndX = (hx + hw + 8) + p.dashChargeMax * (8 + 3);
       const spx0 = dashEndX + 8;   // right of the dash pips, clear of the stats line
       const spy0 = hy + hh + 4;    // same row as dash pips (below HP bar)
 
-      for (let i = 0; i < 4; i++) {
+      for (let i = 0; i < PIPS; i++) {
         const cx = spx0 + i * (pipW + pipGap);
         g.fillStyle(0x000000, 0.55).fillRect(cx - 1, spy0 - 1, pipW + 2, pipH + 2);
-        // Gold fill when step fired, dim amber outline when window active but not yet fired
+        // Gold fill when step fired, dim amber outline when window active but not yet fired.
+        // The two deepest pips burn hotter (orange→white) to telegraph the apex finishers.
         const fired   = i < depth && winMs > 0;
-        const pending = i === depth && depth < 4 && winMs > 0; // next step slot, active chain
-        const col = fired ? 0xffd700 : (pending ? 0x886600 : 0x1a1400);
+        const pending = i === depth && depth < PIPS && winMs > 0; // next step slot, active chain
+        const hot = i === 4 ? 0xff5500 : (i === 5 ? 0xffffff : 0xffd700);
+        const col = fired ? hot : (pending ? 0x886600 : 0x1a1400);
         const alpha = fired ? 0.95 : (pending ? 0.5 : 0.35);
         g.fillStyle(col, alpha).fillRect(cx, spy0, pipW, pipH);
       }
@@ -255,7 +258,7 @@ export default class UIScene extends Phaser.Scene {
       // [K] glyph: appears when in-string (depth >= 1) and finisher CD is clear
       const finisherReady = depth >= 1 && winMs > 0 && nowMs >= cdUntil;
       if (finisherReady) {
-        const kx = spx0 + 4 * (pipW + pipGap) + 4;
+        const kx = spx0 + PIPS * (pipW + pipGap) + 4;
         const ky = spy0 - 2;
         const kKey = keyLabel(Settings.binds.secondary);
         if (!this._kGlyphText.visible) {

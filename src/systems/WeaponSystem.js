@@ -407,10 +407,12 @@ export default class WeaponSystem {
     // Tag launcher flag on stats so damageEnemy can pick it up
     s._launcher = !!stepDef.launcher;
 
-    // Override def kind for dispatch only (do NOT mutate the real def)
+    // Override def kind for dispatch only (do NOT mutate the real def). A per-step
+    // `color` tints the sweep/projectile so S1→S6 read as escalating intensity within
+    // a hero (falls back to the weapon's base colour when the step omits it).
     const dispatchKind = stepDef.kind || s.def.kind;
     const dispatchS = Object.assign({}, s, {
-      def: Object.assign({}, s.def, { kind: dispatchKind }),
+      def: Object.assign({}, s.def, { kind: dispatchKind }, stepDef.color != null ? { color: stepDef.color } : {}),
     });
 
     // Per-step motion juice
@@ -1473,6 +1475,20 @@ export default class WeaponSystem {
         if (!this.player.active) return;
         doLane(facing - offset, shortLen);
         doLane(facing + offset, shortLen);
+      });
+    }
+
+    // Alexander C5/C6 QUAD PHALANX: 4 parallel lanes skewer every column — the center
+    // plus two flanking lanes each side at ±10° / ±20°, staggered for a fan-out read.
+    if (s.quadLane) {
+      const inner = 0.18, outer = 0.36;
+      const shortLen = s.length * 0.88;
+      doLane(facing - inner, s.length);
+      doLane(facing + inner, s.length);
+      this.scene.time.delayedCall(50, () => {
+        if (!this.player.active) return;
+        doLane(facing - outer, shortLen);
+        doLane(facing + outer, shortLen);
       });
     }
   }

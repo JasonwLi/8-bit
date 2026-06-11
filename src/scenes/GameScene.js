@@ -108,6 +108,7 @@ const FODDER_HP_THRESHOLD = 28; // covers soldier(14), archer(12), weaver, circl
 
 // FINISHER cooldown and window constants
 const FINISHER_CD_MS      = 1200; // ~1.2s per-depth finisher internal cooldown
+const FINISHER_CD_APEX_MS = 2000; // ~2s longer cooldown after the C6 APEX finisher
 const STRING_WINDOW_MS    = 900;  // chain window after each J tap
 
 // ── Charge attack constants ────────────────────────────────────────────────────
@@ -211,7 +212,7 @@ export default class GameScene extends Phaser.Scene {
     this._lastDashing     = false; // edge-detect dash->stop transition
 
     // ── DW String-combo state ────────────────────────────────────────────────
-    this._stringDepth        = 0;   // 0=idle, 1–4 = steps fired so far in the string
+    this._stringDepth        = 0;   // 0=idle, 1–6 = steps fired so far in the string
     this._stringWindowMs     = 0;   // ms remaining before the chain window expires
     this._finisherCdUntil    = 0;   // timestamp: finisher on CD until this time
     this._tumbleEnemies      = new Set(); // enemies currently in TUMBLE state
@@ -3854,7 +3855,7 @@ export default class GameScene extends Phaser.Scene {
           const stringDef = this.weapons.def && this.weapons.def().string;
           if (stringDef) {
             // Determine which step to fire (0-based index)
-            const stepIdx = Math.min(this._stringDepth, 3); // depth 0→S1, 1→S2, ...
+            const stepIdx = Math.min(this._stringDepth, 5); // depth 0→S1, 1→S2, ... 5→S6
             const stepDef = resolveStringDef(this.weapons, stepIdx);
             if (stepDef) {
               const baseS = this.weapons.computeStats();
@@ -3874,8 +3875,8 @@ export default class GameScene extends Phaser.Scene {
               this._counterArmed = false;
               if (this._counterGlintFx) { this._counterGlintFx.destroy(); this._counterGlintFx = null; }
             }
-            // Advance depth (cap at 4)
-            this._stringDepth    = Math.min(this._stringDepth + 1, 4);
+            // Advance depth (cap at 6)
+            this._stringDepth    = Math.min(this._stringDepth + 1, 6);
             // Musou empowered: tighter chain window (×0.70) + finisher depth upgraded (+1 in _fireFinisher)
             this._stringWindowMs = STRING_WINDOW_MS * (this.player.empowered ? 0.70 : 1);
             // First time player builds a string (reaches S2) — show the combo tip card
@@ -3904,9 +3905,10 @@ export default class GameScene extends Phaser.Scene {
         // Mid-string charge shortens to 450ms; depth-0 stays at CHARGE_FULL_MS
         const effectiveChargeFull = (this._stringDepth > 0) ? 450 : CHARGE_FULL_MS;
 
-        // Charge ring — color reflects current depth (C1=gold, C2=cyan, C3=orange, C4=red)
-        const CHARGE_RING_COLORS = [0xffd700, 0x00ccff, 0xff8800, 0xff2222];
-        const ringColor = CHARGE_RING_COLORS[Math.max(0, Math.min(3, this._stringDepth))];
+        // Charge ring — color reflects current depth (C1=gold, C2=cyan, C3=orange,
+        // C4=red, C5=deep-orange crowd-eraser, C6=white-hot apex)
+        const CHARGE_RING_COLORS = [0xffd700, 0x00ccff, 0xff8800, 0xff2222, 0xff5500, 0xffffff];
+        const ringColor = CHARGE_RING_COLORS[Math.max(0, Math.min(5, this._stringDepth))];
         const frac = Math.min(1, this._chargeMs / effectiveChargeFull);
 
         if (!this._chargeFx) {
@@ -4372,18 +4374,18 @@ export default class GameScene extends Phaser.Scene {
 
   // ── DW String Finisher helpers ────────────────────────────────────────────────
 
-  // Fire the depth-specific charge finisher (C2/C3/C4).
-  // depth: 1→C2, 2→C3, 3→C4 (string was at depth 1 when K pressed means C2, etc.)
+  // Fire the depth-specific charge finisher (C2…C6).
+  // depth: 1→C2, 2→C3, 3→C4, 4→C5, 5→C6, 6→C6 (string depth at K-press time).
   // Called from both: K-press instant-branch AND hold-J auto-release fallback.
-  // MUSOU empowered: depth upgraded one step (C2→C3, C3→C4, C4 stays C4).
+  // MUSOU empowered: depth upgraded one step (caps at C6).
   _fireFinisher(rawDepth) {
     // NOT gated by the primary's tap cooldown: a DW charge attack branches out of the
-    // string INSTANTLY (J,K with no pause) — the finisher's own 1.2s CD prevents spam.
+    // string INSTANTLY (J,K with no pause) — the finisher's own CD prevents spam.
     if (rawDepth < 1) return;
 
-    // Musou empowerment: bump finisher one step deeper + shorten next chain window
+    // Musou empowerment: bump finisher one step deeper + shorten next chain window (caps at C6)
     const empowered = this.player.empowered;
-    const depth = empowered ? Math.min(rawDepth + 1, 4) : rawDepth;
+    const depth = empowered ? Math.min(rawDepth + 1, 6) : rawDepth;
 
     const def = this.weapons.def();
     const s   = this.weapons.computeStats();
@@ -4404,10 +4406,12 @@ export default class GameScene extends Phaser.Scene {
     // depth = _stringDepth at the time K is pressed:
     //   depth=1 (S1 fired, pressing K) → C2
     //   depth=2 (S2 fired) → C3
-    //   depth=3 (S3 fired) → C4 (capped)
-    //   depth=4 (S4 fired) → C4 (capped)
-    const finisherKeys = ['C2', 'C3', 'C4', 'C4'];
-    const fKey = finisherKeys[Math.min(depth - 1, 3)];
+    //   depth=3 (S3 fired) → C4
+    //   depth=4 (S4 fired) → C5
+    //   depth=5 (S5 fired) → C6
+    //   depth=6 (S6 fired) → C6 (capped — reaching deep IS the skill)
+    const finisherKeys = ['C2', 'C3', 'C4', 'C5', 'C6', 'C6'];
+    const fKey = finisherKeys[Math.min(depth - 1, 5)];
     const fd = def.chargeFinishers && def.chargeFinishers[fKey];
 
     const finS = fd ? this._applyFinisherToStats(s, fd) : this._applyChargeToStats(s, 'heavy');
@@ -4418,7 +4422,7 @@ export default class GameScene extends Phaser.Scene {
     if (this._counterGlintFx) { this._counterGlintFx.destroy(); this._counterGlintFx = null; }
 
     this.weapons._aimOverride = this.aimDir != null ? this.aimDir : null;
-    // C3 and C4 count as heavy shots for CRUMPLE; C2 does not (per spec)
+    // C3+ count as heavy shots for CRUMPLE; C2 does not (per spec)
     this.weapons._isHeavyShot = depth >= 2;
 
     if (fd) {
@@ -4436,26 +4440,31 @@ export default class GameScene extends Phaser.Scene {
 
     // Finisher FX — scale with depth
     const ringColor = fd ? (fd.ringColor || 0xffd700) : 0xffd700;
-    const burstR = 22 + depth * 8;
     this.fx._flash(this.player.x, this.player.y, 14 + depth * 4, ringColor, 0.85, 200);
     this.fx._ring(this.player.x, this.player.y, 30 + depth * 10, ringColor, 280, 3 + depth);
     if (depth >= 2) this.hitStop(40 + (depth - 1) * 20, 8);
     if (depth >= 2) this.screenKick(this.aimDir != null ? this.aimDir : 0, JUICE_CAM.heavyPower);
 
-    // Grand finisher bonus effect (C4)
+    // Grand finisher bonus effect (C4+)
     if (fd && fd.grandFinisher) this._triggerGrandFinisherFx(finS, fd);
+    // C5 CROWD ERASER + C6 APEX signature mechanics (hero-flavoured)
+    if (fd && fd.crowdEraser) this._triggerCrowdEraser(finS, fd);
+    if (fd && fd.apex) this._triggerApexCinematic(finS, fd, ringColor);
 
     // Finisher label float
     if (fd && fd.label) this._showFinisherLabel(fd.label, ringColor, depth);
 
-    // Depth float text ("C2", "C3", "C4")
-    const depthLabel = ['', 'C2', 'C3', 'C4', 'C4'][Math.min(depth, 4)];
-    const col = depth >= 3 ? '#ff8a3a' : '#ffd700';
+    // Depth float text ("C2"…"C6")
+    const depthLabel = ['', 'C2', 'C3', 'C4', 'C5', 'C6', 'C6'][Math.min(depth, 6)];
+    const col = depth >= 5 ? '#ffffff' : depth >= 3 ? '#ff8a3a' : '#ffd700';
     const ft = this.add.text(this.player.x, this.player.y - 48, depthLabel, {
-      fontFamily: 'monospace', fontSize: '14px', color: col, fontStyle: 'bold',
+      fontFamily: 'monospace', fontSize: depth >= 5 ? '18px' : '14px', color: col, fontStyle: 'bold',
       stroke: '#000000', strokeThickness: 2,
     }).setOrigin(0.5).setDepth(52).setScrollFactor(1);
     this.tweens.add({ targets: ft, y: ft.y - 20, alpha: 0, duration: 600, ease: 'Quad.easeIn', onComplete: () => ft.destroy() });
+
+    // C6 APEX carries a longer cooldown so the apex can't be spammed (~2s vs ~1.2s).
+    if (fKey === 'C6') this._finisherCdUntil = this.time.now + FINISHER_CD_APEX_MS;
 
     this.weapons.timer = s.cooldown;
     this.weapons._aimOverride = null;
@@ -4475,6 +4484,9 @@ export default class GameScene extends Phaser.Scene {
     if (fd.knockbackOverride != null) out.knockback = fd.knockbackOverride;
     if (fd.pierceMod      != null) out.pierce   = (s.pierce || 0) + fd.pierceMod;
     if (fd.launcher) out._launcher = true;
+    // Carry behaviour flags the fire-path reads (Alexander quad-lane, Nobunaga armour pierce)
+    if (fd.quadLane) out.quadLane = true;
+    if (fd.armorPierce) out.armorPierce = true;
     return out;
   }
 
@@ -4499,6 +4511,90 @@ export default class GameScene extends Phaser.Scene {
       // Default: a brief fire hazard zone at the player (Lü Bu "Wrath Nova" feel)
       const r = s.radius ? s.radius * 0.6 : 70;
       this.spawnHazardZone(px, py, r, Math.round(s.damage * 0.3), 80, 300, 1200, 'fire', 'enemies');
+    }
+    Audio.sfx('hit_heavy');
+  }
+
+  // C5 CROWD ERASER — each hero's signature mass-clear status, layered on top of the
+  // grandFinisher FX. Flags come off the finisher def (data-driven, graceful no-ops).
+  _triggerCrowdEraser(s, fd) {
+    const px = this.player.x, py = this.player.y;
+    const ringColor = fd.ringColor || 0xff5500;
+    // Shared wide eraser shockwave + a brief screen freeze for weight
+    this.fx._ring(px, py, 140, ringColor, 420, 5);
+    this.hitStop(60, 8);
+    this.screenKick(this.aimDir != null ? this.aimDir : 0, JUICE_CAM.heavyPower);
+
+    // Lü Bu / Caesar / Ragnar mass-launcher: pop every non-boss grunt in a wide radius airborne.
+    if (fd.launcher) {
+      const R2 = 170 * 170;
+      for (const e of this.enemies.getChildren()) {
+        if (!e.active || e.isBoss) continue;
+        const dx = e.x - px, dy = e.y - py;
+        if (dx * dx + dy * dy > R2) continue;
+        this._applyTumble(e, 900);
+      }
+    }
+    // Caesar's LEGION RALLY — summon veteran legionaries mid-finisher.
+    if (fd.summonAllies && this.spawnLegionary) {
+      const cs = this.weapons.computeStats();
+      for (let i = 0; i < fd.summonAllies; i++) {
+        const a = (i / fd.summonAllies) * Math.PI * 2 + Math.random();
+        this.spawnLegionary(px + Math.cos(a) * 26, py + Math.sin(a) * 26, {
+          damage: Math.round((cs.damage || 18) * (cs.allyDmgMult || 1) * 1.2),
+          hp: (cs.allyHp || 40) * 1.5, life: cs.allyLife || 7000,
+          speed: cs.allySpeed || 150, range: cs.allyRange || 30, color: s.def.color,
+        });
+      }
+      this.fx.goldenBurst(px, py, 16);
+    }
+    // Genghis ARROW HURRICANE — bloom a ring of caltrops around the player.
+    if (fd.caltropRing && this.spawnCaltropField) {
+      this.spawnCaltropField(px, py, 150, Math.round((s.damage || 20) * 0.25), 3000, 300);
+    }
+    // Ragnar QUAD-AXE TEMPEST / RAGNAROK — churn a trample wake under the whirl.
+    if (fd.trampleWake) {
+      this.spawnHazardZone(px, py, (s.radius || 90) * 0.9, Math.round((s.damage || 20) * 0.25), 60, 300, 1600, 'trample', 'enemies');
+    }
+    // Gilgamesh GATE OF BABYLON — scatter golden judgment zones around the blade storm.
+    if (fd.goldenZones) {
+      for (let i = 0; i < 5; i++) {
+        const a = (i / 5) * Math.PI * 2;
+        const zx = px + Math.cos(a) * 90, zy = py + Math.sin(a) * 90;
+        this.spawnHazardZone(zx, zy, 46, Math.round((s.damage || 20) * 0.2), 100, 280, 1300, 'fire', 'enemies');
+      }
+      this.fx.goldenBurst(px, py, 18);
+    }
+    Audio.sfx('hit_heavy');
+  }
+
+  // C6 APEX — the cinematic peak: hard hit-stop, heavy screen kick, a unique three-beat
+  // fx burst, and (for launcher heroes) a final mass pop. ~3× damage is already baked
+  // into the finisher dmgMult; this is the showstopper presentation + reinforced clear.
+  _triggerApexCinematic(s, fd, ringColor) {
+    const px = this.player.x, py = this.player.y;
+    // Beat 1 — frozen impact: deep hit-stop + a white flash + a hard directional kick
+    this.hitStop(140, 10);
+    this.cameras.main.flash(110, 255, 245, 220, false);
+    this.screenKick(this.aimDir != null ? this.aimDir : 0, JUICE_CAM.bossPower);
+    this.fx._flash(px, py, 60, 0xffffff, 0.9, 220);
+    // Beat 2/3 — expanding twin novas (delayed) for a layered shockwave read
+    this.fx._ring(px, py, 110, ringColor, 320, 6);
+    this.fx._ring(px, py, 170, 0xffffff, 420, 4);
+    if (this.fx.explosion) this.fx.explosion(px, py, ringColor, 120);
+    this.time.delayedCall(120, () => {
+      if (!this.player.active) return;
+      this.fx._ring(this.player.x, this.player.y, 220, ringColor, 380, 5);
+      if (this.fx.goldenBurst) this.fx.goldenBurst(this.player.x, this.player.y, 22);
+    });
+    // APEX clear: a wide pop of every non-boss grunt so the cinematic actually erases the crowd
+    const R2 = 220 * 220;
+    for (const e of this.enemies.getChildren()) {
+      if (!e.active || e.isBoss) continue;
+      const dx = e.x - px, dy = e.y - py;
+      if (dx * dx + dy * dy > R2) continue;
+      if (fd.launcher) this._applyTumble(e, 1000);
+      else this.knockbackEnemy(e, Math.atan2(dy, dx), 80, { _sourceDmg: Math.round((s.damage || 20) * 0.25) });
     }
     Audio.sfx('hit_heavy');
   }

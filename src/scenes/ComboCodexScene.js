@@ -43,8 +43,15 @@ function buildMoveList(weaponId, binds) {
   const S = keyLabel(binds.secondary);
   const entries = [];
 
-  // String steps S1-S4
-  const stepInputs = [P, `${P},${P}`, `${P},${P},${P}`, `${P},${P},${P},${P}`];
+  // String steps S1-S6
+  const stepInputs = [
+    P,
+    `${P},${P}`,
+    `${P},${P},${P}`,
+    `${P}×4`,
+    `${P}×5`,
+    `${P}×6`,
+  ];
   if (def.string) {
     def.string.forEach((step, i) => {
       entries.push({
@@ -60,11 +67,13 @@ function buildMoveList(weaponId, binds) {
     });
   }
 
-  // Charge finishers C2-C4
+  // Charge finishers C2-C6 (deeper string → bigger finisher; C5 crowd-eraser, C6 apex)
   const chargeDepths = [
-    { key: 'C2', input: `${P},${S}`, chargeInput: `${P},hold-${P}` },
-    { key: 'C3', input: `${P},${P},${S}`, chargeInput: `${P},${P},hold-${P}` },
-    { key: 'C4', input: `${P},${P},${P},${S}`, chargeInput: `${P},${P},${P},hold-${P}` },
+    { key: 'C2', input: `${P},${S}` },
+    { key: 'C3', input: `${P}×2,${S}` },
+    { key: 'C4', input: `${P}×3,${S}` },
+    { key: 'C5', input: `${P}×4,${S}` },
+    { key: 'C6', input: `${P}×5,${S}` },
   ];
   if (def.chargeFinishers) {
     chargeDepths.forEach(({ key, input }) => {
@@ -101,14 +110,14 @@ function buildMoveList(weaponId, binds) {
 
 function _stepName(step, i, weaponId) {
   const names = {
-    halberd_sweep:    ['Wide Sweep', 'Reverse Sweep', 'Forward Thrust', 'Full Spin'],
-    matchlock_volley: ['Rail Shot', 'Double Shot', 'Burst Volley', 'Deep Piercer'],
-    greek_fire:       ['Fire Pot', 'Double Lob', 'Triangle Scatter', 'Mega-Pot'],
-    divine_arsenal:   ['Blade Burst', 'Dense Volley', 'Blade Eruption', 'Treasury Fusillade'],
-    gladius:          ['Short Slash', 'Shield Drive', 'Legion Thrust', 'Formation Sweep'],
-    sarissa:          ['Quick Jab', 'Power Thrust', 'Butt Sweep', 'Phalanx Charge'],
-    composite_bow:    ['Swift Arrow', 'Twin Arrows', 'Arrow Fan', 'Deep Piercer'],
-    axe_throw:        ['Axe Throw', 'Twin Axes', 'Berserker Spin', 'Berserker Hurl'],
+    halberd_sweep:    ['Wide Sweep', 'Reverse Sweep', 'Forward Thrust', 'Full Spin', 'Cross-Sweep', 'Whirling Tempest'],
+    matchlock_volley: ['Rail Shot', 'Double Shot', 'Burst Volley', 'Deep Piercer', 'Fusillade', 'Siege Rail'],
+    greek_fire:       ['Fire Pot', 'Double Lob', 'Triangle Scatter', 'Mega-Pot', 'Inferno Cage', 'Conflagration'],
+    divine_arsenal:   ['Blade Burst', 'Dense Volley', 'Blade Eruption', 'Treasury Fusillade', 'Gate Eruption', 'Treasury Unleashed'],
+    gladius:          ['Short Slash', 'Shield Drive', 'Legion Thrust', 'Formation Sweep', 'Cohort Sweep', 'Imperial Cleave'],
+    sarissa:          ['Quick Jab', 'Power Thrust', 'Butt Sweep', 'Phalanx Charge', 'Sarissa Drive', 'Companion Charge'],
+    composite_bow:    ['Swift Arrow', 'Twin Arrows', 'Arrow Fan', 'Deep Piercer', 'Storm Fan', 'Heavy Draw'],
+    axe_throw:        ['Axe Throw', 'Twin Axes', 'Berserker Spin', 'Berserker Hurl', 'Axe Storm', 'Berserker Vortex'],
   };
   const arr = names[weaponId] || [];
   return arr[i] || `S${i + 1}`;
