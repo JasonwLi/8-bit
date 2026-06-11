@@ -137,7 +137,8 @@ function makeSprite(scene, x, y, key, fallbackColor, scale = 1.5) {
   if (scene.textures.exists(key)) {
     const sp = scene.add.image(x, y, key).setScale(scale).setDepth(91);
     sp.setTint = (c) => { sp.setTintFill(c); return sp; };
-    sp.clearTint = () => { sp.clearTint(); return sp; };
+    const _origClearTint = sp.clearTint.bind(sp);
+    sp.clearTint = () => { _origClearTint(); return sp; };
     return sp;
   }
   return makeActor(scene, x, y, fallbackColor);
