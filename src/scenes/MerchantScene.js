@@ -322,11 +322,13 @@ export default class MerchantScene extends Phaser.Scene {
 
   _applyCursedBargainDebuff() {
     const gs = this.gs;
-    // Apply a 2-floor cursed modifier: re-use an existing curse from CURSED_MODS.
-    // We stack it as 'cursed_prices' for flavor (makes subsequent shops pricier).
-    // The real gameplay hook is setting _cursedPriceMult for the next 2 floors.
+    // Apply a 2-floor cursed modifier: price hike for the next 2 floors.
     gs._cursedPriceMult = Math.max(gs._cursedPriceMult || 1, 1.40); // +40% prices on next merchant
     gs._cursedBargainFloorsLeft = 2;
+    // Store backup so the 2-floor re-apply loop can persist the debuff after floor transitions.
+    gs._cursedBargainPriceMult  = 1.40;
+    gs._cursedBargainPickupMult = null;
+    gs._cursedBargainFogRadius  = null;
     gs.showBanner('Cursed Bargain: shop prices cursed for 2 floors', '#b05aff', 'normal');
   }
 

@@ -470,12 +470,17 @@ export default class GameScene extends Phaser.Scene {
     this._cursedPickupMult = 1;
     this._cursedFogRadius = 0;
     this._cursedPriceMult = 1;
-    // Cursed bargain countdown: decrement on each new floor entry; reset price mult when it expires.
+    // Cursed bargain countdown: decrement on each new floor entry; re-apply lingering debuffs while active.
     if (this._cursedBargainFloorsLeft > 0) {
       this._cursedBargainFloorsLeft -= 1;
       if (this._cursedBargainFloorsLeft <= 0) {
-        this._cursedPriceMult = 1;
         this._cursedBargainFloorsLeft = 0;
+        // debuffs lapse — leave _cursedPickupMult/_cursedFogRadius/_cursedPriceMult at default (1/0/1)
+      } else {
+        // Re-apply whichever bargain debuffs were active so they persist for the full 2-floor window.
+        if (this._cursedBargainPickupMult) this._cursedPickupMult = this._cursedBargainPickupMult;
+        if (this._cursedBargainFogRadius)  this._cursedFogRadius  = this._cursedBargainFogRadius;
+        if (this._cursedBargainPriceMult)  this._cursedPriceMult  = this._cursedBargainPriceMult;
       }
     }
 
@@ -2163,6 +2168,14 @@ export default class GameScene extends Phaser.Scene {
         if (sh.body) { sh.body.setImmovable(true); }
       }
     }
+    // +1 bonus treasure encounter: inject directly into the floor data so the proximity
+    // trigger in update() picks it up just like a procedurally generated encounter.
+    const d = fs.data;
+    if (d && d.encounters) {
+      const pt = fs.randomWalkableNear(start.x, start.y, 600);
+      const tc = fs.worldToTile(pt.x, pt.y);
+      d.encounters.push({ col: tc.col, row: tc.row, kind: 'treasure', triggered: false });
+    }
   }
 
   // CURSED: apply the floor-long player debuff and show the curse banner.
@@ -2454,11 +2467,15 @@ export default class GameScene extends Phaser.Scene {
         ];
         const curse = CURSED_MODS[Math.floor(Math.random() * CURSED_MODS.length)];
         this._cursedBargainFloorsLeft = 2;
+        // Store which bargain debuffs are active so the 2-floor re-apply loop can persist them.
+        this._cursedBargainPickupMult = null;
+        this._cursedBargainFogRadius  = null;
+        this._cursedBargainPriceMult  = null;
         // Apply the curse effect immediately (like _applyCursedMod)
         switch (curse.id) {
-          case 'small_pickup': this._cursedPickupMult = 0.80; break;
-          case 'tight_fog': this._cursedFogRadius = -30; break;
-          case 'cursed_prices': this._cursedPriceMult = 1.30; break;
+          case 'small_pickup': this._cursedPickupMult = 0.80; this._cursedBargainPickupMult = 0.80; break;
+          case 'tight_fog': this._cursedFogRadius = -30; this._cursedBargainFogRadius = -30; break;
+          case 'cursed_prices': this._cursedPriceMult = 1.30; this._cursedBargainPriceMult = 1.30; break;
           default: break;
         }
 
