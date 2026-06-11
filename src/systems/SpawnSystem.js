@@ -461,7 +461,8 @@ export default class SpawnSystem {
       const mod = ELITE_MODIFIERS[Phaser.Math.Between(0, ELITE_MODIFIERS.length - 1)];
       e.eliteMod = mod.id;
       e.eliteName = mod.name;
-      e.maxHp = Math.round(e.maxHp * mod.hpMult);
+      const eliteOmenMult = (this.scene.run && this.scene.run._omenEliteHpMult) || 1;
+      e.maxHp = Math.round(e.maxHp * mod.hpMult * eliteOmenMult);
       e.speed *= mod.speedMult;
       e.damage = Math.round(e.damage * mod.dmgMult);
       if (e.projDamage) e.projDamage = Math.round(e.projDamage * mod.dmgMult);

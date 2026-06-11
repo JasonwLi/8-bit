@@ -54,7 +54,8 @@ export default class MerchantScene extends Phaser.Scene {
 
     // Compute prices
     const depth = gs.conquestDepth || 0;
-    const priceMult = (gs._cursedPriceMult || 1) * (1 + depth * 0.04); // deeper = pricier
+    const omenDiscount = (gs.run && gs.run._omenMerchantDiscount) || 1; // Iron Frugality omen
+    const priceMult = (gs._cursedPriceMult || 1) * (1 + depth * 0.04) * omenDiscount; // deeper = pricier
 
     // Roll 3 gear items
     const luck = depth * 0.3 + (gs.player.luck || 0);

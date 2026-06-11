@@ -31,6 +31,7 @@ import { resolveStringDef } from '../data/weapons.js';
 import TutorialController from '../systems/TutorialController.js';
 import BannerQueue from '../systems/BannerQueue.js';
 import { HERO_DIALOGUE, BOSS_DIALOGUE, STAGE_INTROS, pickRandom } from '../data/dialogue.js';
+import { rollOmens, getOmen } from '../data/omens.js';
 
 // ── New tier-3 combat mechanics ───────────────────────────────────────────────
 const WALL_CRUNCH_DMG_FRAC  = 0.35;   // bonus damage as fraction of the shove's source hit
@@ -220,6 +221,9 @@ export default class GameScene extends Phaser.Scene {
     this._flinchTweenCount = 0;
     this._corpseTweenCount = 0;
     this._camBudgetUsed    = 0;
+
+    // Risk/reward event state (one interactable per floor; null between floors)
+    this._riskEvent = null;
   }
 
   // CONTINUOUS progress across the WHOLE 7/7 conquest: total floors descended so far
@@ -405,6 +409,7 @@ export default class GameScene extends Phaser.Scene {
 
     this.events.once('shutdown', () => {
       this._stopAmbienceEmitter();
+      this._despawnRiskEvents();
       this.scene.stop('UIScene');
       if (this.tutorial) { this.tutorial.detach(); this.tutorial = null; }
       if (this.bannerQueue) { this.bannerQueue.destroy(); this.bannerQueue = null; }
@@ -568,6 +573,26 @@ export default class GameScene extends Phaser.Scene {
       this._spawnMerchant();
     }
 
+    // RISK/REWARD EVENTS: ~1 event per 2-3 floors (never on boss floors, never on duelTest).
+    // Clear existing event NPC references on every floor entry.
+    this._despawnRiskEvents();
+    if (!isBossFloor && !this.duelTest && resumeSpawned === 0) {
+      // ~40% chance of an event on this floor (avg ~1 per 2.5 floors)
+      if (Math.random() < 0.40) {
+        this._spawnRiskEvent();
+      }
+    }
+
+    // WAR OMENS: show the omen picker only on a truly fresh run at stage 1, floor 1.
+    // Conditions: dungeon mode, not a resume (resumeSpawned===0), not duelTest,
+    // conquered list is empty (stage 1), floor 1, and no omen assigned yet.
+    if (this.dungeonMode && !this.duelTest && floor === 1
+        && stageIndex(this.run) === 0
+        && resumeSpawned === 0
+        && !this.run.omen) {
+      this._showOmenScene();
+    }
+
     this.captureRunState();
   }
 
@@ -575,6 +600,15 @@ export default class GameScene extends Phaser.Scene {
   // floor's champion ends the stage via conquerStage instead of a descent.
   descendFloor() {
     if (this.floor >= this.floorsTotal) return;
+
+    // WARLORD'S TAX omen: deduct a fraction of gold on each floor descent.
+    if (this.run._omenFloorGoldTax && (this.run.gold || 0) > 0) {
+      const tax = Math.floor(this.run.gold * this.run._omenFloorGoldTax);
+      if (tax > 0) {
+        this.run.gold = Math.max(0, this.run.gold - tax);
+        this.showBanner(`Warlord's Tax: −${tax} gold`, '#e8a040', 'low');
+      }
+    }
 
     // FLAWLESS FLOOR: if the player cleared the floor without taking a real hit
     // (and the floor actually had enemies), spawn a bonus chest + play a banner.
@@ -638,6 +672,8 @@ export default class GameScene extends Phaser.Scene {
     if (this.coins) for (const c of this.coins.getChildren()) if (c.active) this.deactivate(c);
     // Despawn merchant NPC on floor descent
     this._despawnMerchant();
+    // Despawn risk/reward event NPCs on floor descent
+    this._despawnRiskEvents();
   }
 
   // Centralised hit-stop. The old per-site save/restore pattern raced: two overlapping
@@ -1107,6 +1143,7 @@ export default class GameScene extends Phaser.Scene {
 
     this.drops.updateMagnet();
     if (this.dungeonMode) this._updateMerchant();
+    if (this.dungeonMode) this._updateRiskEvents(time);
     this.map.update(delta, time);
     this.player.updateBuffs(time);
     this.player.applyRegen(delta / 1000);
@@ -2245,6 +2282,264 @@ export default class GameScene extends Phaser.Scene {
     this._merchantOpen = false;
   }
 
+  // ── Risk/reward events ────────────────────────────────────────────────────────
+  // Three rare interactables that spawn ~1 per 2–3 floors (never on boss floors).
+  // Each uses the same [E]-interact pattern as the merchant.
+  // State: this._riskEvent = { kind, npc, tent, prompt, pos, used, pulseAcc }
+
+  _spawnRiskEvent() {
+    if (!this.floorSys) return;
+    const start = this.floorSys.startWorld();
+    // Pick a random event kind
+    const kinds = ['blood_shrine', 'cursed_chest', 'war_gambler'];
+    const kind = kinds[Math.floor(Math.random() * kinds.length)];
+
+    // Place the event ~150–260px from the start in a random direction
+    const ang = Math.random() * Math.PI * 2;
+    const dist = Phaser.Math.Between(150, 260);
+    let ex = start.x + Math.cos(ang) * dist;
+    let ey = start.y + Math.sin(ang) * dist;
+    const snapped = this.drops._snap(ex, ey);
+    ex = snapped.x; ey = snapped.y;
+
+    // Choose texture + accent color
+    const TEXTURES = {
+      blood_shrine: this.textures.exists('shrine') ? 'shrine' : 'pickup_heart',
+      cursed_chest:  this.textures.exists('chest')  ? 'chest'  : 'chest',
+      war_gambler:   this.textures.exists('merchant_npc') ? 'merchant_npc' : 'char_lubu',
+    };
+    const TINTS = {
+      blood_shrine: 0xff4444,
+      cursed_chest:  0xb05aff,
+      war_gambler:   0xe8c840,
+    };
+
+    const npc = this.add.image(ex, ey, TEXTURES[kind])
+      .setDepth(6).setScale(0.9).setTint(TINTS[kind]);
+
+    // Backdrop rect for visual presence
+    const tent = this.add.rectangle(ex, ey + 4, 48, 52, 0x120a22, 0.65).setDepth(5);
+
+    // Pulsing ring: a persistent arc drawn at the NPC position
+    const ring = this.add.arc(ex, ey, 28, 0, 360, false, TINTS[kind], 0)
+      .setDepth(5).setStrokeStyle(2, TINTS[kind], 0.7);
+
+    // Bob animation
+    this.tweens.add({
+      targets: npc,
+      y: ey - 4,
+      duration: 1000 + Math.random() * 200,
+      yoyo: true,
+      repeat: -1,
+      ease: 'Sine.easeInOut',
+    });
+
+    this._riskEvent = {
+      kind,
+      npc,
+      tent,
+      ring,
+      pos: { x: ex, y: ey },
+      prompt: null,
+      used: false,
+      pulseAcc: 0,
+    };
+
+    // Banner hint on floor entry (delayed slightly so the floor banner shows first)
+    const HINTS = {
+      blood_shrine: 'A blood altar hums somewhere on this floor.',
+      cursed_chest:  'An ominous chest radiates dark power here.',
+      war_gambler:   'A dice-bearing figure lurks on this floor.',
+    };
+    this.time.delayedCall(1400, () => {
+      if (!this.gameOver) this.showBanner(HINTS[kind], '#9a6abf', 'low');
+    });
+
+    // Tutorial toast on first event encounter
+    if (this.tutorial) this.events.emit('tut', 'risk_event');
+  }
+
+  _updateRiskEvents(time) {
+    const ev = this._riskEvent;
+    if (!ev || ev.used) return;
+    const { pos, kind, npc, ring } = ev;
+
+    // Pulse the ring radius and alpha over time
+    ev.pulseAcc = (ev.pulseAcc || 0) + (1 / 60);
+    const pulseFrac = (Math.sin(ev.pulseAcc * 2.5) + 1) * 0.5; // 0→1
+    if (ring) {
+      ring.setAlpha(0.35 + pulseFrac * 0.55);
+      ring.setRadius(24 + pulseFrac * 8);
+    }
+
+    const dist = Phaser.Math.Distance.Between(this.player.x, this.player.y, pos.x, pos.y);
+    const inRange = dist < 65;
+
+    const LABELS = {
+      blood_shrine: 'Sacrifice',
+      cursed_chest:  'Open',
+      war_gambler:   'Gamble',
+    };
+
+    if (inRange && !ev.prompt) {
+      const kLabel = Settings.binds.interact || 'E';
+      ev.prompt = this.add.text(pos.x, pos.y - 42, `[${kLabel}] ${LABELS[kind]}`, {
+        fontFamily: 'monospace', fontSize: '12px', color: '#e0b0ff', fontStyle: 'bold',
+        stroke: '#000000', strokeThickness: 3,
+      }).setOrigin(0.5).setDepth(52);
+    } else if (!inRange && ev.prompt) {
+      ev.prompt.destroy();
+      ev.prompt = null;
+    }
+
+    if (ev.prompt && npc) {
+      ev.prompt.setPosition(npc.x, npc.y - 42);
+    }
+
+    if (inRange && !ev.used && this.canAct()) {
+      const bk = this.bindKeys;
+      if (bk && Phaser.Input.Keyboard.JustDown(bk.interact)) {
+        this._triggerRiskEvent(ev);
+      }
+    }
+  }
+
+  _triggerRiskEvent(ev) {
+    if (!ev || ev.used) return;
+    ev.used = true;
+    // Destroy prompt
+    if (ev.prompt) { ev.prompt.destroy(); ev.prompt = null; }
+
+    const p = this.player;
+
+    switch (ev.kind) {
+      case 'blood_shrine': {
+        // Refuse if HP below 30%
+        if (p.hp / p.maxHp < 0.30) {
+          this.showBanner('The altar rejects you — too wounded to offer.', '#ff6060', 'normal');
+          ev.used = false; // let player try again when healed
+          break;
+        }
+        // Check if already used this run
+        if (this.run._bloodShrineUsed) {
+          this.showBanner('This power has already been given.', '#9a6abf', 'normal');
+          break;
+        }
+        const sacrifice = Math.floor(p.hp * 0.25);
+        p.hp = Math.max(1, p.hp - sacrifice);
+        // Permanent +6% damage this run
+        this.run._bloodShrineUsed = true;
+        p.levelMods.damageMult = (p.levelMods.damageMult || 0) + 0.06;
+        p.recompute();
+        this.fx.shockwave(ev.pos.x, ev.pos.y, 0xff4444, 80);
+        this.fx._flash(p.x, p.y, 24, 0xff4444, 0.75, 400);
+        Audio.sfx('execution');
+        this.showBanner('Blood Offering — +6% Damage (permanent this run)', '#ff4444', 'normal');
+        break;
+      }
+
+      case 'cursed_chest': {
+        // Roll a relic-tier item (luck +15 bonus) AND apply a 2-floor debuff
+        const depth = this.conquestDepth;
+        const powerMult = 1 + depth * 0.012;
+        const luck = depth * 0.3 + (p.luck || 0) + 15;
+        const item = rollItem(luck, null, powerMult);
+
+        // Apply the 2-floor curse (reuse the CURSED_MODS table)
+        const CURSED_MODS = [
+          { id: 'fast_enemies',  label: 'Bloodlust',   desc: 'Enemies move 15% faster.' },
+          { id: 'small_pickup',  label: 'Shrouded',    desc: 'Pickup radius −20%.' },
+          { id: 'tight_fog',     label: 'Blind March', desc: 'Fog of war tighter (−30 px).' },
+          { id: 'cursed_prices', label: 'Blood Price', desc: 'Merchant prices +30%.' },
+        ];
+        const curse = CURSED_MODS[Math.floor(Math.random() * CURSED_MODS.length)];
+        this._cursedBargainFloorsLeft = 2;
+        // Apply the curse effect immediately (like _applyCursedMod)
+        switch (curse.id) {
+          case 'small_pickup': this._cursedPickupMult = 0.80; break;
+          case 'tight_fog': this._cursedFogRadius = -30; break;
+          case 'cursed_prices': this._cursedPriceMult = 1.30; break;
+          default: break;
+        }
+
+        Audio.sfx('equip');
+        this.fx.shockwave(ev.pos.x, ev.pos.y, 0xb05aff, 70);
+
+        // Show loot modal (pauses scene + launches LootScene)
+        this.lootOpen = true;
+        this.scene.pause();
+        this.scene.launch('LootScene', { gameScene: this, item });
+        this.scene.get('LootScene').events.once('shutdown', () => {
+          this.lootOpen = false;
+          this.scene.resume('GameScene');
+        });
+
+        this.showBanner(`Cursed Chest — ${curse.label}: ${curse.desc}`, '#b05aff', 'normal');
+        break;
+      }
+
+      case 'war_gambler': {
+        // Check if already used this floor
+        if (ev._gamblerUsedThisFloor) {
+          this.showBanner('The gambler smiles — once per floor.', '#e8c840', 'normal');
+          ev.used = false;
+          break;
+        }
+        const gold = this.run.gold || 0;
+        if (gold <= 0) {
+          this.showBanner('The gambler raises an eyebrow — no gold to stake.', '#e8c840', 'normal');
+          ev.used = false;
+          break;
+        }
+        const stake = Math.floor(gold * 0.40);
+        if (stake <= 0) {
+          this.showBanner('Your purse is too thin to tempt fate.', '#e8c840', 'normal');
+          ev.used = false;
+          break;
+        }
+        ev._gamblerUsedThisFloor = true;
+        const won = Math.random() < 0.50;
+        if (won) {
+          this.run.gold = gold + stake; // double the stake back
+          Audio.sfx('levelup');
+          this.fx.shockwave(ev.pos.x, ev.pos.y, 0xffd700, 80);
+          this.showBanner(`Fortune favours you — +${stake} gold! (${this.run.gold} total)`, '#ffd700', 'normal');
+        } else {
+          this.run.gold = gold - stake;
+          Audio.sfx('hit');
+          this.fx.shockwave(ev.pos.x, ev.pos.y, 0xff5252, 60);
+          this.showBanner(`Fate is cruel — lost ${stake} gold. (${this.run.gold} total)`, '#ff5252', 'normal');
+        }
+        this.captureRunState();
+        break;
+      }
+
+      default:
+        break;
+    }
+  }
+
+  _despawnRiskEvents() {
+    const ev = this._riskEvent;
+    if (!ev) return;
+    if (ev.npc) { this.tweens.killTweensOf(ev.npc); ev.npc.destroy(); ev.npc = null; }
+    if (ev.tent) { ev.tent.destroy(); ev.tent = null; }
+    if (ev.ring) { ev.ring.destroy(); ev.ring = null; }
+    if (ev.prompt) { ev.prompt.destroy(); ev.prompt = null; }
+    this._riskEvent = null;
+  }
+
+  // ── War Omens ─────────────────────────────────────────────────────────────────
+  // Show the omen picker at the very start of a fresh run (stage 1, floor 1 only).
+  _showOmenScene() {
+    const omens = rollOmens(3);
+    this.scene.pause();
+    this.scene.launch('OmenScene', { gameScene: this, omens });
+    this.scene.get('OmenScene').events.once('shutdown', () => {
+      this.scene.resume('GameScene');
+    });
+  }
+
   // CURSED stairs reward: powerup + big gold drop near the stairs.
   _cursedStairsReward() {
     const st = this.floorSys && this.floorSys.stairs;
@@ -2291,6 +2586,19 @@ export default class GameScene extends Phaser.Scene {
     r.gold = this.run.gold || 0;
     r.merchantRerolls = this.run.merchantRerolls || 0;
     r.banishesUsed = this.run.banishesUsed || 0;
+    // War Omen (chosen once at run start; persisted for all stages)
+    if (this.run.omen) r.omen = this.run.omen;
+    // Omen-derived run flags (persisted so they survive stage transitions)
+    const omenFlags = [
+      '_omenMerchantDiscount', '_omenChestGoldPenalty', '_omenDashBonus', '_omenMaxHpMult',
+      '_omenGoldMult', '_omenEliteHpMult', '_omenOldWounds', '_omenBeastReduction',
+      '_omenHumanoidBoost', '_omenFloorGoldTax', '_omenIronSpine', '_omenBloodDebtKillInterval',
+      '_omenBloodDebtHeal', '_omenBloodDebtKillCount', '_omenXpPenalty', '_omenUltCdMult',
+      '_omenMutationId', '_bloodShrineUsed',
+    ];
+    for (const f of omenFlags) {
+      if (this.run[f] !== undefined) r[f] = this.run[f];
+    }
     this.registry.set('run', r);
   }
 
@@ -2886,6 +3194,17 @@ export default class GameScene extends Phaser.Scene {
       this.player.addBuff('speed', 1.4, 2000, this.time.now);
     }
     Audio.sfx('kill'); // distinct kill SFX (sub-thud + saw descend)
+
+    // BLOOD DEBT omen: every Nth kill heals the player
+    if (this.run._omenBloodDebtKillInterval) {
+      this.run._omenBloodDebtKillCount = (this.run._omenBloodDebtKillCount || 0) + 1;
+      if (this.run._omenBloodDebtKillCount >= this.run._omenBloodDebtKillInterval) {
+        this.run._omenBloodDebtKillCount = 0;
+        this.player.heal(this.run._omenBloodDebtHeal || 12);
+        this.fx._flash(this.player.x, this.player.y, 16, 0xff6060, 0.6, 300);
+      }
+    }
+
     // juicyDeath: directional corpse-fling + debris tint + overkill variants
     this.juicyDeath(enemy, enemy._lastDmg || 0);
     // Volatile elite: detonate a telegraphed AoE where it died (back off when it's low!)
@@ -2896,20 +3215,22 @@ export default class GameScene extends Phaser.Scene {
     // HORDE mod: gems worth 2× on horde floors
     const gemMult = (this.activeFloorMod && this.activeFloorMod.type === 'HORDE') ? 2 : 1;
     this.drops.spawnGem(enemy.x, enemy.y, Math.round(enemy.xpValue * gemMult));
+    // GILDED PATH omen: base gold multiplier on all enemy drops
+    const omenGoldMult = this.run._omenGoldMult || 1;
     if (enemy.isElite) {
       // gear/powerups from elites were flooding in and over-powering the build — halve them
       if (Math.random() < 0.5) this.drops.spawnChest(enemy.x, enemy.y);
       if (Math.random() < 0.3) this.drops.spawnPowerup(enemy.x + 30, enemy.y);
-      // Elite gold drop: 4-6 coins
+      // Elite gold drop: 4-6 coins (scaled by omen + floor mod)
       const eliteCoins = Phaser.Math.Between(4, 6);
-      const goldMult = (this.activeFloorMod && this.activeFloorMod.type === 'HORDE') ? 2 : 1;
-      this.drops.spawnCoins(enemy.x, enemy.y, eliteCoins * goldMult);
+      const goldMult = ((this.activeFloorMod && this.activeFloorMod.type === 'HORDE') ? 2 : 1) * omenGoldMult;
+      this.drops.spawnCoins(enemy.x, enemy.y, Math.round(eliteCoins * goldMult));
     } else if (Math.random() < 0.04) {
       this.drops.spawnHeart(enemy.x, enemy.y); // rare health drop
     } else if (Math.random() < 0.18) {
-      // Regular enemy ~18% chance to drop 1 coin; HORDE doubles it
-      const goldMult2 = (this.activeFloorMod && this.activeFloorMod.type === 'HORDE') ? 2 : 1;
-      this.drops.spawnCoins(enemy.x, enemy.y, goldMult2);
+      // Regular enemy ~18% chance to drop 1 coin; HORDE doubles it + omen scales it
+      const goldMult2 = ((this.activeFloorMod && this.activeFloorMod.type === 'HORDE') ? 2 : 1) * omenGoldMult;
+      this.drops.spawnCoins(enemy.x, enemy.y, Math.max(1, Math.round(goldMult2)));
     }
     this.deactivate(enemy);
   }

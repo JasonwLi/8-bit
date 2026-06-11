@@ -187,7 +187,10 @@ export default class PickupController {
     this.s.deactivate(chest);
     // Chest gold bonus: 5-9 coins scatter around the chest position
     const chestX = chest.x, chestY = chest.y;
-    const coinBonus = Phaser.Math.Between(5, 9);
+    const rawBonus = Phaser.Math.Between(5, 9);
+    // Iron Frugality omen: chests drop 1 less gold coin (min 1)
+    const chestPenalty = (this.s.run && this.s.run._omenChestGoldPenalty) || 0;
+    const coinBonus = Math.max(1, rawBonus - chestPenalty);
     this.spawnCoins(chestX, chestY, coinBonus);
     this.openLoot();
   }

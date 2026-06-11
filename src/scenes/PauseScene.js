@@ -6,6 +6,7 @@ import { getArtifact } from '../data/artifacts.js';
 import { CIV_NAME, CIV_ORDER } from '../data/campaign.js';
 import { Save } from '../systems/SaveSystem.js';
 import { drawPanel } from '../art/ui.js';
+import { getOmen } from '../data/omens.js';
 
 // Human-readable labels for every mod key an item can carry.
 // Fractional (multiplier) keys are shown as a percentage; flat keys as integers.
@@ -134,6 +135,17 @@ export default class PauseScene extends Phaser.Scene {
       ? gs.run.artifacts.map((id) => { const a = getArtifact(id); return `• ${a.name}\n   ${a.desc}`; }).join('\n')
       : '(none yet)';
     this.add.text(rx, 134, arts, { fontFamily: 'monospace', fontSize: '12px', color: '#ffd27a', lineSpacing: 5, wordWrap: { width: 250 } });
+
+    // --- omen display ---
+    if (gs.run.omen) {
+      const omenDef = getOmen(gs.run.omen);
+      if (omenDef) {
+        const omenY = 330;
+        this.add.text(rx, omenY, 'WAR OMEN', { fontFamily: 'monospace', fontSize: '13px', color: '#9a6abf', fontStyle: 'bold' });
+        this.add.text(rx, omenY + 18, omenDef.name, { fontFamily: 'monospace', fontSize: '12px', color: '#e0b0ff', fontStyle: 'bold', wordWrap: { width: 250 } });
+        this.add.text(rx, omenY + 34, omenDef.desc, { fontFamily: 'monospace', fontSize: '10px', color: '#c9c4e0', lineSpacing: 3, wordWrap: { width: 250 } });
+      }
+    }
 
     // --- buttons ---
     const resume = this.add.text(width / 2 - 250, height - 50, '[ Resume ]', {

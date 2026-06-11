@@ -44,6 +44,8 @@ const TOAST_IDS = [
   'panic_fire', 'crumple', 'hemorrhage', 'overkill',
   // Economy
   'merchant',
+  // Risk/reward events + War Omens
+  'risk_event', 'omen',
 ];
 
 // Mechanic ids that trigger a FULL TIP CARD instead of a toast.
@@ -392,6 +394,10 @@ export default class TutorialController {
         return { text: 'Overkill: excess damage from a kill bleeds 60% into the nearest enemy', color: '#ffd700' };
       case 'merchant':
         return { text: 'War-camp merchant ahead — walk close and press [E] to trade gold for goods', color: '#ffd700' };
+      case 'risk_event':
+        return { text: 'A risk/reward encounter lurks on this floor — approach and press [E] to interact', color: '#b05aff' };
+      case 'omen':
+        return { text: 'Your War Omen shapes the entire run — its effects are permanent', color: '#b05aff' };
       default: return null;
     }
   }

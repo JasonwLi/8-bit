@@ -5,6 +5,7 @@ import { getArtifact } from '../data/artifacts.js';
 import { Audio } from '../systems/AudioManager.js';
 import { CIV_NAME } from '../data/campaign.js';
 import { HERO_DIALOGUE, pickRandom } from '../data/dialogue.js';
+import { getOmen } from '../data/omens.js';
 
 // Victory: the champion has conquered every civilization and the final warlord.
 export default class WinScene extends Phaser.Scene {
@@ -92,12 +93,26 @@ export default class WinScene extends Phaser.Scene {
     }).setOrigin(0.5);
 
     // ── Artifacts
+    let winY = statsY + 20;
     if (this.run.artifacts && this.run.artifacts.length) {
-      this.add.text(width / 2, statsY + 20,
+      this.add.text(width / 2, winY,
         `Artifacts: ${this.run.artifacts.map((id) => getArtifact(id).name).join('  •  ')}`, {
           fontFamily: 'monospace', fontSize: '11px', color: '#ffd27a', align: 'center',
           wordWrap: { width: width - 120 },
         }).setOrigin(0.5, 0);
+      winY += 18;
+    }
+
+    // ── War Omen recap
+    if (this.run.omen) {
+      const omenDef = getOmen(this.run.omen);
+      if (omenDef) {
+        this.add.text(width / 2, winY,
+          `War Omen: ${omenDef.name} — ${omenDef.desc}`, {
+            fontFamily: 'monospace', fontSize: '10px', color: '#b080e8', align: 'center',
+            wordWrap: { width: width - 120 },
+          }).setOrigin(0.5, 0);
+      }
     }
 
     // ── Button
