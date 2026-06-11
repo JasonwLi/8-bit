@@ -2182,7 +2182,9 @@ export default class GameScene extends Phaser.Scene {
       if (sh) {
         sh.setDepth(4);
         sh.used = false;
-        if (sh.body) { sh.body.setImmovable(true); }
+        // shrines group is STATIC — StaticBody has no setImmovable (it threw and aborted
+        // enterFloor on SHRINE-door floors); static bodies are immovable by definition
+        if (sh.body && sh.body.setImmovable) sh.body.setImmovable(true);
       }
     }
     // +1 bonus treasure encounter: inject directly into the floor data so the proximity
