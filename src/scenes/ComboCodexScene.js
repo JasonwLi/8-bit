@@ -135,11 +135,10 @@ function makeActor(scene, x, y, color, opts = {}) {
 
 function makeSprite(scene, x, y, key, fallbackColor, scale = 1.5) {
   if (scene.textures.exists(key)) {
-    const sp = scene.add.image(x, y, key).setScale(scale).setDepth(91);
-    sp.setTint = (c) => { sp.setTintFill(c); return sp; };
-    const _origClearTint = sp.clearTint.bind(sp);
-    sp.clearTint = () => { _origClearTint(); return sp; };
-    return sp;
+    // Real images keep their NATIVE setTint/clearTint. Overriding setTint to call
+    // setTintFill recursed infinitely: Phaser's setTintFill internally calls
+    // this.setTint, which was the override (stack overflow in live demos).
+    return scene.add.image(x, y, key).setScale(scale).setDepth(91);
   }
   return makeActor(scene, x, y, fallbackColor);
 }
