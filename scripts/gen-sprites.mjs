@@ -66,6 +66,8 @@ const RECRAFT_SOLID = new Set([
   'enemy_charger', 'enemy_harpy',
   // small projectile sprites that Ideogram renders as hollow lineart or wrong colour
   'proj_gate_spear',
+  // scene icon that Ideogram drew as an abstract bush rather than massed spears
+  'contract_deep_budget',
 ]);
 
 async function generateOne(asset, key) {

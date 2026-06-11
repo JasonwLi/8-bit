@@ -137,13 +137,16 @@ export default class DoorScene extends Phaser.Scene {
       fontFamily: 'monospace', fontSize: '12px', color: '#ffd27a', fontStyle: 'bold',
     }).setOrigin(0.5).setDepth(2);
 
-    // Icon — small inline icon per type using existing textures where available,
-    // otherwise a colored text glyph so it always renders.
-    const ICON_KEYS = { VAULT: 'chest', HORDE: 'gem', CURSED: 'pickup_heart', SHRINE: 'pickup_heart', NORMAL: 'gem' };
+    // Icon — bold per-type door emblem (AI art) where available, otherwise a
+    // colored text glyph so it always renders.
+    const ICON_KEYS = {
+      VAULT: 'door_vault', HORDE: 'door_horde', CURSED: 'door_cursed',
+      SHRINE: 'door_shrine', NORMAL: 'door_normal',
+    };
     const ICON_GLYPHS = { VAULT: '🗝', HORDE: '☠', CURSED: '✦', SHRINE: '⚕', NORMAL: '→' };
     const iconKey = ICON_KEYS[door.id];
     if (iconKey && this.textures.exists(iconKey)) {
-      this.add.image(cx, top + 72, iconKey).setDepth(2).setScale(0.9);
+      this.add.image(cx, top + 72, iconKey).setDepth(2).setDisplaySize(48, 48);
     } else {
       this.add.text(cx, top + 60, ICON_GLYPHS[door.id] || '?', {
         fontFamily: 'monospace', fontSize: '28px', color: Phaser.Display.Color.IntegerToColor(door.color).rgba,

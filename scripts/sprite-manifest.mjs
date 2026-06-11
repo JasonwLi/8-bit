@@ -667,6 +667,44 @@ export function buildManifest() {
   push('proj_fireburst', 'prop', { desc: 'ONLY a single blazing orange fire bolt pointing RIGHT — a tear-shaped bright orange fireball with a flame tail streaming to the left, vivid hot orange and yellow glow, just the fire bolt, no hand, 16x16 pixel art' }, 16, 16);
   push('proj_greek_fire', 'prop', { desc: 'ONLY a single round ceramic flask/pot of greek fire — a small round orange clay pot with flames bursting from the top, an incendiary projectile, just the flask by itself, no hand, 16x16 pixel art' }, 16, 16);
 
+  // ── Scene emblem icons: mandate contracts, war omens, floor doors, merchant services ──
+  // Bold single-symbol emblems (ability_icon category, 48×48) for the choice-screen cards.
+  const SCENE_ICONS = [
+    // 5 mandate-only contracts (the harder post-conquest mandates) — distinct from the
+    // 5 base contract icons that already exist.
+    ['contract_iron_elite',  'a bold armoured iron gauntlet fist clenched, plated steel knuckles, an elite heavy-armour emblem'],
+    ['contract_war_tithe',   'a golden balance scale weighing a stack of gold coins, a war-tax tithe emblem'],
+    ['contract_famine',      'a shattered cracked red heart broken in pieces with no glow, a no-healing famine emblem'],
+    ['contract_enrage',      'a burning skull wearing a jagged crown wreathed in orange flames, a boss-enrage emblem'],
+    ['contract_deep_budget', 'a tight rank of three dark armoured soldier silhouettes standing shoulder to shoulder holding tall upright spears with pointed metal tips, a massed-reinforcement war-host emblem, grey steel and dark iron, NO plants, NO leaves, NO bush'],
+
+    // 10 war omens (replace plain colour circles on OmenScene cards)
+    ['omen_comet',         'a streaking purple comet — a bright star with a long glowing violet tail, a wandering-star omen'],
+    ['omen_iron_frugality','a single gold coin pinched between two fingers, a thrifty discount emblem, golden'],
+    ['omen_wind_riders',   'a winged boot — a leather boot with a small feathered wing, a swift wind-rider emblem, cyan-blue'],
+    ['omen_gilded_path',   'a golden paved road winding into the distance lined with gold coins, a gilded-path emblem'],
+    ['omen_old_wounds',    'a bandaged scar — crossed cloth bandages over a healed gash with a drop of blood, an old-wounds emblem, orange-red'],
+    ['omen_beast_tongue',  'a fanged open beast maw with sharp teeth and a snarl, a green beast-tongue emblem'],
+    ['omen_warlord_tax',   'a golden set of tithe scales over a small coin pile, a warlord-tax emblem, amber-gold'],
+    ['omen_iron_spine',    'an armoured upright spine of iron vertebrae plates, a sturdy iron-spine emblem, steel-blue'],
+    ['omen_blood_debt',    'a dripping red blood droplet over a small ledger mark, a blood-debt emblem, crimson-red'],
+    ['omen_shattered_sky', 'a cracked sky with a forked white lightning bolt splitting it, a shattered-sky emblem, pale violet'],
+
+    // 5 floor-door types
+    ['door_vault',  'a barred golden treasure vault door — a heavy iron-barred door with a gold coin pile glinting behind the bars'],
+    ['door_horde',  'a wall of massed red spears and shields pressing forward through a dark doorway, a horde emblem'],
+    ['door_cursed', 'a dark stone door marked with a glowing purple hexagram curse rune, an ominous cursed door'],
+    ['door_shrine', 'a serene red Japanese torii gate over a calm glowing altar, a peaceful sanctuary door'],
+    ['door_normal', 'a plain grey stone archway doorway, an ordinary simple descent, neutral stone tones'],
+
+    // 4 merchant service cards
+    ['svc_heal',           'a red heart-shaped healing flask — a round glass vial filled with glowing red healing potion shaped like a heart, a heal emblem'],
+    ['svc_banish',         'an open outstretched hand pushing away with a sweeping motion, a banishing-hand emblem, amber-orange'],
+    ['svc_reroll',         'two curved cycling arrows forming a circle, a refresh/reroll emblem, pale lavender'],
+    ['svc_cursed_bargain', 'a glowing purple cursed gem cut diagonally in half with a small price tag, a half-price cursed-bargain emblem'],
+  ];
+  for (const [key, desc] of SCENE_ICONS) push(key, 'ability_icon', { desc }, 48, 48);
+
   return items;
 }
 

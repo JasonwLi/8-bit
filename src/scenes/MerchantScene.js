@@ -115,6 +115,7 @@ export default class MerchantScene extends Phaser.Scene {
       {
         idx: 3,
         label: 'HEAL',
+        icon: 'svc_heal',
         detail: '+35% max HP',
         color: 0x66dd88,
         price: Math.max(1, Math.round(HEAL_BASE_PRICE * priceMult)),
@@ -123,6 +124,7 @@ export default class MerchantScene extends Phaser.Scene {
       {
         idx: 4,
         label: '+1 BANISH',
+        icon: 'svc_banish',
         detail: 'Extra banish charge',
         color: 0xe8a040,
         price: Math.max(1, Math.round(BANISH_PRICE * priceMult)),
@@ -131,6 +133,7 @@ export default class MerchantScene extends Phaser.Scene {
       {
         idx: 5,
         label: 'REROLL',
+        icon: 'svc_reroll',
         detail: 'Extra upgrade reroll',
         color: 0x9a93c0,
         price: Math.max(1, Math.round(REROLL_PRICE * priceMult)),
@@ -139,6 +142,7 @@ export default class MerchantScene extends Phaser.Scene {
       {
         idx: 6,
         label: 'CURSED BARGAIN',
+        icon: 'svc_cursed_bargain',
         detail: 'Relic-tier item — 2-floor curse',
         color: 0xb05aff,
         price: Math.max(1, Math.round(RARITY_PRICE.legendary * priceMult * CURSED_PRICE_MULT)),
@@ -207,6 +211,12 @@ export default class MerchantScene extends Phaser.Scene {
     drawPanel(g, cx - w / 2, cy - h / 2, w, h, colAccent, { header: 24, radius: 8 });
     if (sold) g.setAlpha(0.45);
 
+    // Service emblem icon in the header (left of the label); text remains the source
+    // of truth if the texture is missing.
+    if (svc.icon && this.textures.exists(svc.icon)) {
+      reg(this.add.image(cx - w / 2 + 18, cy - h / 2 + 12, svc.icon)
+        .setDisplaySize(22, 22).setDepth(2).setAlpha(sold ? 0.35 : 1));
+    }
     // Label
     reg(this.add.text(cx, cy - h / 2 + 13, svc.label, {
       fontFamily: 'monospace', fontSize: '13px', color: sold ? '#555566' : '#ffffff', fontStyle: 'bold',

@@ -78,12 +78,17 @@ export default class OmenScene extends Phaser.Scene {
       fontFamily: 'monospace', fontSize: '13px', color: '#ffd27a', fontStyle: 'bold',
     }).setOrigin(0.5).setDepth(2);
 
-    // Color pip / glyph icon
-    const pipG = this.add.graphics().setDepth(2);
-    pipG.fillStyle(omen.color, 0.85);
-    pipG.fillCircle(cx, top + 72, 20);
-    pipG.lineStyle(2, 0xffffff, 0.5);
-    pipG.strokeCircle(cx, top + 72, 20);
+    // Emblem icon (fall back to a coloured pip when the texture is missing)
+    const iconKey = `omen_${omen.id}`;
+    if (this.textures.exists(iconKey)) {
+      this.add.image(cx, top + 72, iconKey).setDepth(2).setDisplaySize(44, 44);
+    } else {
+      const pipG = this.add.graphics().setDepth(2);
+      pipG.fillStyle(omen.color, 0.85);
+      pipG.fillCircle(cx, top + 72, 20);
+      pipG.lineStyle(2, 0xffffff, 0.5);
+      pipG.strokeCircle(cx, top + 72, 20);
+    }
 
     // Name
     this.add.text(cx, top + 102, omen.name, {
