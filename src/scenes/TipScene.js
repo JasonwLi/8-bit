@@ -60,7 +60,7 @@ function tipDefs(binds) {
     },
     combo: {
       title: 'COMBO STRING',
-      caption: `Tap [${kPri}] up to 4 times — each tap fires a different swing. Press [${kSec}] MID-STRING for an instant Charge Finisher (C2/C3/C4). Hold [${kPri}] for the same finisher. Depth pips glow gold below the HP bar.\nFull move list with live demos: Pause menu → Combo List.`,
+      caption: `Tap [${kPri}] up to 6 times — each tap fires a different swing. Press [${kSec}] MID-STRING for an instant Charge Finisher (C2→C6): the deeper the string, the bigger the finisher — C5 erases the crowd, C6 is the cinematic APEX (~3× damage). Hold [${kPri}] for the same finisher. Depth pips glow below the HP bar (the last two burn hotter).\nFull move list with live demos: Pause menu → Combo List.`,
     },
   };
 }
