@@ -1011,8 +1011,11 @@ export default class ComboCodexScene extends Phaser.Scene {
       }).setDepth(5);
       this._rowObjs.push(iT);
 
-      // Move name
-      const nT = this.add.text(LX + 100, rowY + 5, entry.name, {
+      // Move name — clamp to the column so long C5/C6 names ("HEAVEN MASS-LAUNCHER")
+      // don't bleed into the effect column; the right pane shows the full name.
+      const maxName = 18;
+      const nameStr = entry.name.length > maxName ? entry.name.slice(0, maxName - 1) + '…' : entry.name;
+      const nT = this.add.text(LX + 100, rowY + 5, nameStr, {
         fontFamily: 'monospace', fontSize: '10px', color: '#e8e4f8', fontStyle: 'bold',
       }).setDepth(5);
       this._rowObjs.push(nT);
