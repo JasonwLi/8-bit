@@ -517,6 +517,215 @@ export const HERO_DIALOGUE = {
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
+// BOSS MEMORY DIALOGUE
+// Variants selected by per-boss cross-run history (slainBy / slain counts).
+// Each boss entry may override any of the four slots; falls back to the
+// generic tier pools below if the specific boss has no override.
+//
+// Pools:
+//   firstMeeting      — used when slainBy===0 && slain===0 (= normal preDuel)
+//   playerFellOnce    — player died to this boss exactly once before
+//   playerFellTwicePlus — player died to this boss 2+ times
+//   bossSlainBefore   — player has already killed this boss at least once
+// ─────────────────────────────────────────────────────────────────────────────
+
+// Generic fallback pools — apply to any boss not listed in BOSS_MEMORY_DIALOGUE.
+export const BOSS_MEMORY_GENERIC = {
+  firstMeeting: null, // signals: use the normal preDuel pool
+  playerFellOnce: [
+    'You return? Bold.',
+    'I remember your face. It looked the same when you fell.',
+    'Once was not enough to teach you? Come — I will repeat the lesson.',
+    'Back so soon? My blade is still warm.',
+  ],
+  playerFellTwicePlus: [
+    'Twice you have fallen to me, conqueror. The ground knows your shape by now.',
+    'Again? You are either very brave or very slow to learn.',
+    'I have lost count — no, wait. I have not. Each time you fall I remember.',
+    'Do not mistake persistence for skill. You persist. I prevail.',
+  ],
+  bossSlainBefore: [
+    'So the ghost returns to haunt me. Come then.',
+    'You beat me before. I have been waiting to correct that.',
+    'A face I know too well. Wary now — last time I underestimated you.',
+    'The last time you stood here I did not walk away. Today is different.',
+  ],
+};
+
+// Per-boss overrides (partial — only keys that need custom lines).
+export const BOSS_MEMORY_DIALOGUE = {
+  caocao: {
+    playerFellOnce: [
+      'You return to Cao Cao? Admirable. Foolish, but admirable.',
+      'I crushed you once. History tends to repeat itself.',
+    ],
+    playerFellTwicePlus: [
+      'Twice fallen and still you come. I almost respect this stubbornness.',
+      'Every time you return I grow stronger from the habit of killing you.',
+    ],
+    bossSlainBefore: [
+      'I did not survive thirty years of war to fear a rematch.',
+      'You bested Cao Cao before. That makes you the most dangerous enemy on this field.',
+    ],
+  },
+  hideyoshi: {
+    playerFellOnce: [
+      'You return? The monkey never forgets a face it has beaten.',
+      'Once was a lesson. Twice is a humiliation — for you.',
+    ],
+    playerFellTwicePlus: [
+      'You keep returning to die at the hands of a peasant lord. There is poetry in that.',
+      'Two falls and still the ghost comes back. Perhaps you seek a third.',
+    ],
+    bossSlainBefore: [
+      'So the one who bested me walks in again. The monkey learns from defeat — have you?',
+      'A wound teaches more than victory. You taught me mine. Now I teach you yours.',
+    ],
+  },
+  justinian: {
+    playerFellOnce: [
+      'You return to New Rome? The code of law does not forget transgressors.',
+      'I remember you. Last time you fell in this hall.',
+    ],
+    playerFellTwicePlus: [
+      'The laws of Justinian: you shall fall a third time as you fell before.',
+      'I have outlasted every challenger. You persist — I am almost impressed.',
+    ],
+    bossSlainBefore: [
+      'So you have slain an emperor before and come for a second. Wary, then.',
+      'You bested Justinian once. The empire endures. So do I.',
+    ],
+  },
+  enkidu: {
+    playerFellOnce: [
+      'You fell and rose again. The wild does not hold the dead.',
+      'I felt you die before. The clay of you remembers this fight.',
+    ],
+    playerFellTwicePlus: [
+      'Twice the wilds have swallowed you and spit you back. Face me a third time.',
+      'Death taught you nothing. Face the creature of the gods.',
+    ],
+    bossSlainBefore: [
+      'You sent me back to clay before. This time the clay holds its shape.',
+      'Once you bested the wild. The wild has grown since.',
+    ],
+  },
+  hardrada: {
+    playerFellOnce: [
+      'You return? Good. A Viking remembers who fought well before dying.',
+      'I killed you once and here you stand. Valhalla sent you back.',
+    ],
+    playerFellTwicePlus: [
+      'Twice to the ground. You have more Norse blood in you than I thought.',
+      'The last Viking king does not tire of killing you.',
+    ],
+    bossSlainBefore: [
+      'You took Hardrada\'s life once. At Stamford Bridge we die hard.',
+      'A ghost faces a king. You beat me before — this time the king is ready.',
+    ],
+  },
+  finalboss: {
+    firstMeeting: [
+      'They called me Xerxes the Undying. They were nearly right.',
+      'Eight civilizations fall to you? Then you are worthy of a proper death.',
+      'I have watched every empire rise. I will watch you fall.',
+    ],
+    playerFellOnce: [
+      'You return to Xerxes the Undying? You are the undying one.',
+      'I have ended conquerors for a thousand years. You made it back. Interesting.',
+      'Most who fall here do not rise. You are stubborn. That changes nothing.',
+    ],
+    playerFellTwicePlus: [
+      'Twice you have stood here and twice the world kept turning without you. Again?',
+      'I have watched you fall before me twice. The pattern is familiar now.',
+      'Come — let us see how many times the Undying must end you.',
+    ],
+    bossSlainBefore: [
+      'The one who broke my undying streak returns. The world shudders.',
+      'You have killed me before. Impossible — and yet. Come, let us test it again.',
+      'Undying does not mean unable to die. You proved that. I have not forgotten.',
+    ],
+  },
+};
+
+// Helper: pick the right boss pre-duel dialogue based on memory history.
+// Returns the selected line string (or '' if nothing found).
+export function pickBossMemoryLine(bossId, bossDlg, slainBy, slain) {
+  // Determine variant key
+  let variantKey;
+  if (slain > 0) {
+    variantKey = 'bossSlainBefore';
+  } else if (slainBy >= 2) {
+    variantKey = 'playerFellTwicePlus';
+  } else if (slainBy === 1) {
+    variantKey = 'playerFellOnce';
+  } else {
+    variantKey = 'firstMeeting';
+  }
+
+  // Try per-boss override first
+  const perBoss = BOSS_MEMORY_DIALOGUE[bossId];
+  if (perBoss && perBoss[variantKey]) {
+    return pickRandom(perBoss[variantKey]);
+  }
+  // For firstMeeting fall back to the normal preDuel pool
+  if (variantKey === 'firstMeeting') {
+    return bossDlg ? pickRandom(bossDlg.preDuel) : '';
+  }
+  // Generic fallback
+  const genericPool = BOSS_MEMORY_GENERIC[variantKey];
+  return genericPool ? pickRandom(genericPool) : (bossDlg ? pickRandom(bossDlg.preDuel) : '');
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// HERO MEMORY REPLY VARIANTS
+// Matching hero reply pools keyed by variant name.
+// Falls back to the normal duelReply pool for firstMeeting / unknown.
+// ─────────────────────────────────────────────────────────────────────────────
+export const HERO_MEMORY_REPLY = {
+  // After the player previously fell to this boss — defiant tone
+  playerFellOnce: [
+    'I remember falling here. It will not happen again.',
+    'Last time I underestimated you. Not today.',
+    'I owe you a debt — paid in blood.',
+    'You killed me once. Once is the limit.',
+  ],
+  playerFellTwicePlus: [
+    'Twice I fell and twice I returned. The third time is mine.',
+    'Every defeat was a lesson. I am done learning — begin.',
+    'You thought me finished. Conquerors do not stay finished.',
+    'I have crossed further distances than death to reach this field again.',
+  ],
+  // After the player has already slain this boss — confident tone
+  bossSlainBefore: [
+    'I have stood over your remains before. The ground remembers.',
+    'You fell to me once. Prepare to fall again.',
+    'I know this fight. I know how it ends.',
+    'The first time I bested you I was surprised. Now I am simply ready.',
+  ],
+};
+
+// Helper: pick the right hero reply based on memory history.
+export function pickHeroMemoryReply(heroId, heroDlg, slainBy, slain) {
+  let variantKey;
+  if (slain > 0) {
+    variantKey = 'bossSlainBefore';
+  } else if (slainBy >= 2) {
+    variantKey = 'playerFellTwicePlus';
+  } else if (slainBy === 1) {
+    variantKey = 'playerFellOnce';
+  } else {
+    variantKey = null; // normal duelReply
+  }
+
+  if (!variantKey) {
+    return heroDlg ? pickRandom(heroDlg.duelReply) : '';
+  }
+  const pool = HERO_MEMORY_REPLY[variantKey];
+  return pool ? pickRandom(pool) : (heroDlg ? pickRandom(heroDlg.duelReply) : '');
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // BOSS DIALOGUE
 // ─────────────────────────────────────────────────────────────────────────────
 export const BOSS_DIALOGUE = {

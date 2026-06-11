@@ -2067,6 +2067,10 @@ export default class GameScene extends Phaser.Scene {
     this.fx.death(boss.x, boss.y);
     this.fx.explosion(boss.x, boss.y, this.theme.accent, 220); // big death blast
     Audio.sfx('bossdown');
+    // Boss Memory: record that the player slew this boss
+    if (boss.bossId && !this.duelTest) {
+      Legacy.recordBossSlain(boss.bossId);
+    }
 
     // Boss dying line banner (before the fall banner below)
     const bossDlg = boss.bossId && BOSS_DIALOGUE[boss.bossId];
@@ -2702,6 +2706,18 @@ export default class GameScene extends Phaser.Scene {
         this.run.conquered ? this.run.conquered.length : 0,
         heatCoinMult,
       );
+      // Dynasty Chronicle: record a world conquest
+      Legacy.appendChronicleEntry({
+        heroId: this.run.characterId,
+        outcome: 'conquered',
+        stage: 'final',
+        floor: this.floor || 1,
+        killedBy: null,
+        kills: this.player.kills || 0,
+        heat: heat,
+        omen: this.run.omen || null,
+        civsConquered: (this.run.conquered || []).length,
+      });
     }
 
     Save.save(this.run);
@@ -3367,6 +3383,10 @@ export default class GameScene extends Phaser.Scene {
     const kindClass = (enemy.typeId && KIND_CLASS[enemy.typeId]) || null;
     const omenMult = this._omenIntakeMult(kindClass);
     const dmg = omenMult !== 1 ? Math.round(enemy.contactDamage * omenMult) : enemy.contactDamage;
+    // Track last enemy that hit the player for the chronicle killedBy field
+    if (enemy.localName || (enemy.typeId && ENEMIES[enemy.typeId])) {
+      this._lastEnemyHitName = enemy.localName || (ENEMIES[enemy.typeId] && ENEMIES[enemy.typeId].name) || enemy.typeId;
+    }
     this.reactToHit(player.takeDamage(dmg, this.time.now));
   }
 
@@ -3380,6 +3400,8 @@ export default class GameScene extends Phaser.Scene {
       proj._lastPierceHit = this.time.now;
       const bypassIframes2 = !player.isDashInvuln(this.time.now);
       const dmg2 = omenMult !== 1 ? Math.round(proj.damage * omenMult) : proj.damage;
+      // Track last projectile source for chronicle
+      if (proj.sourceTypeId && ENEMIES[proj.sourceTypeId]) this._lastEnemyHitName = ENEMIES[proj.sourceTypeId].name;
       this.reactToHit(player.takeDamage(dmg2, this.time.now, { bypassIframes: bypassIframes2, ranged: true }));
       return;
     }
@@ -3390,6 +3412,8 @@ export default class GameScene extends Phaser.Scene {
     // "caught" by the dodge — bypassIframes:false lets takeDamage check the invuln timestamp.
     const bypassIframes = !player.isDashInvuln(this.time.now);
     const dmg = omenMult !== 1 ? Math.round(proj.damage * omenMult) : proj.damage;
+    // Track last projectile source for chronicle
+    if (proj.sourceTypeId && ENEMIES[proj.sourceTypeId]) this._lastEnemyHitName = ENEMIES[proj.sourceTypeId].name;
     this.reactToHit(player.takeDamage(dmg, this.time.now, { bypassIframes, ranged: true }));
     // China — Gunpowder Discipline: successful projectile hit grants all active china
     // ranged enemies a 4s fire-rate streak bonus (represents disciplined volley training).
@@ -4531,6 +4555,31 @@ export default class GameScene extends Phaser.Scene {
       this.cameras.main.flash(300, 120, 0, 0);
       this.time.delayedCall(700, () => { this.scene.stop('UIScene'); this.scene.start('MenuScene'); });
       return;
+    }
+    // Boss Memory: if player dies while dueling, record it against that boss
+    if (this.dueling && this.activeBoss && this.activeBoss.bossId) {
+      Legacy.recordBossFell(this.activeBoss.bossId);
+    }
+    // Dynasty Chronicle: append a fell entry
+    {
+      // Determine killedBy: prefer boss name if dueling, otherwise last-hit enemy name
+      let killedBy = null;
+      if (this.dueling && this.activeBoss) {
+        killedBy = this.activeBoss.bossName || this.activeBoss.bossId || null;
+      } else if (this._lastEnemyHitName) {
+        killedBy = this._lastEnemyHitName;
+      }
+      Legacy.appendChronicleEntry({
+        heroId: this.characterDef.id,
+        outcome: 'fell',
+        stage: this.run.currentCiv || 'unknown',
+        floor: this.floor || 1,
+        killedBy,
+        kills: this.player.kills || 0,
+        heat: this.run.mandateHeat || 0,
+        omen: this.run.omen || null,
+        civsConquered: (this.run.conquered || []).length,
+      });
     }
     // award legacy coins before clearing the save
     // Mandate heat multiplies legacy coin earnings on death too (1 + heat*0.15)

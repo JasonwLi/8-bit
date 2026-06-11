@@ -137,6 +137,14 @@ export default class MenuScene extends Phaser.Scene {
     manualLink.on('pointerout', () => manualLink.setColor('#ffd27a'));
     manualLink.on('pointerdown', () => this.scene.start('CombatManualScene', { caller: 'MenuScene' }));
 
+    // dynasty chronicle link
+    const chronicleLink = this.add.text(width - 14, 66, '📜 Chronicle', {
+      fontFamily: 'monospace', fontSize: '12px', color: '#ffd27a', fontStyle: 'bold',
+    }).setOrigin(1, 0).setDepth(150).setInteractive({ useHandCursor: true });
+    chronicleLink.on('pointerover', () => chronicleLink.setColor('#ffffff'));
+    chronicleLink.on('pointerout', () => chronicleLink.setColor('#ffd27a'));
+    chronicleLink.on('pointerdown', () => this.scene.start('ChronicleScene', { caller: 'MenuScene' }));
+
     // once discovered this session, a small reopen button stays (no re-typing)
     if (this.registry.get('duelsUnlocked')) {
       const reopen = this.add.text(14, 12, '⚔ Duel Test', {

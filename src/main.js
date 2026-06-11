@@ -20,6 +20,7 @@ import ComboCodexScene from './scenes/ComboCodexScene.js';
 import DoorScene from './scenes/DoorScene.js';
 import MerchantScene from './scenes/MerchantScene.js';
 import OmenScene from './scenes/OmenScene.js';
+import ChronicleScene from './scenes/ChronicleScene.js';
 
 const config = {
   type: Phaser.AUTO,
@@ -40,7 +41,7 @@ const config = {
     default: 'arcade',
     arcade: { gravity: { x: 0, y: 0 }, debug: false },
   },
-  scene: [BootScene, MenuScene, ConquestScene, ContractScene, GameScene, UIScene, UpgradeScene, LootScene, ArtifactScene, PauseScene, SettingsScene, WinScene, GameOverScene, CombatManualScene, TipScene, ComboCodexScene, DoorScene, MerchantScene, OmenScene],
+  scene: [BootScene, MenuScene, ConquestScene, ContractScene, GameScene, UIScene, UpgradeScene, LootScene, ArtifactScene, PauseScene, SettingsScene, WinScene, GameOverScene, CombatManualScene, TipScene, ComboCodexScene, DoorScene, MerchantScene, OmenScene, ChronicleScene],
 };
 
 window.__bootErrors = [];

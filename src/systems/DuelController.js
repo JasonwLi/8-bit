@@ -2,7 +2,8 @@ import Phaser from 'phaser';
 import { getBoss } from '../data/bosses.js';
 import { Audio } from './AudioManager.js';
 import BossArena, { ARENA_ORIGIN } from './BossArena.js';
-import { HERO_DIALOGUE, BOSS_DIALOGUE, pickRandom } from '../data/dialogue.js';
+import { HERO_DIALOGUE, BOSS_DIALOGUE, pickRandom, pickBossMemoryLine, pickHeroMemoryReply } from '../data/dialogue.js';
+import { Legacy } from './SaveSystem.js';
 
 // Owns the 1v1 boss-duel feature: the accept/decline challenge prompt, the
 // cinematic arena (camera zoom + ring + letterbox), the fighting-game combat,
@@ -265,12 +266,13 @@ export default class DuelController {
     const W = s.scale.width;
     const H = s.scale.height;
 
-    // Boss taunt + hero reply dialogue
+    // Boss taunt + hero reply dialogue — memory-aware variant selection
     const bossDlg = BOSS_DIALOGUE[def.id];
-    const bossTaunt = bossDlg ? pickRandom(bossDlg.preDuel) : '';
     const heroId = s.characterDef && s.characterDef.id;
     const heroDlg = heroId && HERO_DIALOGUE[heroId];
-    const heroReply = heroDlg ? pickRandom(heroDlg.duelReply) : '';
+    const mem = Legacy.getBossMemory(def.id);
+    const bossTaunt = pickBossMemoryLine(def.id, bossDlg, mem.slainBy, mem.slain);
+    const heroReply = pickHeroMemoryReply(heroId, heroDlg, mem.slainBy, mem.slain);
 
     // panel height: taller when dialogue lines are present
     const panelH = (bossTaunt || heroReply) ? 180 : 120;

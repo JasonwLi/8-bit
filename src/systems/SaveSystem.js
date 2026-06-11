@@ -46,6 +46,8 @@ const LEGACY_DEFAULTS = {
   boons: {},
   hasWonRun: false,    // set to true when the player wins a full conquest
   heroBestHeat: {},    // heroId -> highest mandateHeat cleared in a win
+  bossMemory: {},      // bossId -> { slainBy: n, slain: n } cross-run history
+  chronicle: [],       // array of run records (capped at 30, newest first)
 };
 
 function applyLegacyDefaults(data) {
@@ -145,5 +147,53 @@ export const Legacy = {
   getHeroBestHeat(heroId) {
     const data = this.load();
     return (data.heroBestHeat && data.heroBestHeat[heroId]) || 0;
+  },
+
+  // ── Boss Memory ────────────────────────────────────────────────────────────
+
+  // Return { slainBy: n, slain: n } for a boss (0 if never encountered).
+  getBossMemory(bossId) {
+    const data = this.load();
+    const mem = (data.bossMemory && data.bossMemory[bossId]) || {};
+    return { slainBy: mem.slainBy || 0, slain: mem.slain || 0 };
+  },
+
+  // Increment slainBy[bossId] — call when the player dies while dueling that boss.
+  recordBossFell(bossId) {
+    if (!bossId) return;
+    const data = this.load();
+    data.bossMemory = data.bossMemory || {};
+    data.bossMemory[bossId] = data.bossMemory[bossId] || { slainBy: 0, slain: 0 };
+    data.bossMemory[bossId].slainBy = (data.bossMemory[bossId].slainBy || 0) + 1;
+    this.save(data);
+  },
+
+  // Increment slain[bossId] — call when the player kills a boss in a duel finisher
+  // or defeats them in the open world.
+  recordBossSlain(bossId) {
+    if (!bossId) return;
+    const data = this.load();
+    data.bossMemory = data.bossMemory || {};
+    data.bossMemory[bossId] = data.bossMemory[bossId] || { slainBy: 0, slain: 0 };
+    data.bossMemory[bossId].slain = (data.bossMemory[bossId].slain || 0) + 1;
+    this.save(data);
+  },
+
+  // ── Dynasty Chronicle ──────────────────────────────────────────────────────
+
+  // Append a run record; keeps newest-first, caps at 30.
+  // record: { heroId, outcome ('fell'|'conquered'), stage, floor, killedBy,
+  //           kills, heat, omen, civsConquered, ts }
+  appendChronicleEntry(record) {
+    const data = this.load();
+    data.chronicle = data.chronicle || [];
+    data.chronicle.unshift({ ...record, ts: record.ts || Date.now() });
+    if (data.chronicle.length > 30) data.chronicle = data.chronicle.slice(0, 30);
+    this.save(data);
+  },
+
+  // Returns the chronicle array (newest first).
+  getChronicle() {
+    return this.load().chronicle || [];
   },
 };
