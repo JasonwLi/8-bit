@@ -42,6 +42,8 @@ const TOAST_IDS = [
   'graze', 'flawless', 'evolve', 'mutation', 'draftHint',
   // Tier-3 combat mechanics that don't have a tip card yet
   'panic_fire', 'crumple', 'hemorrhage', 'overkill',
+  // Economy
+  'merchant',
 ];
 
 // Mechanic ids that trigger a FULL TIP CARD instead of a toast.
@@ -388,6 +390,8 @@ export default class TutorialController {
         return { text: 'Hemorrhage: 5 bleed stacks detonate for massive instant damage', color: '#cc1830' };
       case 'overkill':
         return { text: 'Overkill: excess damage from a kill bleeds 60% into the nearest enemy', color: '#ffd700' };
+      case 'merchant':
+        return { text: 'War-camp merchant ahead — walk close and press [E] to trade gold for goods', color: '#ffd700' };
       default: return null;
     }
   }

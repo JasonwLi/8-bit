@@ -28,6 +28,7 @@ export const CURSED_MODS = [
   { id: 'fast_enemies',   label: 'Bloodlust',    desc: 'Enemies move 15% faster.' },
   { id: 'small_pickup',   label: 'Shrouded',     desc: 'Pickup radius −20%.' },
   { id: 'tight_fog',      label: 'Blind March',  desc: 'Fog of war is tighter (−30 px radius).' },
+  { id: 'cursed_prices',  label: 'Blood Price',  desc: 'Merchant prices +30% but a cursed bargain appears.' },
 ];
 
 // Roll 2-3 door options: always NORMAL + 1-2 weighted specials (no duplicates).

@@ -63,6 +63,10 @@ export default class UIScene extends Phaser.Scene {
     this.resonanceText = this.add
       .text(12, 146, '', { fontFamily: 'monospace', fontSize: '10px', color: '#8fe6ff', lineSpacing: 2 }).setDepth(101);
 
+    // Gold counter — coin icon glyph + amount, below defensive stats in the left lane
+    this.goldText = this.add
+      .text(16, 74, '', { fontFamily: 'monospace', fontSize: '12px', color: '#ffd700' }).setDepth(101);
+
     // DW combo string: 4 depth pips (below HP bar) + [K] glyph when finisher is ready.
     // Both are positioned below the HP bar (drawn each frame in update).
     this._kGlyphText = this.add
@@ -164,6 +168,8 @@ export default class UIScene extends Phaser.Scene {
     }
     this.levelText.setText(`LV ${p.level}`);
     this.killText.setText(`Kills ${p.kills}`);
+    const gold = (gs.run && gs.run.gold) || 0;
+    this.goldText.setText(`$ ${gold}`);
     const abil = gs.ability;
     const sec = gs.secondary;
     const kSec = keyLabel(Settings.binds.secondary);

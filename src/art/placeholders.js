@@ -586,6 +586,38 @@ export function generatePlaceholders(scene) {
     });
   }
 
+  // --- Gold coin pickup: small golden disc with a highlight shine ---
+  bake(scene, 'coin', 14, 14, (g) => {
+    g.fillStyle(0x000000, 0.20); g.fillEllipse(7, 9, 12, 4); // shadow
+    g.fillStyle(0xd4af37, 1);    g.fillCircle(7, 7, 6);       // coin face
+    g.fillStyle(0xffd700, 1);    g.fillCircle(7, 6, 4);       // bright centre
+    g.fillStyle(0xfff0a0, 0.8);  g.fillCircle(5, 5, 2);       // shine highlight
+    g.lineStyle(1, 0x9a7020, 0.8); g.strokeCircle(7, 7, 5);   // rim
+  });
+
+  // --- War-camp merchant NPC: robed trader with a small cap and satchel ---
+  bake(scene, 'merchant_npc', 32, 40, (g) => {
+    const u = 2; // pixel unit
+    // shadow
+    g.fillStyle(0x000000, 0.25); g.fillEllipse(16, 38, 20, 5);
+    // robe (long, dark-brown with lighter trim)
+    g.fillStyle(0x4a3018, 1); g.fillRect(8*u - u, 7*u, 9*u, 11*u); // robe body
+    g.fillStyle(0x7a5530, 1); g.fillRect(8*u - u, 7*u, 9*u, 1*u);  // collar trim
+    g.fillStyle(0x7a5530, 1); g.fillRect(8*u - u, 17*u, 9*u, 1*u); // hem trim
+    // head
+    g.fillStyle(0xd8b08a, 1); g.fillCircle(12*u, 4*u, 3*u);        // face
+    // cap (wide merchant's hat)
+    g.fillStyle(0x2a1a0a, 1); g.fillRect(9*u, 1*u, 7*u, 2*u);      // hat brim
+    g.fillStyle(0x3a2810, 1); g.fillRect(10*u, 0, 5*u, 2*u);       // hat crown
+    // satchel / bag (right side)
+    g.fillStyle(0x8a6030, 1); g.fillRect(15*u, 9*u, 3*u, 4*u);     // satchel body
+    g.fillStyle(0xd4af37, 1); g.fillRect(15*u, 9*u, 3*u, 1*u);     // satchel clasp
+    // legs
+    g.fillStyle(0x2a1a0a, 1);
+    g.fillRect(9*u, 18*u, 2*u, 2*u); // left leg
+    g.fillRect(12*u, 18*u, 2*u, 2*u); // right leg
+  });
+
   // --- XP gem ---
   bake(scene, 'gem', SPRITE.gem, SPRITE.gem, (g) => {
     const s = SPRITE.gem;

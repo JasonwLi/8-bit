@@ -179,12 +179,16 @@ export default class UpgradeScene extends Phaser.Scene {
     const run = gs.run;
 
     // --- reroll ---
-    const rerollColor = this._rerolled ? '#555566' : '#9a93c0';
-    const rerollLabel = this._rerolled ? '↻ rerolled' : '↻ reroll  [R]';
+    const merchantRerolls = run.merchantRerolls || 0;
+    const rerollAvail = !this._rerolled || merchantRerolls > 0;
+    const rerollColor = rerollAvail ? '#9a93c0' : '#555566';
+    const rerollLabel = !this._rerolled
+      ? '↻ reroll  [R]'
+      : (merchantRerolls > 0 ? `↻ reroll ×${merchantRerolls}  [R]` : '↻ rerolled');
     const rb = reg(this.add.text(width / 2 - 180, footerY, rerollLabel, {
       fontFamily: 'monospace', fontSize: '13px', color: rerollColor,
     }).setOrigin(0.5).setDepth(2));
-    if (!this._rerolled) {
+    if (rerollAvail) {
       rb.setInteractive({ useHandCursor: true });
       rb.on('pointerover', () => rb.setColor('#ffffff'));
       rb.on('pointerout', () => rb.setColor(rerollColor));
@@ -224,7 +228,17 @@ export default class UpgradeScene extends Phaser.Scene {
   }
 
   reroll(width, height) {
-    if (this._rerolled) return;
+    const run = this.gs.run;
+    // Use a merchant reroll token if available (consumed first before the per-draft free reroll).
+    if (this._rerolled) {
+      if ((run.merchantRerolls || 0) > 0) {
+        run.merchantRerolls -= 1;
+        this._choices = this.rollChoices();
+        this._buildCards(width, height);
+        this.gs.showBanner('Merchant reroll used', '#9a93c0', 'low');
+      }
+      return;
+    }
     this._rerolled = true;
     this._choices = this.rollChoices(); // re-roll a fresh hand
     this._buildCards(width, height);

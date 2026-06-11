@@ -279,6 +279,7 @@ export default class GameScene extends Phaser.Scene {
     this.chests = this.physics.add.group();
     this.pickups = this.physics.add.group(); // health hearts
     this.powerups = this.physics.add.group(); // strong buff orbs
+    this.coins = this.physics.add.group(); // gold coins
     this.obstacles = this.physics.add.staticGroup();
     this.breakables = this.physics.add.group();
     this.shrines = this.physics.add.staticGroup();
@@ -343,6 +344,7 @@ export default class GameScene extends Phaser.Scene {
     this.physics.add.overlap(this.player, this.chests, this.drops.onChest, null, this.drops);
     this.physics.add.overlap(this.player, this.pickups, this.drops.onHeart, null, this.drops);
     this.physics.add.overlap(this.player, this.powerups, this.drops.onPowerup, null, this.drops);
+    this.physics.add.overlap(this.player, this.coins, this.drops.onCoin, null, this.drops);
     this.physics.add.overlap(this.projectiles, this.breakables, this.drops.onProjectileHitBreakable, null, this.drops);
     this.physics.add.overlap(this.player, this.shrines, this.drops.onShrine, null, this.drops);
     this.physics.add.collider(this.player, this.obstacles);
@@ -462,6 +464,15 @@ export default class GameScene extends Phaser.Scene {
     // Reset cursed debuffs; _applyCursedMod below will re-apply them if needed.
     this._cursedPickupMult = 1;
     this._cursedFogRadius = 0;
+    this._cursedPriceMult = 1;
+    // Cursed bargain countdown: decrement on each new floor entry; reset price mult when it expires.
+    if (this._cursedBargainFloorsLeft > 0) {
+      this._cursedBargainFloorsLeft -= 1;
+      if (this._cursedBargainFloorsLeft <= 0) {
+        this._cursedPriceMult = 1;
+        this._cursedBargainFloorsLeft = 0;
+      }
+    }
 
     this.floorSys.build(this.run.floorSeed + floor, { lockStairs: isBossFloor });
     const start = this.floorSys.startWorld();
@@ -549,6 +560,14 @@ export default class GameScene extends Phaser.Scene {
 
     // ambient particle layer keyed to the civ theme
     this._startAmbienceEmitter();
+
+    // WAR-CAMP MERCHANT: every 4th floor (non-boss) a robed trader appears near the start room.
+    this._merchantNpc = null;
+    this._merchantPrompt = null;
+    if (!isBossFloor && floor % 4 === 0 && !this.duelTest) {
+      this._spawnMerchant();
+    }
+
     this.captureRunState();
   }
 
@@ -615,6 +634,10 @@ export default class GameScene extends Phaser.Scene {
     for (const g of this.gems.getChildren()) if (g.active) this.deactivate(g);
     for (const pu of this.powerups.getChildren()) if (pu.active) this.deactivate(pu);
     if (this.allies) for (const a of this.allies.getChildren()) if (a.active) this.deactivate(a);
+    // Coins also clear between floors
+    if (this.coins) for (const c of this.coins.getChildren()) if (c.active) this.deactivate(c);
+    // Despawn merchant NPC on floor descent
+    this._despawnMerchant();
   }
 
   // Centralised hit-stop. The old per-site save/restore pattern raced: two overlapping
@@ -1022,6 +1045,7 @@ export default class GameScene extends Phaser.Scene {
         for (const c of this.chests.getChildren()) _vis(c);
         for (const p of this.pickups.getChildren()) _vis(p);
         for (const pu of this.powerups.getChildren()) _vis(pu);
+        for (const co of this.coins.getChildren()) _vis(co);
         for (const b of this.breakables.getChildren()) _vis(b);
         for (const sh of this.shrines.getChildren()) _vis(sh);
         if (this.map && this.map._floorProps) {
@@ -1082,6 +1106,7 @@ export default class GameScene extends Phaser.Scene {
     }
 
     this.drops.updateMagnet();
+    if (this.dungeonMode) this._updateMerchant();
     this.map.update(delta, time);
     this.player.updateBuffs(time);
     this.player.applyRegen(delta / 1000);
@@ -2016,6 +2041,7 @@ export default class GameScene extends Phaser.Scene {
     this.showBanner(`${boss.bossName} falls!`, '#9ef58b', 'critical');
     this.drops.spawnChest(boss.x, boss.y);
     this.drops.spawnPowerup(boss.x + 30, boss.y);
+    this.drops.spawnCoins(boss.x, boss.y, 25); // boss gold: 25 coins
     if (wasDuel && clean) { this.drops.spawnChest(boss.x - 40, boss.y); this.drops.spawnPowerup(boss.x - 70, boss.y); } // flawless bonus
     this.player.heal(Math.round(this.player.maxHp * (clean ? 0.2 : 0.12)));
     if (this.dungeonMode) {
@@ -2116,12 +2142,107 @@ export default class GameScene extends Phaser.Scene {
       case 'tight_fog':
         this._cursedFogRadius = -30; // px reduction in fog reveal radius
         break;
+      case 'cursed_prices':
+        this._cursedPriceMult = 1.30; // merchant prices +30%
+        break;
       default: break;
     }
     // Curse notice (red, prominent)
     this.time.delayedCall(600, () => {
       if (!this.gameOver) this.showBanner(`✦ Curse: ${mod.curseLabel} — ${mod.curseDesc}`, '#b05aff', 'normal');
     });
+  }
+
+  // ── War-camp merchant ────────────────────────────────────────────────────────
+  // Spawn a static robed-trader NPC near the start room on merchant floors.
+  _spawnMerchant() {
+    if (!this.floorSys) return;
+    const start = this.floorSys.startWorld();
+    // Place the merchant ~80-120px from the start, offset to a random direction
+    const ang = Math.random() * Math.PI * 2;
+    const dist = Phaser.Math.Between(80, 140);
+    let mx = start.x + Math.cos(ang) * dist;
+    let my = start.y + Math.sin(ang) * dist;
+    // Snap to walkable
+    const snapped = this.drops._snap(mx, my);
+    mx = snapped.x; my = snapped.y;
+
+    // The NPC is a static image (no physics body needed — we do a manual distance check).
+    const tex = this.textures.exists('merchant_npc') ? 'merchant_npc' : 'char_lubu';
+    this._merchantNpc = this.add.image(mx, my, tex).setDepth(6).setScale(0.9);
+    // Tent backdrop: a slightly larger tinted rect drawn behind the NPC.
+    this._merchantTent = this.add.rectangle(mx, my + 4, 48, 52, 0x3a2a1a, 0.6).setDepth(5);
+
+    // Gentle bob animation so the NPC feels alive.
+    this.tweens.add({
+      targets: this._merchantNpc,
+      y: my - 3,
+      duration: 900,
+      yoyo: true,
+      repeat: -1,
+      ease: 'Sine.easeInOut',
+    });
+
+    this._merchantPos = { x: mx, y: my };
+    this._merchantOpen = false;
+
+    // First-time tutorial toast
+    if (this.tutorial) this.events.emit('tut', 'merchant');
+  }
+
+  // Update the merchant [E] prompt and handle interaction (called from update).
+  _updateMerchant() {
+    if (!this._merchantNpc || !this._merchantNpc.active) return;
+    const { x, y } = this._merchantPos;
+    const dist = Phaser.Math.Distance.Between(this.player.x, this.player.y, x, y);
+    const inRange = dist < 60;
+
+    if (inRange && !this._merchantPrompt) {
+      const kLabel = Settings.binds.interact || 'E';
+      this._merchantPrompt = this.add.text(x, y - 38, `[${kLabel}] Trade`, {
+        fontFamily: 'monospace', fontSize: '12px', color: '#ffd700', fontStyle: 'bold',
+        stroke: '#000000', strokeThickness: 3,
+      }).setOrigin(0.5).setDepth(52);
+    } else if (!inRange && this._merchantPrompt) {
+      this._merchantPrompt.destroy();
+      this._merchantPrompt = null;
+    }
+
+    // Keep prompt following merchant (it bobs)
+    if (this._merchantPrompt && this._merchantNpc) {
+      this._merchantPrompt.setPosition(this._merchantNpc.x, this._merchantNpc.y - 38);
+    }
+
+    // Interact key: open the merchant shop modal
+    if (inRange && !this._merchantOpen && this.canAct()) {
+      const bk = this.bindKeys;
+      if (bk && Phaser.Input.Keyboard.JustDown(bk.interact)) {
+        this._openMerchant();
+      }
+    }
+  }
+
+  _openMerchant() {
+    if (this._merchantOpen || this.lootOpen || this.levelingUp) return;
+    this._merchantOpen = true;
+    this.scene.pause();
+    this.scene.launch('MerchantScene', { gameScene: this });
+    this.scene.get('MerchantScene').events.once('shutdown', () => {
+      this._merchantOpen = false;
+      this.scene.resume('GameScene');
+    });
+  }
+
+  _despawnMerchant() {
+    if (this._merchantNpc) {
+      this.tweens.killTweensOf(this._merchantNpc);
+      this._merchantNpc.destroy();
+      this._merchantNpc = null;
+    }
+    if (this._merchantTent) { this._merchantTent.destroy(); this._merchantTent = null; }
+    if (this._merchantPrompt) { this._merchantPrompt.destroy(); this._merchantPrompt = null; }
+    this._merchantPos = null;
+    this._merchantOpen = false;
   }
 
   // CURSED stairs reward: powerup + big gold drop near the stairs.
@@ -2166,6 +2287,10 @@ export default class GameScene extends Phaser.Scene {
     // nextFloorMod is already set on r by DoorScene._pick() before captureRunState.
     // activeFloorMod: if we're mid-floor, persist it too so a resume re-applies it.
     if (this.activeFloorMod) r.activeFloorMod = { ...this.activeFloorMod };
+    // Gold economy
+    r.gold = this.run.gold || 0;
+    r.merchantRerolls = this.run.merchantRerolls || 0;
+    r.banishesUsed = this.run.banishesUsed || 0;
     this.registry.set('run', r);
   }
 
@@ -2775,8 +2900,16 @@ export default class GameScene extends Phaser.Scene {
       // gear/powerups from elites were flooding in and over-powering the build — halve them
       if (Math.random() < 0.5) this.drops.spawnChest(enemy.x, enemy.y);
       if (Math.random() < 0.3) this.drops.spawnPowerup(enemy.x + 30, enemy.y);
+      // Elite gold drop: 4-6 coins
+      const eliteCoins = Phaser.Math.Between(4, 6);
+      const goldMult = (this.activeFloorMod && this.activeFloorMod.type === 'HORDE') ? 2 : 1;
+      this.drops.spawnCoins(enemy.x, enemy.y, eliteCoins * goldMult);
     } else if (Math.random() < 0.04) {
       this.drops.spawnHeart(enemy.x, enemy.y); // rare health drop
+    } else if (Math.random() < 0.18) {
+      // Regular enemy ~18% chance to drop 1 coin; HORDE doubles it
+      const goldMult2 = (this.activeFloorMod && this.activeFloorMod.type === 'HORDE') ? 2 : 1;
+      this.drops.spawnCoins(enemy.x, enemy.y, goldMult2);
     }
     this.deactivate(enemy);
   }
@@ -3197,6 +3330,7 @@ export default class GameScene extends Phaser.Scene {
       dash: kb.addKey(b.dash),
       pause: kb.addKey(b.pause),
       focus: kb.addKey(b.focus),
+      interact: kb.addKey(b.interact || 'E'),
     };
   }
 

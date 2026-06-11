@@ -25,6 +25,36 @@ export default class PickupController {
     g.value = value;
   }
 
+  // Spawn `amount` coin pickups (1 per coin object — stackable by passing amount > 1
+  // which scatters multiple coins in a small burst radius).
+  spawnCoins(x, y, amount = 1) {
+    const s = this.s;
+    if (!s.coins) return;
+    const count = Math.max(1, Math.round(amount));
+    for (let i = 0; i < count; i++) {
+      const ang = (count === 1) ? 0 : (i / count) * Math.PI * 2;
+      const d = count === 1 ? 0 : Phaser.Math.Between(8, 28);
+      const cx = x + Math.cos(ang) * d;
+      const cy = y + Math.sin(ang) * d;
+      const pos = this._snap(cx, cy);
+      const c = s.coins.get(pos.x, pos.y, 'coin');
+      if (!c) continue;
+      s.tweens.killTweensOf(c);
+      c.setActive(true).setVisible(true);
+      c.body.reset(pos.x, pos.y);
+      c.body.enable = true;
+      c.setDepth(4);
+      c.value = 1;
+      // brief launch-bounce: pop upward then settle
+      if (count > 1) {
+        const vx = Math.cos(ang) * Phaser.Math.Between(30, 80);
+        const vy = Math.sin(ang) * Phaser.Math.Between(30, 80) - 30;
+        c.setVelocity(vx, vy);
+        s.time.delayedCall(220, () => { if (c.active) c.setVelocity(0, 0); });
+      }
+    }
+  }
+
   // Keep a drop out of the dungeon's walls: if (x,y) isn't walkable floor, nudge it to
   // the nearest walkable point so chests/orbs/hearts never spawn embedded in rock.
   _snap(x, y) {
@@ -133,6 +163,7 @@ export default class PickupController {
     for (const g of s.gems.getChildren()) if (g.active) pull(g);
     for (const h of s.pickups.getChildren()) if (h.active) pull(h);
     for (const u of s.powerups.getChildren()) if (u.active) pull(u);
+    if (s.coins) for (const c of s.coins.getChildren()) if (c.active) pull(c);
   }
 
   // --- overlap callbacks ---
@@ -154,7 +185,21 @@ export default class PickupController {
   onChest(player, chest) {
     if (!chest.active || this.s.lootOpen) return;
     this.s.deactivate(chest);
+    // Chest gold bonus: 5-9 coins scatter around the chest position
+    const chestX = chest.x, chestY = chest.y;
+    const coinBonus = Phaser.Math.Between(5, 9);
+    this.spawnCoins(chestX, chestY, coinBonus);
     this.openLoot();
+  }
+
+  onCoin(player, coin) {
+    if (!coin.active) return;
+    const s = this.s;
+    s.deactivate(coin);
+    Audio.sfx('pickup');
+    // Accumulate gold on the run object
+    if (!s.run.gold) s.run.gold = 0;
+    s.run.gold += coin.value || 1;
   }
 
   onHeart(player, heart) {

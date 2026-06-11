@@ -17,6 +17,7 @@ const DEFAULTS = {
     dash: 'SHIFT',
     pause: 'ESC',
     focus: 'F',
+    interact: 'E',
   },
 };
 
@@ -28,6 +29,7 @@ export const BINDABLE = [
   { id: 'dash', label: 'Dash (2 charges)' },
   { id: 'pause', label: 'Pause' },
   { id: 'focus', label: 'Focus Aim (lock direction)' },
+  { id: 'interact', label: 'Interact / Trade' },
 ];
 
 function loadRaw() {
