@@ -27,55 +27,58 @@ export default class WinScene extends Phaser.Scene {
     this.add.rectangle(0, 0, width, height, 0x05040a, 0.97).setOrigin(0);
 
     // ── Title
-    this.add.text(width / 2, 46, 'THE WORLD IS YOURS', {
-      fontFamily: 'monospace', fontSize: '40px', color: '#ffd700', fontStyle: 'bold',
+    this.add.text(width / 2, 34, 'THE WORLD IS YOURS', {
+      fontFamily: 'monospace', fontSize: '36px', color: '#ffd700', fontStyle: 'bold',
     }).setOrigin(0.5);
 
     // ── Hero portrait
-    this.add.image(width / 2, 154, `char_${c.id}`).setScale(2.4);
+    this.add.image(width / 2, 120, `char_${c.id}`).setScale(2.0);
 
     // ── Hero name + flavour victory line
     const victoryLine = (HERO_DIALOGUE[c.id] && HERO_DIALOGUE[c.id].victory)
       ? pickRandom(HERO_DIALOGUE[c.id].victory)
       : `${c.name} stands supreme.`;
 
-    this.add.text(width / 2, 242,
+    this.add.text(width / 2, 186,
       `${c.name}  ·  ${c.civ}`, {
         fontFamily: 'monospace', fontSize: '16px', color: '#ffffff', fontStyle: 'bold',
       }).setOrigin(0.5);
 
-    this.add.text(width / 2, 268,
+    this.add.text(width / 2, 208,
       `"${victoryLine}"`, {
         fontFamily: 'monospace', fontSize: '13px', color: '#d8d3ee',
         fontStyle: 'italic', wordWrap: { width: width - 120 }, align: 'center',
       }).setOrigin(0.5, 0);
 
-    // ── Conquered civilizations recap
+    // ── Conquered civilizations recap. The whole bottom block now FLOWS from this
+    // running Y (the 7-civ list + final stage used to collide with the fixed-position
+    // stats / artifacts / omen / button rows pinned near the bottom).
+    let winY = 248;
     const conquered = (this.run.conquered || []).filter(Boolean);
     if (conquered.length) {
-      this.add.text(width / 2, 318, 'CIVILIZATIONS CONQUERED', {
+      this.add.text(width / 2, winY, 'CIVILIZATIONS CONQUERED', {
         fontFamily: 'monospace', fontSize: '11px', color: '#888888', fontStyle: 'bold',
       }).setOrigin(0.5);
+      winY += 16;
 
       const civColors = {
         china: '#e0563f', japan: '#7c8cff', byzantium: '#c074e0',
         sumer: '#33b8d6', rome: '#d23b3b', macedon: '#3a7bd5',
         mongolia: '#c9a13a', norse: '#4f9fd6',
       };
-      let civY = 336;
       conquered.forEach((civId, i) => {
         const name = CIV_NAME[civId] || civId;
         const col = civColors[civId] || '#aaaaaa';
-        this.add.text(width / 2, civY, `${i + 1}.  ${name}`, {
-          fontFamily: 'monospace', fontSize: '13px', color: col,
+        this.add.text(width / 2, winY, `${i + 1}.  ${name}`, {
+          fontFamily: 'monospace', fontSize: '12px', color: col,
         }).setOrigin(0.5);
-        civY += 18;
+        winY += 15;
       });
       // Final stage indicator
-      this.add.text(width / 2, civY + 2, `${conquered.length + 1}.  Warlord of Warlords  ·  Xerxes the Undying`, {
-        fontFamily: 'monospace', fontSize: '13px', color: '#ffd700',
+      this.add.text(width / 2, winY, `${conquered.length + 1}.  Warlord of Warlords  ·  Xerxes the Undying`, {
+        fontFamily: 'monospace', fontSize: '12px', color: '#ffd700',
       }).setOrigin(0.5);
-      civY += 20;
+      winY += 18;
     }
 
     // ── Stats bar: total kills + run time
@@ -88,13 +91,12 @@ export default class WinScene extends Phaser.Scene {
       const secs = totalSec % 60;
       statsStr += `   ·   ${mins}m ${String(secs).padStart(2, '0')}s`;
     }
-    const statsY = Math.max(height - 130, 470);
-    this.add.text(width / 2, statsY, statsStr, {
+    this.add.text(width / 2, winY, statsStr, {
       fontFamily: 'monospace', fontSize: '12px', color: '#9a93c0',
     }).setOrigin(0.5);
+    winY += 18;
 
     // ── Artifacts
-    let winY = statsY + 20;
     if (this.run.artifacts && this.run.artifacts.length) {
       this.add.text(width / 2, winY,
         `Artifacts: ${this.run.artifacts.map((id) => getArtifact(id).name).join('  •  ')}`, {

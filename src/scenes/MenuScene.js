@@ -261,36 +261,39 @@ export default class MenuScene extends Phaser.Scene {
     }
 
     // traits — bumped down 6px to give the kit icon rows breathing room
-    divider(top + 254);
-    reg(this.add.text(cx, top + 262, `🏛 ${civTrait.name}`, {
+    divider(top + 252);
+    reg(this.add.text(cx, top + 257, `🏛 ${civTrait.name}`, {
       fontFamily: 'monospace', fontSize: '12px', color: '#7ec8ff', fontStyle: 'bold',
     }).setOrigin(0.5, 0));
-    reg(this.add.text(cx, top + 280, civTrait.desc, {
-      fontFamily: 'monospace', fontSize: '10px', color: '#c9c4e0',
-      align: 'center', lineSpacing: 2, wordWrap: { width: w - 18 },
+    reg(this.add.text(cx, top + 274, civTrait.desc, {
+      fontFamily: 'monospace', fontSize: '9px', color: '#c9c4e0',
+      align: 'center', lineSpacing: 2, wordWrap: { width: w - 16 },
     }).setOrigin(0.5, 0));
-    reg(this.add.text(cx, top + 318, `👤 ${personal.name}`, {
+    reg(this.add.text(cx, top + 298, `👤 ${personal.name}`, {
       fontFamily: 'monospace', fontSize: '12px', color: '#ffb86b', fontStyle: 'bold',
     }).setOrigin(0.5, 0));
-    reg(this.add.text(cx, top + 336, personal.desc, {
-      fontFamily: 'monospace', fontSize: '10px', color: '#c9c4e0',
-      align: 'center', lineSpacing: 2, wordWrap: { width: w - 18 },
+    // Longer (3-clause) personal descs wrap to two lines — give them room above
+    // the best-heat / moves footer so they never overlap it.
+    reg(this.add.text(cx, top + 314, personal.desc, {
+      fontFamily: 'monospace', fontSize: '9px', color: '#c9c4e0',
+      align: 'center', lineSpacing: 2, wordWrap: { width: w - 16 },
     }).setOrigin(0.5, 0));
 
-    // Personal best mandate heat for this hero (shown only after first win)
+    // Personal best mandate heat for this hero (shown only after first win) — sits
+    // just above the "moves" footer link (it used to overlap it post-win).
     if (Legacy.hasWonRun()) {
       const bestHeat = Legacy.getHeroBestHeat(c.id);
       if (bestHeat > 0) {
         const flames = '🔥'.repeat(Math.min(bestHeat, 5));
-        reg(this.add.text(cx, top + 356, `${flames} Best Heat ${bestHeat}`, {
-          fontFamily: 'monospace', fontSize: '10px', color: '#ff8c00', fontStyle: 'bold',
+        reg(this.add.text(cx, top + 342, `${flames} Best Heat ${bestHeat}`, {
+          fontFamily: 'monospace', fontSize: '9px', color: '#ff8c00', fontStyle: 'bold',
           align: 'center',
         }).setOrigin(0.5, 0));
       }
     }
 
     // "moves" link at the bottom of each card — opens the ComboCodex for this hero
-    const movesBtn = reg(this.add.text(cx, top + h - 12, '⚔ moves', {
+    const movesBtn = reg(this.add.text(cx, top + h - 8, '⚔ moves', {
       fontFamily: 'monospace', fontSize: '10px', color: '#8fe6ff',
     }).setOrigin(0.5, 1).setDepth(10).setInteractive({ useHandCursor: true }));
     movesBtn.on('pointerover', () => movesBtn.setColor('#ffffff'));

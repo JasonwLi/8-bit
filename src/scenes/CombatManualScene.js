@@ -213,7 +213,7 @@ export default class CombatManualScene extends Phaser.Scene {
     this._buildPage(this._page);
 
     // Navigation: left / right arrows + keyboard.
-    const navY = height - 30;
+    const navY = height - 22;
 
     this._leftBtn = this.add.text(50, navY, '◀ Prev', {
       fontFamily: 'monospace', fontSize: '15px', color: '#9a93c0',
@@ -229,13 +229,16 @@ export default class CombatManualScene extends Phaser.Scene {
     this._rightBtn.on('pointerout', () => this._rightBtn.setColor('#9a93c0'));
     this._rightBtn.on('pointerdown', () => this._changePage(1));
 
-    this._pageLabel = this.add.text(width / 2, navY, '', {
-      fontFamily: 'monospace', fontSize: '12px', color: '#7d7896',
-    }).setOrigin(0.5);
-
-    const back = this.add.text(width / 2, navY, '[ Close ]', {
+    // "[ Close ]" sits left-of-centre and the page label right-of-centre, on the same
+    // nav row — they previously shared width/2,navY and rendered on top of each other
+    // ("[Pa[ Close ] 4]").
+    const back = this.add.text(width / 2 - 70, navY, '[ Close ]', {
       fontFamily: 'monospace', fontSize: '16px', color: '#9ef58b', fontStyle: 'bold',
     }).setOrigin(0.5).setInteractive({ useHandCursor: true });
+
+    this._pageLabel = this.add.text(width / 2 + 80, navY, '', {
+      fontFamily: 'monospace', fontSize: '12px', color: '#7d7896',
+    }).setOrigin(0.5);
     back.on('pointerover', () => back.setColor('#ffffff'));
     back.on('pointerout', () => back.setColor('#9ef58b'));
     back.on('pointerdown', () => this._close());
@@ -276,26 +279,45 @@ export default class CombatManualScene extends Phaser.Scene {
     // Sections — laid out top-down with small margins.
     const CONTENT_X = PANEL_X + 28;
     const CONTENT_W = PANEL_W - 56;
-    let y = PANEL_Y + 48;
-    const LINE_H = 16;
-    const HEADING_H = 20;
+    const contentTop = PANEL_Y + 48;
+    const contentBottom = PANEL_Y + PANEL_H - 14; // keep clear of the panel's bottom border
 
+    // The longest page (Offense) overflowed the panel at the default metrics. Measure
+    // the content's natural height and, if it exceeds the available space, step the line
+    // height / fonts / gaps down so every page always fits inside its panel.
+    const sectionCount = pg.sections.length;
+    let lineCount = 0, blankCount = 0;
+    for (const sec of pg.sections) {
+      for (const line of sec.lines) (line === '' ? blankCount++ : lineCount++);
+    }
+    const avail = contentBottom - contentTop;
+    // Candidate metric tiers, roomiest first.
+    const tiers = [
+      { LINE_H: 16, HEAD_H: 20, GAP: 14, BLANK: 6,  head: '13px', body: '11px' },
+      { LINE_H: 14, HEAD_H: 18, GAP: 11, BLANK: 5,  head: '12px', body: '10px' },
+      { LINE_H: 13, HEAD_H: 16, GAP: 9,  BLANK: 4,  head: '11px', body: '10px' },
+      { LINE_H: 12, HEAD_H: 15, GAP: 7,  BLANK: 3,  head: '11px', body: '9px'  },
+    ];
+    const needed = (t) => sectionCount * (t.HEAD_H + t.GAP) + lineCount * t.LINE_H + blankCount * t.BLANK;
+    const m = tiers.find((t) => needed(t) <= avail) || tiers[tiers.length - 1];
+
+    let y = contentTop;
     for (const sec of pg.sections) {
       // Section heading
       reg(this.add.text(CONTENT_X, y, sec.heading, {
-        fontFamily: 'monospace', fontSize: '13px', color: '#8fe6ff', fontStyle: 'bold',
+        fontFamily: 'monospace', fontSize: m.head, color: '#8fe6ff', fontStyle: 'bold',
       }));
-      y += HEADING_H;
+      y += m.HEAD_H;
 
       for (const line of sec.lines) {
-        if (line === '') { y += Math.round(LINE_H * 0.4); continue; }
+        if (line === '') { y += m.BLANK; continue; }
         reg(this.add.text(CONTENT_X + 10, y, line, {
-          fontFamily: 'monospace', fontSize: '11px', color: '#dcd8ee',
+          fontFamily: 'monospace', fontSize: m.body, color: '#dcd8ee',
           wordWrap: { width: CONTENT_W - 10 },
         }));
-        y += LINE_H;
+        y += m.LINE_H;
       }
-      y += 14; // section gap
+      y += m.GAP; // section gap
     }
   }
 

@@ -102,9 +102,18 @@ export default class PauseScene extends Phaser.Scene {
     const wp = gs.weapons.points;
     const ap = gs.ability.points;
     this.add.text(mx, 110, 'ARMS', { fontFamily: 'monospace', fontSize: '15px', color: accent, fontStyle: 'bold' });
+    // Weapons & abilities each declare their own four flavoured upgrade axes; read the
+    // invested points per axis off the controller (keyed by axis id / slot). Show a short
+    // tag (first word of the axis label, capped) + invested points so all four fit on one
+    // line. (This line used to read fixed Dmg/Reach/Spd/Fx keys that no longer exist on
+    // weapons after the per-skill-axis refactor, printing "undefined".)
+    const shortTag = (label) => (label || '').split(/\s+/)[0].slice(0, 5);
+    const axisLine = (axes, points, keyOf) => (axes || [])
+      .map((ax) => `${shortTag(ax.label)} ${points[keyOf(ax)] || 0}`)
+      .join('  ');
     this.add.text(mx, 134,
-      `Weapon  ${wDef.name}\n  Dmg ${wp.damage}  Reach ${wp.reach}  Spd ${wp.speed}  Fx ${wp.effect}\n` +
-      `Ability ${aDef.name}\n  Pwr ${ap.power}  Freq ${ap.haste}  Area ${ap.area}  Mult ${ap.amount}`,
+      `Weapon  ${wDef.name}\n  ${axisLine(wDef.axes, wp, (ax) => ax.id)}\n` +
+      `Ability ${aDef.name}\n  ${axisLine(aDef.axes, ap, (ax) => ax.slot)}`,
       { fontFamily: 'monospace', fontSize: '13px', color: '#dcd8ee', lineSpacing: 6 });
 
     this.add.text(mx, 230, 'EQUIPMENT', { fontFamily: 'monospace', fontSize: '15px', color: accent, fontStyle: 'bold' });
@@ -163,36 +172,36 @@ export default class PauseScene extends Phaser.Scene {
     }
 
     // --- buttons ---
-    const resume = this.add.text(width / 2 - 250, height - 50, '[ Resume ]', {
-      fontFamily: 'monospace', fontSize: '20px', color: '#9ef58b', fontStyle: 'bold',
-    }).setOrigin(0.5).setInteractive({ useHandCursor: true });
-    resume.on('pointerdown', () => this.resumeGame());
-
-    const manual = this.add.text(width / 2 - 165, height - 50, '[ Combat Manual ]', {
-      fontFamily: 'monospace', fontSize: '14px', color: '#ffd27a', fontStyle: 'bold',
-    }).setOrigin(0.5).setInteractive({ useHandCursor: true });
-    manual.on('pointerover', () => manual.setColor('#ffffff'));
-    manual.on('pointerout', () => manual.setColor('#ffd27a'));
-    manual.on('pointerdown', () => this.scene.start('CombatManualScene', { caller: 'PauseScene', gameScene: this.gs }));
-
-    const comboList = this.add.text(width / 2 + 3, height - 50, '[ Combo List ]', {
-      fontFamily: 'monospace', fontSize: '14px', color: '#c0e8ff', fontStyle: 'bold',
-    }).setOrigin(0.5).setInteractive({ useHandCursor: true });
-    comboList.on('pointerover', () => comboList.setColor('#ffffff'));
-    comboList.on('pointerout', () => comboList.setColor('#c0e8ff'));
-    comboList.on('pointerdown', () => {
-      this.scene.start('ComboCodexScene', { gameScene: this.gs });
+    // Lay the five footer buttons out left-to-right with even gaps, measured from each
+    // label's real width and centred as a group. (Hand-tuned x-offsets used to make the
+    // wide "[ Resume ]" / "[ Combat Manual ]" labels overlap.)
+    const btnY = height - 50;
+    const defs = [
+      { label: '[ Resume ]',        color: '#9ef58b', size: '16px', onClick: () => this.resumeGame() },
+      { label: '[ Combat Manual ]', color: '#ffd27a', size: '14px', hover: true,
+        onClick: () => this.scene.start('CombatManualScene', { caller: 'PauseScene', gameScene: this.gs }) },
+      { label: '[ Combo List ]',    color: '#c0e8ff', size: '14px', hover: true,
+        onClick: () => this.scene.start('ComboCodexScene', { gameScene: this.gs }) },
+      { label: '[ Settings ]',      color: '#8fe6ff', size: '14px',
+        onClick: () => this.scene.start('SettingsScene', { caller: 'PauseScene', gameScene: this.gs }) },
+      { label: '[ Save & Exit ]',   color: '#ff8a8a', size: '14px', onClick: () => this.exitToTitle() },
+    ];
+    const GAP = 22;
+    const btns = defs.map((d) => this.add.text(0, btnY, d.label, {
+      fontFamily: 'monospace', fontSize: d.size, color: d.color, fontStyle: 'bold',
+    }).setOrigin(0, 0.5).setInteractive({ useHandCursor: true }));
+    const totalW = btns.reduce((s, b) => s + b.width, 0) + GAP * (btns.length - 1);
+    let x = width / 2 - totalW / 2;
+    btns.forEach((b, i) => {
+      b.setX(x);
+      x += b.width + GAP;
+      const d = defs[i];
+      b.on('pointerdown', d.onClick);
+      if (d.hover) {
+        b.on('pointerover', () => b.setColor('#ffffff'));
+        b.on('pointerout', () => b.setColor(d.color));
+      }
     });
-
-    const settings = this.add.text(width / 2 + 150, height - 50, '[ Settings ]', {
-      fontFamily: 'monospace', fontSize: '14px', color: '#8fe6ff', fontStyle: 'bold',
-    }).setOrigin(0.5).setInteractive({ useHandCursor: true });
-    settings.on('pointerdown', () => this.scene.start('SettingsScene', { caller: 'PauseScene', gameScene: this.gs }));
-
-    const exit = this.add.text(width / 2 + 290, height - 50, '[ Save & Exit ]', {
-      fontFamily: 'monospace', fontSize: '14px', color: '#ff8a8a', fontStyle: 'bold',
-    }).setOrigin(0.5).setInteractive({ useHandCursor: true });
-    exit.on('pointerdown', () => this.exitToTitle());
 
     this.add.text(width / 2, height - 22, 'Esc/R resume  •  progress is saved on exit (Continue from the title)', {
       fontFamily: 'monospace', fontSize: '11px', color: '#7d7896',

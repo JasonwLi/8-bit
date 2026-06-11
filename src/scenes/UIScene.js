@@ -225,7 +225,9 @@ export default class UIScene extends Phaser.Scene {
       }
     }
     // ── DW string depth pips ────────────────────────────────────────────────────
-    // 4 small gold squares below the HP bar. Filled squares = steps fired so far.
+    // 4 small gold squares on the pip row to the RIGHT of the HP bar, just after the
+    // dash pips. (They used to sit left-aligned under the HP bar, where they collided
+    // with the DEF/LS stats line and the [K] finisher glyph overlapped the stats text.)
     // When depth >= 1 AND the finisher CD is clear, a [K] glyph pulses to the
     // right of the pips, teaching the player they can branch now.
     {
@@ -234,8 +236,10 @@ export default class UIScene extends Phaser.Scene {
       const cdUntil  = gs._finisherCdUntil || 0;
       const nowMs    = gs.time ? gs.time.now : 0;
       const pipW = 7, pipH = 7, pipGap = 3;
-      const spx0 = hx;        // left-align under the HP bar
-      const spy0 = hy + hh + 4;  // same row as dash pips (below HP bar)
+      // Start just past the dash pips (which begin at hx+hw+8 and run dashChargeMax wide).
+      const dashEndX = (hx + hw + 8) + p.dashChargeMax * (8 + 3);
+      const spx0 = dashEndX + 8;   // right of the dash pips, clear of the stats line
+      const spy0 = hy + hh + 4;    // same row as dash pips (below HP bar)
 
       for (let i = 0; i < 4; i++) {
         const cx = spx0 + i * (pipW + pipGap);

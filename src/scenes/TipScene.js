@@ -779,7 +779,24 @@ export default class TipScene extends Phaser.Scene {
   create() {
     const { width, height } = this.scale;
     const PANEL_W = 520;
-    const PANEL_H = 300;
+
+    // Title bar (centered) + caption measured up-front so the panel can grow to fit
+    // long captions (the multi-line "combo" tip used to overrun the fixed 300px panel
+    // and collide with the continue-hint).
+    const defs = tipDefs(Settings.binds);
+    const def = defs[this.mechanic] || { title: this.mechanic.toUpperCase(), caption: '' };
+
+    const DEMO_H = 150;
+    const captionProbe = this.add.text(0, 0, def.caption, {
+      fontFamily: 'monospace', fontSize: '13px', color: '#c9c4e0',
+      align: 'center', wordWrap: { width: PANEL_W - 40 },
+    }).setVisible(false);
+    const captionH = captionProbe.height;
+    captionProbe.destroy();
+
+    // header(34→title sits at py+18) + demo top gap(42) + demo + caption gap(16)
+    // + caption + bottom hint band(34).
+    const PANEL_H = Math.max(300, 42 + DEMO_H + 16 + captionH + 34);
     const px = (width - PANEL_W) / 2;
     const py = (height - PANEL_H) / 2;
 
@@ -790,17 +807,12 @@ export default class TipScene extends Phaser.Scene {
     const g = this.add.graphics();
     drawPanel(g, px, py, PANEL_W, PANEL_H, 0xffd700, { fill: 0x0d0b18, alpha: 0.98, radius: 12, header: 34 });
 
-    // Title bar (centered)
-    const defs = tipDefs(Settings.binds);
-    const def = defs[this.mechanic] || { title: this.mechanic.toUpperCase(), caption: '' };
-
     this.add.text(width / 2, py + 18, def.title, {
       fontFamily: 'monospace', fontSize: '20px', color: '#ffd700', fontStyle: 'bold',
     }).setOrigin(0.5).setDepth(10);
 
     // Demo area (bordered rect inside panel)
     const DEMO_W = PANEL_W - 40;
-    const DEMO_H = 150;
     const DEMO_X = px + 20;
     const DEMO_Y = py + 42;
 

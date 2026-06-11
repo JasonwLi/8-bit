@@ -30,15 +30,17 @@ export default class SettingsScene extends Phaser.Scene {
     this.g = this.add.graphics().setDepth(1); // slider bars (redrawn on change)
 
     // ── AUDIO ──────────────────────────────────────────────────────────────
-    this.add.text(90, 96, 'AUDIO', { fontFamily: 'monospace', fontSize: '16px', color: '#8fe6ff', fontStyle: 'bold' });
-    this._addSlider(96, 132, 'Master', 'master');
-    this._addSlider(96, 178, 'Music', 'music');
-    this._addSlider(96, 224, 'SFX', 'sfx');
+    // Layout is compressed vertically so the (now seven) rebind rows below clear the
+    // footer buttons — the list had grown past the [ Back ] row and overlapped it.
+    this.add.text(90, 80, 'AUDIO', { fontFamily: 'monospace', fontSize: '16px', color: '#8fe6ff', fontStyle: 'bold' });
+    this._addSlider(96, 112, 'Master', 'master');
+    this._addSlider(96, 150, 'Music', 'music');
+    this._addSlider(96, 188, 'SFX', 'sfx');
 
     // ── CONTROLS ───────────────────────────────────────────────────────────
-    this.add.text(90, 290, 'CONTROLS', { fontFamily: 'monospace', fontSize: '16px', color: '#8fe6ff', fontStyle: 'bold' });
-    this.add.text(90, 314, 'Move: WASD / Arrows (fixed)  ·  attacks fire where you move', { fontFamily: 'monospace', fontSize: '11px', color: '#7d7896' });
-    BINDABLE.forEach((b, i) => this._addBindRow(96, 340 + i * 30, b));
+    this.add.text(90, 232, 'CONTROLS', { fontFamily: 'monospace', fontSize: '16px', color: '#8fe6ff', fontStyle: 'bold' });
+    this.add.text(90, 256, 'Move: WASD / Arrows (fixed)  ·  attacks fire where you move', { fontFamily: 'monospace', fontSize: '11px', color: '#7d7896' });
+    BINDABLE.forEach((b, i) => this._addBindRow(96, 280 + i * 28, b));
 
     // ── buttons ──────────────────────────────────────────────────────────────
     const reset = this.add.text(width / 2 - 220, height - 40, '[ Reset Defaults ]', {
