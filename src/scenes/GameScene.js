@@ -4411,13 +4411,29 @@ export default class GameScene extends Phaser.Scene {
     const def = this.weapons.def();
     const s   = this.weapons.computeStats();
 
-    // Orbital weapons skip the string system entirely (orbiters are passive)
+    // Orbital weapons skip the string system entirely (orbiters are passive). Gilgamesh's
+    // "finisher" is therefore a COSMETIC golden Gate-of-Babylon flare — make it read as
+    // an unmistakable gold treasury bloom (scaling with depth), never a fire nova.
     if (def.kind === 'orbital') {
-      // Cosmetic flare only for orbitals
+      const px = this.player.x, py = this.player.y;
       for (const orb of this.weapons._orbiters) {
         if (orb.sprite && orb.sprite.active) this.fx.goldenBurst(orb.sprite.x, orb.sprite.y, 5);
       }
-      this.fx._ring(this.player.x, this.player.y, s.orbitRadius || 62, 0xffd700, 300, 3);
+      this.fx._ring(px, py, s.orbitRadius || 62, 0xffd700, 300, 3);
+      // Deeper string = grander gate: a golden judgment halo + treasury burst.
+      if (rawDepth >= 2) {
+        if (this.fx.gateFlash) this.fx.gateFlash(px, py); else this.fx.goldenBurst(px, py, 14);
+        this.fx._ring(px, py, 90 + rawDepth * 16, 0xffe24a, 340, 5);
+      }
+      if (rawDepth >= 4) { // C5/C6: full golden cataclysm halo of blade-glints
+        const n = 12 + rawDepth * 2;
+        for (let i = 0; i < n; i++) {
+          const a = (i / n) * Math.PI * 2;
+          this.fx._flash(px + Math.cos(a) * (70 + rawDepth * 6), py + Math.sin(a) * (70 + rawDepth * 6), 11, 0xffd700, 0.8, 260);
+        }
+        this.fx._ring(px, py, 150 + rawDepth * 14, 0xffd700, 400, 6);
+        this.hitStop(40 + rawDepth * 10, 8);
+      }
       Audio.sfx('parry');
       this.weapons.timer = 800;
       return;
@@ -4459,10 +4475,14 @@ export default class GameScene extends Phaser.Scene {
     }
     this.weapons._isHeavyShot = false;
 
-    // Finisher FX — scale with depth
-    const ringColor = fd ? (fd.ringColor || 0xffd700) : 0xffd700;
+    // Finisher FX — scale with depth. The base flash/ring use the HERO SIGNATURE colour
+    // so even the light C2/C3 finishers read per-hero (the def ringColor still drives the
+    // depth-ramp label). This is what stops every hero's finisher looking alike.
+    const sig = this._heroFinisherSig();
+    const ringColor = sig.ring;
     this.fx._flash(this.player.x, this.player.y, 14 + depth * 4, ringColor, 0.85, 200);
     this.fx._ring(this.player.x, this.player.y, 30 + depth * 10, ringColor, 280, 3 + depth);
+    if (this.fx.spark) { this.fx._tint(this.fx.spark, sig.spark); this.fx.spark.emitParticleAt(this.player.x, this.player.y, 4); }
     if (depth >= 2) this.hitStop(40 + (depth - 1) * 20, 8);
     if (depth >= 2) this.screenKick(this.aimDir != null ? this.aimDir : 0, JUICE_CAM.heavyPower);
 
@@ -4629,21 +4649,108 @@ export default class GameScene extends Phaser.Scene {
   // into the finisher dmgMult; this is the showstopper presentation + reinforced clear.
   _triggerApexCinematic(s, fd, ringColor) {
     const px = this.player.x, py = this.player.y;
-    // Beat 1 — frozen impact: deep hit-stop + a white flash + a hard directional kick
+    const sig = this._heroFinisherSig();
+    const C = sig.ring; // hero-signature colour for the whole cinematic
+    const aim = this.aimDir != null ? this.aimDir : 0;
+    // Beat 1 — frozen impact (shared across all heroes): deep hit-stop + white flash + hard kick.
     this.hitStop(140, 10);
     this.cameras.main.flash(110, 255, 245, 220, false);
-    this.screenKick(this.aimDir != null ? this.aimDir : 0, JUICE_CAM.bossPower);
+    this.screenKick(aim, JUICE_CAM.bossPower);
     this.fx._flash(px, py, 60, 0xffffff, 0.9, 220);
-    // Beat 2/3 — expanding twin novas (delayed) for a layered shockwave read
-    this.fx._ring(px, py, 110, ringColor, 320, 6);
-    this.fx._ring(px, py, 170, 0xffffff, 420, 4);
-    if (this.fx.explosion) this.fx.explosion(px, py, ringColor, 120);
-    this.time.delayedCall(120, () => {
-      if (!this.player.active) return;
-      this.fx._ring(this.player.x, this.player.y, 220, ringColor, 380, 5);
-      if (this.fx.goldenBurst) this.fx.goldenBurst(this.player.x, this.player.y, 22);
-    });
-    // APEX clear: a wide pop of every non-boss grunt so the cinematic actually erases the crowd
+    if (this.fx.embers) { this.fx._tint(this.fx.embers, sig.spark); this.fx.embers.emitParticleAt(px, py, 20); }
+
+    // Beat 2/3 — the SIGNATURE: each hero's C6 reads unmistakably by SHAPE + colour.
+    const lateBeat = (fn) => this.time.delayedCall(120, () => { if (this.player.active) fn(this.player.x, this.player.y); });
+    switch (sig.shape) {
+      case 'ring': // Lü Bu — crimson war-god triple shockwave + screen-red flash
+        this.cameras.main.flash(90, 150, 10, 14, false);
+        this.fx._ring(px, py, 110, C, 300, 7);
+        this.fx._ring(px, py, 175, 0xff8888, 420, 4);
+        lateBeat((x, y) => { this.fx._ring(x, y, 240, C, 380, 6); this.fx._flash(x, y, 70, C, 0.5, 260); });
+        break;
+      case 'fire-rain': // Belisarius — colossal firestorm bloom (fire stays his)
+        if (this.fx.explosion) this.fx.explosion(px, py, 0xff6a00, 150);
+        this.fx._ring(px, py, 130, 0xff7a2a, 340, 6);
+        lateBeat((x, y) => { this.fx._ring(x, y, 230, 0xff4e06, 400, 6); if (this.fx.embers) { this.fx._tint(this.fx.embers, 0xff8a2a); this.fx.embers.emitParticleAt(x, y, 18); } });
+        break;
+      case 'lanes': { // Nobunaga — concussive annihilation rail (a bright lane down the aim line)
+        const dx = Math.cos(aim), dy = Math.sin(aim);
+        for (let k = -1; k <= 1; k++) {
+          const ox = Math.cos(aim + Math.PI / 2) * k * 22, oy = Math.sin(aim + Math.PI / 2) * k * 22;
+          for (let d = 40; d <= 300; d += 52) this.fx._flash(px + ox + dx * d, py + oy + dy * d, 16, k === 0 ? 0xffffff : C, 0.8, 240);
+        }
+        this.fx._ring(px, py, 120, 0xffffff, 300, 3);
+        lateBeat((x, y) => this.fx._ring(x, y, 200, C, 360, 3));
+        break;
+      }
+      case 'radial-blades': { // Gilgamesh — golden Gate-of-Babylon blade halo
+        for (let i = 0; i < 16; i++) {
+          const a = (i / 16) * Math.PI * 2;
+          this.fx._flash(px + Math.cos(a) * 70, py + Math.sin(a) * 70, 12, 0xffd700, 0.85, 260);
+        }
+        this.fx._ring(px, py, 130, 0xffe24a, 320, 5);
+        if (this.fx.gateFlash) this.fx.gateFlash(px, py);
+        lateBeat((x, y) => { this.fx._ring(x, y, 230, 0xffd700, 380, 6); if (this.fx.goldenBurst) this.fx.goldenBurst(x, y, 26); });
+        break;
+      }
+      case 'summon': { // Caesar — golden eagle eruption + legion banner flourish
+        for (let i = 0; i < 8; i++) {
+          const a = (i / 8) * Math.PI * 2;
+          this.fx._flash(px + Math.cos(a) * 80, py + Math.sin(a) * 80, 13, 0xffc24a, 0.8, 240);
+        }
+        this.fx._ring(px, py, 130, 0xffd86a, 320, 6);
+        if (this.spawnLegionary) {
+          const cs = this.weapons.computeStats();
+          for (let i = 0; i < 3; i++) {
+            const a = (i / 3) * Math.PI * 2 + 0.4;
+            this.spawnLegionary(px + Math.cos(a) * 30, py + Math.sin(a) * 30, {
+              damage: Math.round((cs.damage || 18) * (cs.allyDmgMult || 1) * 1.2),
+              hp: (cs.allyHp || 40) * 1.5, life: cs.allyLife || 7000,
+              speed: cs.allySpeed || 150, range: cs.allyRange || 30, color: 0xffc24a,
+            });
+          }
+        }
+        lateBeat((x, y) => { this.fx._ring(x, y, 220, 0xffd86a, 380, 5); if (this.fx.goldenBurst) this.fx.goldenBurst(x, y, 22); });
+        break;
+      }
+      case 'storm-lanes': { // Alexander — piercing silver phalanx (four parallel lanes)
+        const dx = Math.cos(aim), dy = Math.sin(aim);
+        const perpX = Math.cos(aim + Math.PI / 2), perpY = Math.sin(aim + Math.PI / 2);
+        for (const lane of [-1.5, -0.5, 0.5, 1.5]) {
+          for (let d = 30; d <= 320; d += 40) {
+            this.fx._flash(px + perpX * lane * 26 + dx * d, py + perpY * lane * 26 + dy * d, 13, 0xcfe8ff, 0.78, 240);
+          }
+        }
+        this.fx._ring(px, py, 120, 0xeaf6ff, 300, 3);
+        lateBeat((x, y) => this.fx._ring(x, y, 210, 0xcfe8ff, 360, 4));
+        break;
+      }
+      case 'dust-storm': { // Genghis — wide steppe dust cataclysm + caltrop bloom (NEVER fire)
+        if (this.spawnCaltropField) this.spawnCaltropField(px, py, 170, Math.round((s.damage || 20) * 0.22), 3200, 320);
+        for (let i = 0; i < 14; i++) {
+          const a = (i / 14) * Math.PI * 2, rr = 60 + Math.random() * 60;
+          this.fx._flash(px + Math.cos(a) * rr, py + Math.sin(a) * rr, 14, 0xc9a86a, 0.55, 300);
+        }
+        this.fx._ring(px, py, 140, 0xd8c08a, 360, 5);
+        lateBeat((x, y) => this.fx._ring(x, y, 230, 0xb89868, 400, 6));
+        break;
+      }
+      case 'maelstrom': { // Ragnar — churned trample crater (whirling dust vortex)
+        this.spawnHazardZone(px, py, (s.radius || 90) * 1.0, Math.round((s.damage || 20) * 0.25), 60, 320, 1800, 'trample', 'enemies');
+        for (let i = 0; i < 12; i++) {
+          const a = (i / 12) * Math.PI * 2;
+          this.fx._flash(px + Math.cos(a) * 80, py + Math.sin(a) * 80, 13, 0xb88a3a, 0.6, 280);
+        }
+        this.fx._ring(px, py, 140, 0xcaa45a, 360, 6);
+        lateBeat((x, y) => this.fx._ring(x, y, 230, 0xb88a3a, 400, 6));
+        break;
+      }
+      default:
+        this.fx._ring(px, py, 110, C, 320, 6);
+        lateBeat((x, y) => this.fx._ring(x, y, 220, C, 380, 5));
+    }
+
+    // APEX clear (shared mechanic — unchanged): wide pop of every non-boss grunt.
     const R2 = 220 * 220;
     for (const e of this.enemies.getChildren()) {
       if (!e.active || e.isBoss) continue;
