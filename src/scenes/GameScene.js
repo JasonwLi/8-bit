@@ -4434,6 +4434,24 @@ export default class GameScene extends Phaser.Scene {
         this.fx._ring(px, py, 150 + rawDepth * 14, 0xffd700, 400, 6);
         this.hitStop(40 + rawDepth * 10, 8);
       }
+      // ACTUALLY FIRE the finisher: Gilgamesh's chargeFinishers are projectile_radial
+      // blade bursts, but this orbital branch used to return after the cosmetic flare —
+      // DIVINE JUDGMENT / ENUMA ELISH never executed in real play (audit discovery).
+      {
+        const finisherKeysO = ['C2', 'C3', 'C4', 'C4', 'C6', 'C6'];
+        const fKeyO = rawDepth >= 5 ? (rawDepth >= 6 ? 'C6' : 'C5') : finisherKeysO[Math.min(rawDepth - 1, 3)];
+        const fdO = def.chargeFinishers && def.chargeFinishers[fKeyO];
+        if (fdO) {
+          const finSO = this._applyFinisherToStats(s, fdO);
+          this.weapons._isHeavyShot = rawDepth >= 2;
+          this._stringLauncherActive = !!fdO.launcher;
+          this.weapons.fireStringStep(fdO, finSO);
+          this._stringLauncherActive = false;
+          this.weapons._isHeavyShot = false;
+          if (fdO.goldenZones) this._triggerCrowdEraser ? this._triggerCrowdEraser(finSO, fdO) : null;
+          if (fdO.label) this._showFinisherLabel(fdO.label, fdO.ringColor || 0xffd700, rawDepth);
+        }
+      }
       Audio.sfx('parry');
       this.weapons.timer = 800;
       return;
