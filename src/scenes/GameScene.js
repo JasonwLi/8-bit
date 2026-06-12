@@ -1758,10 +1758,31 @@ export default class GameScene extends Phaser.Scene {
     if (this._hazardZoneCount >= 12) return; // cap — drop this fire-and-forget request
     this._hazardZoneCount++;
 
+    // Each hero owns a distinct hazard LANGUAGE so finishers never read alike.
+    // FIRE belongs to Belisarius ALONE — every other style reuses an existing
+    // texture with a unique tint (procedural recolour, no new physics/textures).
     let tex, warnTint, poolTint;
     if (style === 'trample') {
+      // Ragnar — churned earth maelstrom (dull dust brown).
       tex = this.textures.exists('trample_dust') ? 'trample_dust' : 'caltrops';
       warnTint = 0x9a7748; poolTint = tex === 'trample_dust' ? undefined : 0x9a7748;
+    } else if (style === 'caltrop-dust') {
+      // Genghis — steppe dust + iron caltrops (NEVER fire). Pale ochre dust over
+      // the caltrop bed; reads as a dirty steel/dirt trap field, not a fire pool.
+      tex = this.textures.exists('caltrops') ? 'caltrops' : (this.textures.exists('trample_dust') ? 'trample_dust' : 'acid_pool');
+      warnTint = 0xc9a86a; poolTint = 0xb89868;
+    } else if (style === 'gold') {
+      // Gilgamesh — shimmering golden judgment glow (Gate of Babylon treasury).
+      tex = this.textures.exists('scorch_fire') ? 'scorch_fire' : (this.textures.exists('flame_pool') ? 'flame_pool' : 'acid_pool');
+      warnTint = 0xffe24a; poolTint = 0xffd11a;
+    } else if (style === 'blood' || style === 'crimson') {
+      // Lü Bu — war-god crimson shockwave residue (deep arterial red, not orange fire).
+      tex = this.textures.exists('scorch_fire') ? 'scorch_fire' : (this.textures.exists('flame_pool') ? 'flame_pool' : 'acid_pool');
+      warnTint = 0xff2a3a; poolTint = 0xb3121f;
+    } else if (style === 'storm') {
+      // Alexander / silver-white — piercing storm light (cold steel highlight).
+      tex = this.textures.exists('scorch_fire') ? 'scorch_fire' : (this.textures.exists('flame_pool') ? 'flame_pool' : 'acid_pool');
+      warnTint = 0xcfe8ff; poolTint = 0xaecbe8;
     } else if (style === 'fire') {
       tex = this.textures.exists('scorch_fire') ? 'scorch_fire' : 'flame_pool';
       warnTint = 0xff7a2a; poolTint = tex === 'scorch_fire' ? undefined : 0xff7a2a;
@@ -4490,15 +4511,47 @@ export default class GameScene extends Phaser.Scene {
     return out;
   }
 
+  // Per-hero FINISHER VISUAL SIGNATURE — the single source of truth that keeps every
+  // hero's C4–C6 reading unmistakably (and reserves FIRE for Belisarius alone).
+  //   zone   — hazard-zone style spawned by the grand-finisher residue (null = NO zone,
+  //            for heroes whose identity is summons/rails/lanes rather than ground denial)
+  //   ring   — signature ring/flash colour
+  //   spark  — particle burst colour
+  //   shape  — apex cinematic shape ('ring'|'lanes'|'radial-blades'|'summon'|'storm-lanes')
+  _heroFinisherSig() {
+    const id = this.characterDef && this.characterDef.id;
+    switch (id) {
+      // Lü Bu — war-god crimson shockwaves (NOT fire pools).
+      case 'lubu':       return { zone: 'blood',        ring: 0xff2233, spark: 0xff3344, shape: 'ring' };
+      // Belisarius — FIRE, exclusively his.
+      case 'belisarius': return { zone: 'fire',         ring: 0xff6a00, spark: 0xff7a2a, shape: 'fire-rain' };
+      // Nobunaga — no zones: concussive precision rails + white shock nova.
+      case 'nobunaga':   return { zone: null,           ring: 0xfff2c0, spark: 0xffffff, shape: 'lanes' };
+      // Gilgamesh — golden Gate-of-Babylon judgment zones.
+      case 'gilgamesh':  return { zone: 'gold',         ring: 0xffd700, spark: 0xffe24a, shape: 'radial-blades' };
+      // Caesar — no zones: the legion is his identity; legion gold-red banners.
+      case 'caesar':     return { zone: null,           ring: 0xffc24a, spark: 0xffd86a, shape: 'summon' };
+      // Alexander — no zones: piercing silver phalanx lanes.
+      case 'alexander':  return { zone: null,           ring: 0xcfe8ff, spark: 0xeaf6ff, shape: 'storm-lanes' };
+      // Genghis — steppe dust + caltrop fields, NEVER fire.
+      case 'genghis':    return { zone: 'caltrop-dust', ring: 0xc9a86a, spark: 0xd8c08a, shape: 'dust-storm' };
+      // Ragnar — churned trample maelstrom crater.
+      case 'ragnar':     return { zone: 'trample',      ring: 0xb88a3a, spark: 0xcaa45a, shape: 'maelstrom' };
+      default:           return { zone: null,           ring: 0xffd700, spark: 0xffd700, shape: 'ring' };
+    }
+  }
+
   // Grand finisher bonus FX for C4 (hero-specific flair reusing existing hazard/burst calls).
   _triggerGrandFinisherFx(s, fd = null) {
     const px = this.player.x, py = this.player.y;
-    // Generic: golden burst ring at the player
-    this.fx.goldenBurst(px, py, 14);
-    this.fx._ring(px, py, 80, 0xff2222, 400, 6);
-    if (fd && fd.noFireZone) {
-      // Fire-free grand finisher (Nobunaga's precision identity — fire belongs to
-      // Belisarius): a concussive shock nova that hurls the pack outward instead.
+    const sig = this._heroFinisherSig();
+    // Signature burst ring in the hero's colour (no more universal gold + red).
+    this.fx._flash(px, py, 24, sig.ring, 0.7, 240);
+    this.fx._ring(px, py, 80, sig.ring, 400, 6);
+    if (this.fx.embers) { this.fx._tint(this.fx.embers, sig.spark); this.fx.embers.emitParticleAt(px, py, 14); }
+    if (sig.zone === null) {
+      // Zone-free grand finisher (precision/summon/lane heroes): a concussive shock
+      // nova that hurls the pack outward instead of denying ground.
       this.fx._ring(px, py, 110, 0xffffff, 320, 3);
       const R2 = 110 * 110;
       for (const e of this.enemies.getChildren()) {
@@ -4508,9 +4561,9 @@ export default class GameScene extends Phaser.Scene {
         this.knockbackEnemy(e, Math.atan2(dy, dx), 70, { _sourceDmg: Math.round(s.damage * 0.3) });
       }
     } else {
-      // Default: a brief fire hazard zone at the player (Lü Bu "Wrath Nova" feel)
+      // Ground-denial heroes: a brief residue zone in their OWN element (fire only for Belisarius).
       const r = s.radius ? s.radius * 0.6 : 70;
-      this.spawnHazardZone(px, py, r, Math.round(s.damage * 0.3), 80, 300, 1200, 'fire', 'enemies');
+      this.spawnHazardZone(px, py, r, Math.round(s.damage * 0.3), 80, 300, 1200, sig.zone, 'enemies');
     }
     Audio.sfx('hit_heavy');
   }
@@ -4519,9 +4572,11 @@ export default class GameScene extends Phaser.Scene {
   // grandFinisher FX. Flags come off the finisher def (data-driven, graceful no-ops).
   _triggerCrowdEraser(s, fd) {
     const px = this.player.x, py = this.player.y;
-    const ringColor = fd.ringColor || 0xff5500;
+    const sig = this._heroFinisherSig();
+    const ringColor = sig.ring; // hero-signature colour, not the shared orange ramp
     // Shared wide eraser shockwave + a brief screen freeze for weight
     this.fx._ring(px, py, 140, ringColor, 420, 5);
+    this.fx._ring(px, py, 95, 0xffffff, 300, 2);
     this.hitStop(60, 8);
     this.screenKick(this.aimDir != null ? this.aimDir : 0, JUICE_CAM.heavyPower);
 
@@ -4556,12 +4611,13 @@ export default class GameScene extends Phaser.Scene {
     if (fd.trampleWake) {
       this.spawnHazardZone(px, py, (s.radius || 90) * 0.9, Math.round((s.damage || 20) * 0.25), 60, 300, 1600, 'trample', 'enemies');
     }
-    // Gilgamesh GATE OF BABYLON — scatter golden judgment zones around the blade storm.
+    // Gilgamesh GATE OF BABYLON — scatter GOLDEN judgment zones around the blade storm
+    // (gold, never fire — fire is Belisarius's alone).
     if (fd.goldenZones) {
       for (let i = 0; i < 5; i++) {
         const a = (i / 5) * Math.PI * 2;
         const zx = px + Math.cos(a) * 90, zy = py + Math.sin(a) * 90;
-        this.spawnHazardZone(zx, zy, 46, Math.round((s.damage || 20) * 0.2), 100, 280, 1300, 'fire', 'enemies');
+        this.spawnHazardZone(zx, zy, 46, Math.round((s.damage || 20) * 0.2), 100, 280, 1300, 'gold', 'enemies');
       }
       this.fx.goldenBurst(px, py, 18);
     }
