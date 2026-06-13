@@ -60,7 +60,7 @@ export const OMENS = [
   {
     id: 'gilded_path',
     name: 'Gilded Path',
-    desc: '+25% gold from all sources. Elite enemies have +10% HP.',
+    desc: '+25% gold from defeated foes. Elites +10% HP.',
     color: 0xffd700,
     apply(run) {
       run._omenGoldMult = 1.25;
