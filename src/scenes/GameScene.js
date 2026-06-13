@@ -342,7 +342,11 @@ export default class GameScene extends Phaser.Scene {
     }
 
     if (this.contract.playerHpMult !== 1) this.player.maxHp = Math.round(this.player.maxHp * this.contract.playerHpMult);
-    this.player.contractXpMult = 1 + this.contract.xpBonus;
+    // contractXpMult is reassigned on EVERY stage/floor create, so any run-wide XP
+    // modifier must be re-folded here or it's wiped after stage 1. Blood Debt's −15%
+    // XP penalty (run._omenXpPenalty) was set once in OmenScene and lost on the first
+    // transition — bake it back in alongside the contract bonus so it persists run-wide.
+    this.player.contractXpMult = (1 + this.contract.xpBonus) * (this.run._omenXpPenalty || 1);
     this.player.hp = this.player.maxHp; // full heal at each stage start
 
     // Camera follow tuned by GAME.cameraLerp (middle ground): tight enough that the world
@@ -4447,8 +4451,11 @@ export default class GameScene extends Phaser.Scene {
       // blade bursts, but this orbital branch used to return after the cosmetic flare —
       // DIVINE JUDGMENT / ENUMA ELISH never executed in real play (audit discovery).
       {
-        const finisherKeysO = ['C2', 'C3', 'C4', 'C4', 'C6', 'C6'];
-        const fKeyO = rawDepth >= 5 ? (rawDepth >= 6 ? 'C6' : 'C5') : finisherKeysO[Math.min(rawDepth - 1, 3)];
+        // Same depth→key mapping as the non-orbital path so Gilgamesh reaches every
+        // finisher tier at the same depth as the other heroes (was ['C2','C3','C4','C4',…]
+        // which under-fired C4 at depth 4 instead of C5 — audit off-by-one).
+        const finisherKeysO = ['C2', 'C3', 'C4', 'C5', 'C6', 'C6'];
+        const fKeyO = finisherKeysO[Math.min(rawDepth - 1, 5)];
         const fdO = def.chargeFinishers && def.chargeFinishers[fKeyO];
         if (fdO) {
           const finSO = this._applyFinisherToStats(s, fdO);
@@ -4457,7 +4464,15 @@ export default class GameScene extends Phaser.Scene {
           this.weapons.fireStringStep(fdO, finSO);
           this._stringLauncherActive = false;
           this.weapons._isHeavyShot = false;
-          if (fdO.goldenZones) this._triggerCrowdEraser ? this._triggerCrowdEraser(finSO, fdO) : null;
+          // Run the same signature finisher mechanics as the non-orbital path so
+          // Gilgamesh's DIVINE JUDGMENT (C4 grandFinisher), GATE OF BABYLON (C5
+          // crowdEraser+goldenZones) and ENUMA ELISH (C6 apex) actually execute — the
+          // old branch only fired on goldenZones, so C4's grand-finisher nova and C6's
+          // apex mass-clear never ran for him (audit: finishers that never executed).
+          if (fdO.grandFinisher) this._triggerGrandFinisherFx(finSO, fdO);
+          if (fdO.crowdEraser) this._triggerCrowdEraser(finSO, fdO);
+          else if (fdO.goldenZones) this._triggerCrowdEraser(finSO, fdO);
+          if (fdO.apex) this._triggerApexCinematic(finSO, fdO, fdO.ringColor || 0xffd700);
           if (fdO.label) this._showFinisherLabel(fdO.label, fdO.ringColor || 0xffd700, rawDepth);
         }
       }

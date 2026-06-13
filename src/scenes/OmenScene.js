@@ -140,7 +140,8 @@ export default class OmenScene extends Phaser.Scene {
     // Blood debt: init kill counter + apply XP penalty
     if (omen.id === 'blood_debt') {
       run._omenBloodDebtKillCount = 0;
-      // Apply XP penalty via contractXpMult (stacks with existing contract multiplier)
+      // Apply XP penalty for stage 1 immediately (create() already ran for this stage).
+      // Stage 2+ re-fold it in GameScene.create via run._omenXpPenalty so it persists.
       if (gs.player) {
         gs.player.contractXpMult = (gs.player.contractXpMult || 1) * (run._omenXpPenalty || 0.85);
       }

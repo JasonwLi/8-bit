@@ -46,7 +46,7 @@ export const WEAPONS = {
     // so the chain reads as escalating intensity (gold → orange → blazing red).
     string: [
       { stepId: 'S1', kind: 'melee_arc',   dmgMult: 0.65, arcOverride: 200, radiusMult: 1.00, offsetAngle: 0,        motionKind: 'charge_tap',   sfxPitchMult: 1.00, color: 0xd4af37, desc: 'Wide 200° sweep — knocks back, steals life on hit' },
-      { stepId: 'S2', kind: 'melee_arc',   dmgMult: 0.70, arcOverride: 240, radiusMult: 1.05, offsetAngle: Math.PI,  motionKind: 'charge_tap',   sfxPitchMult: 1.10, offsetX: 12, color: 0xe0b830, desc: 'Reverse sweep — 240° arc behind you, wider reach' },
+      { stepId: 'S2', kind: 'melee_arc',   dmgMult: 0.70, arcOverride: 240, radiusMult: 1.05, offsetAngle: Math.PI,  motionKind: 'charge_tap',   sfxPitchMult: 1.10, color: 0xe0b830, desc: 'Reverse sweep — 240° arc behind you, wider reach' },
       { stepId: 'S3', kind: 'line_thrust', dmgMult: 0.80, lengthMult: 1.00, widthMult: 0.90, offsetAngle: 0,        motionKind: 'charge_heavy', sfxPitchMult: 1.20, color: 0xf0a020, desc: 'Driving thrust — pierces in a forward line, heavy knock' },
       { stepId: 'S4', kind: 'melee_arc',   dmgMult: 0.90, arcOverride: 360, radiusMult: 1.10, offsetAngle: 0,        motionKind: 'charge_heavy', sfxPitchMult: 1.30, radial: true, color: 0xff8c1a, desc: 'Full 360° spin — hits every enemy around you' },
       { stepId: 'S5', kind: 'melee_arc',   dmgMult: 1.00, arcOverride: 300, radiusMult: 1.20, offsetAngle: 0,        motionKind: 'charge_heavy', sfxPitchMult: 1.42, color: 0xff5a14, knockbackOverride: 24, desc: 'Cross-sweep — 300° arc, 1.2× reach, heavier knock' },
