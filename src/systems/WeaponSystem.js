@@ -116,7 +116,10 @@ export default class WeaponSystem {
     const pts = this.ptsOf(kind);
     if (pts <= 0) return 1;
     const per = this.perOf(kind, perDflt);
-    if (base > 0) return (base + pts * per) / base;
+    // Cap at 2.5x: additive axes on SMALL bases produce explosive ratios (knockback
+    // base 14 + 5x16 = 6.7x -> 380px cross-screen launches in playtest verification).
+    // 2.5x keeps every axis meaningful on finishers without absurd geometry.
+    if (base > 0) return Math.min(2.5, (base + pts * per) / base);
     return 1 + pts * zeroRamp; // base 0 → can't take a ratio; ramp gently off the points
   }
 
