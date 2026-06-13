@@ -101,6 +101,35 @@ export default class WeaponSystem {
     return dflt;
   }
 
+  // ── Override-composition helpers ───────────────────────────────────────────────
+  // Finisher/string steps declare absolute OVERRIDES (arcOverride / knockbackOverride /
+  // spreadOverride …). Applied raw they DISCARD the player's invested upgrade points.
+  // These helpers return the growth the relevant axis has earned so an override can be
+  // SCALED instead of replaced — invested points still matter. Each mirrors exactly how
+  // computeStatsGeneric() grows the matching base stat, so a step's override moves in
+  // lock-step with the auto-fire numbers.
+
+  // Multiplicative growth for an ADDITIVE axis kind whose base stat is `base` (its
+  // unupgraded baseline). g = (base + points·per) / base. With base 0 we fall back to a
+  // points-only ramp so even a from-zero override still scales (e.g. knockback base 0).
+  axisGrowth(kind, base, perDflt, zeroRamp = 0.06) {
+    const pts = this.ptsOf(kind);
+    if (pts <= 0) return 1;
+    const per = this.perOf(kind, perDflt);
+    if (base > 0) return (base + pts * per) / base;
+    return 1 + pts * zeroRamp; // base 0 → can't take a ratio; ramp gently off the points
+  }
+
+  // Cooldown scale earned by the cadence axis (and player cooldownMult): how much the
+  // weapon's effective cadence has shrunk vs its raw base. Used to speed finisher CDs.
+  cadenceScale() {
+    const b = this.effBase();
+    if (!b.cooldown) return 1;
+    const cd = b.cooldown * this.player.cooldownMult
+      * Math.pow(1 - this.perOf('cadence', 0.07), this.ptsOf('cadence'));
+    return cd / b.cooldown;
+  }
+
   // Resolve base + points + player mods into the numbers used when firing.
   // When evolved, effBase() merges the evolution overlay over def.base so any
   // overridden fields (damage, cooldown, kind, etc.) take effect automatically.
@@ -263,7 +292,10 @@ export default class WeaponSystem {
         break;
       case 'lob_aoe':
         s.radius = b.radius * reachMult;
-        s.duration = b.duration * (1 + P('burn') * 0.18);
+        // Sticky Fire (burnpatch axis) lengthens the pool's burn — this is the only place
+        // the axis bites for lob_aoe weapons (they fire pools, not the s.leaveBurn patch).
+        // Accept either axis kind so legacy 'burn' defs still scale.
+        s.duration = b.duration * (1 + (P('burn') + P('burnpatch')) * 0.18);
         s.tick = b.tick; s.speed = b.speed;
         break;
       case 'orbital':
@@ -377,15 +409,19 @@ export default class WeaponSystem {
   fireStringStep(stepDef, baseS) {
     const s = Object.assign({}, baseS);
 
-    // Core stat overrides from the step definition
+    // Core stat overrides from the step definition. OVERRIDE fields (arc/knockback/
+    // spread) are absolute in the def but get COMPOSED with the player's invested
+    // upgrade points so spending in an axis still moves the finisher — the override is
+    // scaled by the same axis growth the auto-fire stats enjoy, not blindly replaced.
+    const eb = this.effBase();
     if (stepDef.dmgMult != null)       s.damage   = baseS.damage * stepDef.dmgMult;
-    if (stepDef.radiusMult != null)    s.radius   = (baseS.radius   || 95)  * stepDef.radiusMult;
-    if (stepDef.arcOverride != null)   s.arc      = stepDef.arcOverride;
+    if (stepDef.radiusMult != null)    s.radius   = (baseS.radius   || 95)  * stepDef.radiusMult; // radiusMult composes with already-upgraded baseS.radius (size axis)
+    if (stepDef.arcOverride != null)   s.arc      = Math.min(360, stepDef.arcOverride * this.axisGrowth('arc', eb.arc || 0, 24));
     if (stepDef.lengthMult != null)    s.length   = (baseS.length   || 150) * stepDef.lengthMult;
     if (stepDef.widthMult != null)     s.width    = (baseS.width    || 46)  * stepDef.widthMult;
     if (stepDef.countAdd != null)      s.count    = (baseS.count    || 1)   + stepDef.countAdd;
-    if (stepDef.spreadOverride != null) s.spread  = stepDef.spreadOverride;
-    if (stepDef.knockbackOverride != null) s.knockback = stepDef.knockbackOverride;
+    if (stepDef.spreadOverride != null) s.spread  = stepDef.spreadOverride; // spread is fixed-by-design (no spread axis on any hero) — justified static
+    if (stepDef.knockbackOverride != null) s.knockback = stepDef.knockbackOverride * this.axisGrowth('knockback', eb.knockback || 0, 16);
     if (stepDef.pierceMod != null)     s.pierce   = (baseS.pierce   || 0)   + stepDef.pierceMod;
     if (stepDef.rangeMultAdd != null)  s.range    = (baseS.range    || 230) * (1 + stepDef.rangeMultAdd); // boomerang throw distance
     if (stepDef.durationMult != null)  s.duration = (baseS.duration || 1600) * stepDef.durationMult;

@@ -3962,7 +3962,7 @@ export default class GameScene extends Phaser.Scene {
           const now   = this.time.now;
           if (depth >= 1 && now >= this._finisherCdUntil) {
             // Mid-string hold-to-full: fire the depth's finisher (accessibility fallback)
-            this._finisherCdUntil = now + FINISHER_CD_MS;
+            this._finisherCdUntil = now + this._finisherCdMs();
             this._fireFinisher(depth);
             this._stringDepth    = 0;
             this._stringWindowMs = 0;
@@ -4027,7 +4027,7 @@ export default class GameScene extends Phaser.Scene {
         if (this._stringDepth >= 1 && this._stringWindowMs > 0) {
           // ── FINISHER BRANCH ─────────────────────────────────────────────────
           if (now >= this._finisherCdUntil) {
-            this._finisherCdUntil = now + FINISHER_CD_MS;
+            this._finisherCdUntil = now + this._finisherCdMs();
             this._fireFinisher(this._stringDepth);
             this._stringDepth    = 0;
             this._stringWindowMs = 0;
@@ -4399,6 +4399,15 @@ export default class GameScene extends Phaser.Scene {
   // depth: 1→C2, 2→C3, 3→C4, 4→C5, 5→C6, 6→C6 (string depth at K-press time).
   // Called from both: K-press instant-branch AND hold-J auto-release fallback.
   // MUSOU empowered: depth upgraded one step (caps at C6).
+  // Finisher internal cooldown, scaled by the weapon's cadence growth so the cadence axis
+  // (Quickload / Rapid Fire / Rapid Muster …) actually quickens finishers too. Floored at
+  // 60% of the base so a fully-invested cadence build can't trivialise the gate.
+  _finisherCdMs(apex = false) {
+    const base = apex ? FINISHER_CD_APEX_MS : FINISHER_CD_MS;
+    const scale = Math.max(0.6, this.weapons.cadenceScale());
+    return base * scale;
+  }
+
   _fireFinisher(rawDepth) {
     // NOT gated by the primary's tap cooldown: a DW charge attack branches out of the
     // string INSTANTLY (J,K with no pause) — the finisher's own CD prevents spam.
@@ -4523,7 +4532,7 @@ export default class GameScene extends Phaser.Scene {
     this.tweens.add({ targets: ft, y: ft.y - 20, alpha: 0, duration: 600, ease: 'Quad.easeIn', onComplete: () => ft.destroy() });
 
     // C6 APEX carries a longer cooldown so the apex can't be spammed (~2s vs ~1.2s).
-    if (fKey === 'C6') this._finisherCdUntil = this.time.now + FINISHER_CD_APEX_MS;
+    if (fKey === 'C6') this._finisherCdUntil = this.time.now + this._finisherCdMs(true);
 
     this.weapons.timer = s.cooldown;
     this.weapons._aimOverride = null;
@@ -4533,14 +4542,18 @@ export default class GameScene extends Phaser.Scene {
   // but reads from the data-driven chargeFinishers def rather than mode constants).
   _applyFinisherToStats(s, fd) {
     const out = Object.assign({}, s);
+    const w  = this.weapons;
+    const eb = w.effBase();
     out.damage = s.damage * (fd.dmgMult || 1.8) * (this.player.empowered ? 1.5 : 1);
-    if (fd.arcOverride    != null) out.arc      = fd.arcOverride;
-    if (fd.radiusMult     != null) out.radius   = s.radius * fd.radiusMult;
+    // OVERRIDE fields compose with the player's invested upgrade points (same scaling the
+    // auto-fire stats earn) instead of blindly replacing them — see WeaponSystem.axisGrowth.
+    if (fd.arcOverride    != null) out.arc      = Math.min(360, fd.arcOverride * w.axisGrowth('arc', eb.arc || 0, 24));
+    if (fd.radiusMult     != null) out.radius   = s.radius * fd.radiusMult; // s.radius already carries the size-axis growth
     if (fd.lengthMult     != null) out.length   = (s.length || 150) * fd.lengthMult;
     if (fd.widthMult      != null) out.width    = (s.width  || 46)  * fd.widthMult;
     if (fd.countAdd       != null) out.count    = (s.count  || 1)   + fd.countAdd;
-    if (fd.spreadOverride != null) out.spread   = fd.spreadOverride;
-    if (fd.knockbackOverride != null) out.knockback = fd.knockbackOverride;
+    if (fd.spreadOverride != null) out.spread   = fd.spreadOverride; // fixed-by-design — no spread axis exists
+    if (fd.knockbackOverride != null) out.knockback = fd.knockbackOverride * w.axisGrowth('knockback', eb.knockback || 0, 16);
     if (fd.pierceMod      != null) out.pierce   = (s.pierce || 0) + fd.pierceMod;
     if (fd.launcher) out._launcher = true;
     // Carry behaviour flags the fire-path reads (Alexander quad-lane, Nobunaga armour pierce)
